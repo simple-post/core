@@ -2,13 +2,23 @@ import type { NextRequest } from "next/server";
 
 import { hasMcpScope, type McpScope } from "./config";
 
+const READ_ONLY_WORKSPACE_PATHS = new Set([
+  "/api/v1/features",
+  "/api/v1/posting-slots",
+  "/api/v1/publishing-preferences",
+]);
+
 /** REST accepts MCP credentials too; it must not bypass narrowed MCP consent. */
 export async function allowsMcpRestRequest(req: NextRequest, scope: string): Promise<boolean> {
   const path = req.nextUrl.pathname;
   const required: McpScope[] = [];
-  if (["GET", "HEAD"].includes(req.method) && /^\/api\/v1\/accounts(?:\/|$)/.test(path)) {
+  const isRead = ["GET", "HEAD"].includes(req.method);
+  if (isRead && /^\/api\/v1\/accounts(?:\/|$)/.test(path)) {
     required.push("accounts:read");
-  } else if (["GET", "HEAD"].includes(req.method) && /^\/api\/v1\/posts(?:\/|$)/.test(path)) {
+  } else if (isRead && /^\/api\/v1\/posts(?:\/|$)/.test(path)) {
+    required.push("posts:read");
+  } else if (isRead && READ_ONLY_WORKSPACE_PATHS.has(path)) {
+    // Side-effect-free workspace settings used to plan and inspect schedules.
     required.push("posts:read");
   } else if (req.method === "POST" && path === "/api/v1/validation") {
     required.push("posts:validate");

@@ -71,7 +71,7 @@ async function authenticateMcpBearerToken(req: NextRequest) {
   const session = await authenticateMcpToken(token);
   if (session?.session.enforceRestScopes && !(await allowsMcpRestRequest(req, session.session.scope))) {
     // A valid restricted bearer must never fall through to a broader browser session.
-    throw new ForbiddenError("The connected app does not have permission for this request");
+    throw new ForbiddenError(serverMessage("The connected app does not have permission for this request"));
   }
   return session;
 }
@@ -180,8 +180,9 @@ export async function requireReadAuth(req: NextRequest, billingContext: BillingG
 }
 
 /**
- * Gets the session without throwing if not authenticated
- * Useful for optional authentication checks
+ * Gets the session without throwing if not authenticated.
+ * Useful for optional authentication checks. Still throws ForbiddenError when a
+ * valid scope-restricted MCP token is used on an endpoint its grant does not cover.
  */
 export async function getSession(req: NextRequest) {
   const cliSession = await authenticateCliToken(req);

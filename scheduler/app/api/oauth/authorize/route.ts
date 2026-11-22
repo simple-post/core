@@ -73,10 +73,10 @@ export async function POST(req: NextRequest) {
     // caller sends Muse-only form fields. Only a verified client can opt in.
     const accessMode = museClient ? (body.access_mode ?? "read_write") : "read_write";
     if (accessMode !== "read_only" && accessMode !== "read_write") {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Unsupported access mode" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Unsupported access mode"), { status: 400 });
     }
 
     let resolvedResource: string;
@@ -110,10 +110,12 @@ export async function POST(req: NextRequest) {
 
     const grantedScope = museClient ? applyMcpAccessMode(scopeResult.scope, accessMode) : scopeResult.scope;
     if (!grantedScope) {
-      return NextResponse.json(
-        { error: "invalid_scope", error_description: "The requested scopes do not support read-only access" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_scope", serverMessage("The requested scopes do not support read-only access"), {
+        status: 400,
+      });
     }
 
     // Connector-first users return directly here after signing in and never

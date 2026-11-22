@@ -10,12 +10,17 @@ const request = (path: string, method = "GET", body?: unknown) =>
     ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
   });
 
-it.each(["/api/v1/accounts", "/api/v1/accounts/id/tiktok/creator-info", "/api/v1/posts", "/api/v1/posts/calendar"])(
-  "permits read-only access to %s",
-  async (path) => {
-    expect(await allowsMcpRestRequest(request(path), readOnly)).toBe(true);
-  },
-);
+it.each([
+  "/api/v1/accounts",
+  "/api/v1/accounts/id/tiktok/creator-info",
+  "/api/v1/posts",
+  "/api/v1/posts/calendar",
+  "/api/v1/features",
+  "/api/v1/posting-slots",
+  "/api/v1/publishing-preferences",
+])("permits read-only access to %s", async (path) => {
+  expect(await allowsMcpRestRequest(request(path), readOnly)).toBe(true);
+});
 
 it.each([
   ["/api/v1/posts", "POST"],
@@ -26,6 +31,8 @@ it.each([
   ["/api/v1/upload/presign", "POST"],
   ["/api/v1/accounts/id", "DELETE"],
   ["/api/v1/posting-slots", "PUT"],
+  ["/api/v1/publishing-preferences", "PATCH"],
+  ["/api/v1/features/extra", "GET"],
   ["/api/v1/unknown", "GET"],
 ])("denies read-only credentials on %s %s", async (path, method) => {
   expect(await allowsMcpRestRequest(request(path, method), readOnly)).toBe(false);
@@ -35,6 +42,7 @@ it.each([
 it("enforces separate read scopes", async () => {
   expect(await allowsMcpRestRequest(request("/api/v1/posts"), "accounts:read")).toBe(false);
   expect(await allowsMcpRestRequest(request("/api/v1/accounts"), "posts:read")).toBe(false);
+  expect(await allowsMcpRestRequest(request("/api/v1/posting-slots"), "accounts:read")).toBe(false);
 });
 
 it("enforces validation grants without consuming the body, and blocks stored image fitting", async () => {

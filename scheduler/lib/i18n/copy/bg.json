@@ -801,6 +801,7 @@
   "Show {{count, number}} More": "Показване на още {{count, number}}",
   "Show {{count, number}} More_one": "Показване на още {{count, number}}",
   "Show {{count, number}} More_other": "Показване на още {{count, number}}",
+  "Show saved post previews": "Показване на запазени визуализации на публикации",
   "Sidebar": "Странична лента",
   "Signed in as": "Влезли сте като",
   "Signup": "Регистрация",
@@ -1202,5 +1203,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Ако полето е празно, се използва съобщението.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "95% интервал на Уилсън за дела на регистрациите при {{variant}}: изчаква се краят на периода за наблюдение",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "95% интервал на Уилсън за дела на регистрациите при {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} незавършили периода за регистрация, {{signups, number}} наблюдавани регистрации в рамките на периода"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} незавършили периода за регистрация, {{signups, number}} наблюдавани регистрации в рамките на периода",
+  "Choose access": "Изберете достъп",
+  "Choose how much access Muse gets to your SimplePost account.": "Изберете какъв достъп до профила ви в SimplePost да получи Muse.",
+  "Connecting does not approve individual writes.": "Свързването не одобрява отделните действия за запис.",
+  "Inspect post history and upcoming schedules": "Преглед на историята на публикациите и предстоящия график",
+  "Read and write": "Четене и запис",
+  "Read only": "Само четене",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "Достъпът само за четене не позволява проверка на чернови, качване на медия или промяна на публикации."
 }

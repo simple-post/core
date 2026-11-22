@@ -791,6 +791,7 @@
   "Show day, week, or month schedules with posting slots and post statuses": "Menampilkan jadwal harian, mingguan, atau bulanan dengan slot dan status postingan",
   "Show {{count, number}} More": "Tampilkan {{count, number}} lagi",
   "Show {{count, number}} More_other": "Tampilkan {{count, number}} lagi",
+  "Show saved post previews": "Tampilkan pratinjau postingan yang tersimpan",
   "Sidebar": "Bilah sisi",
   "Signed in as": "Masuk sebagai",
   "Signup": "Pendaftaran",
@@ -1166,5 +1167,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Jika dikosongkan, isi pesan akan digunakan.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "Interval Wilson 95% untuk tingkat pendaftaran {{variant}}: menunggu jendela pengamatan selesai",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "Interval Wilson 95% untuk tingkat pendaftaran {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} jendela pendaftaran masih terbuka, {{signups, number}} pendaftaran tercatat dalam jendela"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} jendela pendaftaran masih terbuka, {{signups, number}} pendaftaran tercatat dalam jendela",
+  "Choose access": "Pilih akses",
+  "Choose how much access Muse gets to your SimplePost account.": "Pilih tingkat akses Muse ke akun SimplePost Anda.",
+  "Connecting does not approve individual writes.": "Menghubungkan akun tidak menyetujui setiap tindakan tulis.",
+  "Inspect post history and upcoming schedules": "Lihat riwayat postingan dan jadwal mendatang",
+  "Read and write": "Baca dan tulis",
+  "Read only": "Hanya baca",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "Akses hanya baca tidak dapat memvalidasi draf, mengunggah media, atau mengubah postingan."
 }

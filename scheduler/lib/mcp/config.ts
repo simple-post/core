@@ -7,6 +7,19 @@ export const DEFAULT_MCP_SCOPE = MCP_AUTHORIZATION_SCOPES.join(" ");
 
 export type McpScope = (typeof MCP_SCOPES)[number];
 export type McpAuthorizationScope = (typeof MCP_AUTHORIZATION_SCOPES)[number];
+export type McpAccessMode = "read_only" | "read_write";
+
+/** Consent can narrow the requested grant, never add permissions to it. */
+export function applyMcpAccessMode(scope: string, mode: McpAccessMode): string | null {
+  if (!scope.trim()) return null;
+  // MCP validation/preview can import media even without imageFit, so they are
+  // mixed read/write tools and are excluded from a genuinely read-only grant.
+  const scopes = parseMcpAuthorizationScopes(scope).filter(
+    (item) => mode !== "read_only" || (item !== "posts:write" && item !== "posts:validate"),
+  );
+  // An empty persisted scope is interpreted as a legacy full grant. Never emit one.
+  return scopes.length > 0 ? scopes.join(" ") : null;
+}
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 const CURSOR_MCP_REDIRECT_URI = "cursor://anysphere.cursor-mcp/oauth/callback";

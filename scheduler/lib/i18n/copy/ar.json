@@ -841,6 +841,7 @@
   "Show {{count, number}} More_other": "عرض المزيد: {{count, number}}",
   "Show {{count, number}} More_two": "عرض المزيد: {{count, number}}",
   "Show {{count, number}} More_zero": "عرض المزيد: {{count, number}}",
+  "Show saved post previews": "عرض معاينات المنشورات المحفوظة",
   "Sidebar": "الشريط الجانبي",
   "Signed in as": "مسجّل الدخول باسم",
   "Signup": "التسجيل",
@@ -1346,5 +1347,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. إذا تركت الحقل فارغًا، فسيُستخدم نص الرسالة.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "فاصل ويلسون بنسبة 95% لمعدل التسجيل في {{variant}}: في انتظار اكتمال فترة الرصد",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "فاصل ويلسون بنسبة 95% لمعدل التسجيل في {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: فترات تسجيل لا تزال مفتوحة: {{pending, number}}؛ تسجيلات مرصودة ضمن الفترة: {{signups, number}}"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: فترات تسجيل لا تزال مفتوحة: {{pending, number}}؛ تسجيلات مرصودة ضمن الفترة: {{signups, number}}",
+  "Choose access": "اختيار الوصول",
+  "Choose how much access Muse gets to your SimplePost account.": "اختر مستوى وصول Muse إلى حسابك على SimplePost.",
+  "Connecting does not approve individual writes.": "لا يعني الربط الموافقة على كل عملية كتابة.",
+  "Inspect post history and upcoming schedules": "عرض سجل المنشورات ومواعيد النشر القادمة",
+  "Read and write": "قراءة وكتابة",
+  "Read only": "قراءة فقط",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "لا يتيح الوصول للقراءة فقط التحقق من المسودات أو رفع الوسائط أو تعديل المنشورات."
 }

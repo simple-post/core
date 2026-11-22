@@ -811,6 +811,7 @@
   "Show {{count, number}} More_many": "Mostra altri {{count, number}}",
   "Show {{count, number}} More_one": "Mostra altri {{count, number}}",
   "Show {{count, number}} More_other": "Mostra altri {{count, number}}",
+  "Show saved post previews": "Mostra le anteprime salvate dei post",
   "Sidebar": "Barra laterale",
   "Signed in as": "Accesso come",
   "Signup": "Registrazione",
@@ -1238,5 +1239,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Se lasci il campo vuoto, verrà usato il messaggio.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "Intervallo di Wilson al 95% per il tasso di registrazione di {{variant}}: in attesa della fine della finestra di osservazione",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "Intervallo di Wilson al 95% per il tasso di registrazione di {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} finestre di registrazione ancora aperte, {{signups, number}} registrazioni osservate entro la finestra"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} finestre di registrazione ancora aperte, {{signups, number}} registrazioni osservate entro la finestra",
+  "Choose access": "Scegli l’accesso",
+  "Choose how much access Muse gets to your SimplePost account.": "Scegli il livello di accesso di Muse al tuo account SimplePost.",
+  "Connecting does not approve individual writes.": "Collegare l’account non autorizza le singole operazioni di scrittura.",
+  "Inspect post history and upcoming schedules": "Consulta la cronologia e le prossime pubblicazioni in programma",
+  "Read and write": "Lettura e scrittura",
+  "Read only": "Sola lettura",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "L’accesso in sola lettura non permette di convalidare le bozze, caricare contenuti multimediali o modificare i post."
 }

@@ -811,6 +811,7 @@
   "Show {{count, number}} More_many": "Mostrar mais {{count, number}}",
   "Show {{count, number}} More_one": "Mostrar mais {{count, number}}",
   "Show {{count, number}} More_other": "Mostrar mais {{count, number}}",
+  "Show saved post previews": "Mostrar prévias salvas das publicações",
   "Sidebar": "Barra lateral",
   "Signed in as": "Sessão iniciada como",
   "Signup": "Cadastro",
@@ -1238,5 +1239,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Se ficar em branco, será usada a mensagem.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "Intervalo de Wilson de 95% para a taxa de cadastro de {{variant}}: aguardando o fim da janela de observação",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "Intervalo de Wilson de 95% para a taxa de cadastro de {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} janelas de cadastro em andamento, {{signups, number}} cadastros observados dentro da janela"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} janelas de cadastro em andamento, {{signups, number}} cadastros observados dentro da janela",
+  "Choose access": "Escolher acesso",
+  "Choose how much access Muse gets to your SimplePost account.": "Escolha o nível de acesso do Muse à sua conta do SimplePost.",
+  "Connecting does not approve individual writes.": "Conectar a conta não aprova cada operação de gravação.",
+  "Inspect post history and upcoming schedules": "Consultar o histórico de publicações e os próximos agendamentos",
+  "Read and write": "Leitura e gravação",
+  "Read only": "Somente leitura",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "O acesso somente leitura não permite validar rascunhos, enviar mídias nem alterar publicações."
 }

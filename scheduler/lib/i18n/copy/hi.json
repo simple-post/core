@@ -801,6 +801,7 @@
   "Show {{count, number}} More": "{{count, number}} और दिखाएँ",
   "Show {{count, number}} More_one": "{{count, number}} और दिखाएँ",
   "Show {{count, number}} More_other": "{{count, number}} और दिखाएँ",
+  "Show saved post previews": "पोस्ट के सेव किए गए प्रीव्यू दिखाएँ",
   "Sidebar": "साइडबार",
   "Signed in as": "इस नाम से लॉगिन है",
   "Signup": "साइनअप",
@@ -1202,5 +1203,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}। खाली छोड़ने पर मैसेज का इस्तेमाल होगा।",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "{{variant}} की साइनअप दर का 95% विल्सन अंतराल: अवलोकन की अवधि पूरी होने का इंतज़ार",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "{{variant}} की साइनअप दर का 95% विल्सन अंतराल: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} साइनअप अवधियाँ अब भी खुली हैं, तय अवधि के भीतर {{signups, number}} साइनअप दिखे"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} साइनअप अवधियाँ अब भी खुली हैं, तय अवधि के भीतर {{signups, number}} साइनअप दिखे",
+  "Choose access": "ऐक्सेस चुनें",
+  "Choose how much access Muse gets to your SimplePost account.": "चुनें कि Muse को आपके SimplePost खाते का कितना ऐक्सेस मिले।",
+  "Connecting does not approve individual writes.": "खाता कनेक्ट करने से हर बदलाव की अनुमति नहीं मिलती।",
+  "Inspect post history and upcoming schedules": "पोस्ट का इतिहास और आने वाले शेड्यूल देखें",
+  "Read and write": "पढ़ना और लिखना",
+  "Read only": "सिर्फ़ पढ़ना",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "सिर्फ़ पढ़ने के ऐक्सेस से ड्राफ़्ट की जाँच, मीडिया अपलोड या पोस्ट में बदलाव नहीं किया जा सकता।"
 }

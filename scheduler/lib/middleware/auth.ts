@@ -6,9 +6,10 @@ import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
 import { serverMessage } from "@/lib/i18n/server";
 import { rememberRequestUser } from "@/lib/logger/request-context";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
+import { allowsMcpRestRequest } from "@/lib/mcp/rest-scopes";
 import { prisma } from "@/lib/prisma";
 import { hashApiKey, isApiKey } from "@/lib/security/api-keys";
-import { UnauthorizedError } from "@/lib/utils/errors";
+import { ForbiddenError, UnauthorizedError } from "@/lib/utils/errors";
 
 /**
  * Authenticate via CLI bearer token (Authorization: Bearer sp_cli_...).
@@ -67,7 +68,12 @@ async function authenticateMcpBearerToken(req: NextRequest) {
   const token = authHeader.slice("Bearer ".length);
   if (!isMcpToken(token)) return null;
 
-  return authenticateMcpToken(token);
+  const session = await authenticateMcpToken(token);
+  if (session?.session.enforceRestScopes && !(await allowsMcpRestRequest(req, session.session.scope))) {
+    // A valid restricted bearer must never fall through to a broader browser session.
+    throw new ForbiddenError(serverMessage("The connected app does not have permission for this request"));
+  }
+  return session;
 }
 
 /**
@@ -174,8 +180,9 @@ export async function requireReadAuth(req: NextRequest, billingContext: BillingG
 }
 
 /**
- * Gets the session without throwing if not authenticated
- * Useful for optional authentication checks
+ * Gets the session without throwing if not authenticated.
+ * Useful for optional authentication checks. Still throws ForbiddenError when a
+ * valid scope-restricted MCP token is used on an endpoint its grant does not cover.
  */
 export async function getSession(req: NextRequest) {
   const cliSession = await authenticateCliToken(req);

@@ -791,6 +791,7 @@
   "Show day, week, or month schedules with posting slots and post statuses": "顯示日、週或月排程，包括發文時段與貼文狀態",
   "Show {{count, number}} More": "再顯示 {{count, number}} 個",
   "Show {{count, number}} More_other": "再顯示 {{count, number}} 個",
+  "Show saved post previews": "顯示已儲存的貼文預覽",
   "Sidebar": "側邊欄",
   "Signed in as": "目前登入身分",
   "Signup": "註冊",
@@ -1166,5 +1167,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}。留空時會使用訊息內容。",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "{{variant}} 註冊率的 95% Wilson 區間：等待觀察期結束",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "{{variant}} 註冊率的 95% Wilson 區間：{{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}：{{pending, number}} 個註冊時間範圍尚未結束，觀察到 {{signups, number}} 筆期間內的註冊"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}：{{pending, number}} 個註冊時間範圍尚未結束，觀察到 {{signups, number}} 筆期間內的註冊",
+  "Choose access": "選擇存取權限",
+  "Choose how much access Muse gets to your SimplePost account.": "選擇要授予 Muse 的 SimplePost 帳戶存取權限。",
+  "Connecting does not approve individual writes.": "連結帳戶不代表核准個別寫入操作。",
+  "Inspect post history and upcoming schedules": "查看貼文記錄和即將發布的排程",
+  "Read and write": "讀取和寫入",
+  "Read only": "唯讀",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "唯讀權限無法驗證草稿、上傳媒體或變更貼文。"
 }

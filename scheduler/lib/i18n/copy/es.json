@@ -811,6 +811,7 @@
   "Show {{count, number}} More_many": "Mostrar {{count, number}} más",
   "Show {{count, number}} More_one": "Mostrar {{count, number}} más",
   "Show {{count, number}} More_other": "Mostrar {{count, number}} más",
+  "Show saved post previews": "Mostrar vistas previas guardadas de publicaciones",
   "Sidebar": "Barra lateral",
   "Signed in as": "Sesión iniciada como",
   "Signup": "Registro",
@@ -1238,5 +1239,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Si lo dejas en blanco, se usará el mensaje.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "Intervalo de Wilson del 95 % para la tasa de registro de {{variant}}: esperando a que termine el periodo de observación",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "Intervalo de Wilson del 95 % para la tasa de registro de {{variant}}: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} plazos de registro aún abiertos, {{signups, number}} registros observados dentro del plazo"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} plazos de registro aún abiertos, {{signups, number}} registros observados dentro del plazo",
+  "Choose access": "Elegir acceso",
+  "Choose how much access Muse gets to your SimplePost account.": "Elige qué acceso tendrá Muse a tu cuenta de SimplePost.",
+  "Connecting does not approve individual writes.": "La conexión no autoriza cada operación de escritura.",
+  "Inspect post history and upcoming schedules": "Consultar el historial y las próximas publicaciones programadas",
+  "Read and write": "Lectura y escritura",
+  "Read only": "Solo lectura",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "El acceso de solo lectura no permite validar borradores, subir archivos multimedia ni modificar publicaciones."
 }

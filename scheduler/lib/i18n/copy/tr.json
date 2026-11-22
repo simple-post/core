@@ -801,6 +801,7 @@
   "Show {{count, number}} More": "{{count, number}} tane daha göster",
   "Show {{count, number}} More_one": "{{count, number}} tane daha göster",
   "Show {{count, number}} More_other": "{{count, number}} tane daha göster",
+  "Show saved post previews": "Kaydedilmiş gönderi önizlemelerini göster",
   "Sidebar": "Kenar çubuğu",
   "Signed in as": "Giriş yapılan hesap",
   "Signup": "Kayıt",
@@ -1202,5 +1203,12 @@
   "{{used, number}}/{{limit, number}}. If empty, the message is used.": "{{used, number}}/{{limit, number}}. Boş bırakılırsa mesaj kullanılır.",
   "{{variant}} signup rate 95% Wilson interval: awaiting mature data": "{{variant}} kayıt oranının %95 Wilson aralığı: gözlem süresinin dolması bekleniyor",
   "{{variant}} signup rate 95% Wilson interval: {{lower}}–{{upper}}": "{{variant}} kayıt oranının %95 Wilson aralığı: {{lower}}–{{upper}}",
-  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} açık kayıt penceresi, süre içinde gözlemlenen {{signups, number}} kayıt"
+  "{{variant}}: {{pending, number}} pending signup windows, {{signups, number}} observed in-window signups": "{{variant}}: {{pending, number}} açık kayıt penceresi, süre içinde gözlemlenen {{signups, number}} kayıt",
+  "Choose access": "Erişim seçin",
+  "Choose how much access Muse gets to your SimplePost account.": "Muse’un SimplePost hesabınıza hangi düzeyde erişeceğini seçin.",
+  "Connecting does not approve individual writes.": "Hesabı bağlamak, tek tek yazma işlemlerini onaylamaz.",
+  "Inspect post history and upcoming schedules": "Gönderi geçmişini ve yaklaşan planları inceleyin",
+  "Read and write": "Okuma ve yazma",
+  "Read only": "Salt okunur",
+  "Read-only access cannot validate drafts, upload media, or change posts.": "Salt okunur erişimle taslakları doğrulayamaz, medya yükleyemez veya gönderileri değiştiremezsiniz."
 }

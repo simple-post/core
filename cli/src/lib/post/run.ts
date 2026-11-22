@@ -7,6 +7,7 @@ import {
   canFitImageIssue,
   fitPostImages,
   validatePostMedia,
+  PostError,
   PostErrorType,
   post as publishPost,
   prepareMedia,
@@ -156,7 +157,7 @@ async function buildExecutionTargets(options: {
   post: Post;
   prompt: PromptSession;
   selections: Awaited<ReturnType<typeof collectPostInput>>["accountSelections"];
-}): Promise<{ store?: SecretStore; targets: ExecutionTarget[] }> {
+}): Promise<{ store?: SecretStore; targets: Array<ExecutionTarget | ExecutionOutcome> }> {
   const hasStoredSelections = Object.values(options.selections).some((aliases) => (aliases?.length ?? 0) > 0);
   let store: SecretStore | undefined;
   let resolver: CredentialResolver | undefined;
@@ -178,7 +179,7 @@ async function buildExecutionTargets(options: {
     }
   }
 
-  const targets: ExecutionTarget[] = [];
+  const targets: Array<ExecutionTarget | ExecutionOutcome> = [];
   for (const platform of getUniquePlatforms(options.post.platforms)) {
     const aliases = options.selections[platform] ?? [];
 
@@ -203,13 +204,18 @@ async function buildExecutionTargets(options: {
     }
 
     for (const alias of aliases) {
-      const resolved = await resolver.resolveAccount(platform, alias);
-      targets.push({
-        accountAlias: alias,
-        platform,
-        post: clonePostForPlatform(resolver.injectResolvedAccount(options.post, resolved), platform),
-        secretRef: resolved.secretRef,
-      });
+      try {
+        const resolved = await resolver.resolveAccount(platform, alias);
+        targets.push({
+          accountAlias: alias,
+          platform,
+          post: clonePostForPlatform(resolver.injectResolvedAccount(options.post, resolved), platform),
+          secretRef: resolved.secretRef,
+        });
+      } catch (error) {
+        if (!(error instanceof PostError)) throw error;
+        targets.push({ accountAlias: alias, platform, result: { error: error.errorType, message: error.message } });
+      }
     }
   }
 
@@ -440,6 +446,10 @@ export async function runPostWorkflow(options: {
       });
 
       for (const target of executionPlan.targets) {
+        if ("result" in target) {
+          outcomes.push(target);
+          continue;
+        }
         // Staging uploads local files so platforms that need public URLs can
         // fetch them, but the SDK only validates once publishing starts. Check
         // first, so a post that cannot publish reports why instead of failing

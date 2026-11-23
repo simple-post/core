@@ -36,7 +36,7 @@ import { handleApiError, BadRequestError, ApiError, ValidationError, sanitizeFor
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
-import { createPostSchema } from "@/lib/validations/posts";
+import { createPostSchema, readCreatePostBody } from "@/lib/validations/posts";
 import { getScheduledForValueError, parseScheduledForValue } from "@/lib/validations/scheduled-time";
 import { dispatchPostWebhooks } from "@/lib/webhooks";
 import type { AccountResultsMap, MediaFile, ThreadSegmentResult } from "@/types";
@@ -173,10 +173,8 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
     const repository = new PostsModel(userId);
 
-    const body = await req.json();
-    log.debug({ postingMode: body.postingMode, messageLength: body.message?.length || 0 }, "Request body parsed");
-
-    const parsed = createPostSchema.parse(body);
+    const parsed = createPostSchema.parse(await readCreatePostBody(req));
+    log.debug({ postingMode: parsed.postingMode, messageLength: parsed.message.length }, "Request body parsed");
     let validated = { ...parsed, accountIds: [...new Set(parsed.accountIds)] };
     log.debug({ accountCount: validated.accountIds.length }, "Validation successful");
 

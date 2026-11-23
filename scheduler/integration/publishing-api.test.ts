@@ -59,6 +59,33 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+it.each([
+  ["draft", "draft"],
+  ["schedule", "scheduled"],
+] as const)("creates and replays a form-encoded %s post", async (postingMode, status) => {
+  const message = 'Approved "spring" text\nNew arrivals + 10% off & shipping 🚀';
+  const fields = new URLSearchParams({
+    message,
+    postingMode,
+    accountId: "account",
+    idempotencyKey: `pabbly:content:${postingMode}:rec123`,
+  });
+  if (postingMode === "schedule") fields.set("scheduledFor", new Date(Date.now() + 600_000).toISOString());
+  const createFromForm = () =>
+    create(new NextRequest("http://localhost/api/v1/posts", { method: "POST", body: fields }));
+
+  const first = await createFromForm();
+  expect(first.status).toBe(201);
+  const { post } = await first.json();
+  expect(post).toMatchObject({ message, status, accountIds: ["account"] });
+
+  const replay = await createFromForm();
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toMatchObject({ post: { id: post.id }, replayed: true });
+  expect(await prisma.post.count({ where: { userId } })).toBe(1);
+  expect(sdkPost).not.toHaveBeenCalled();
+});
+
 async function failedPost() {
   return new PostsModel(userId).createPost(
     {

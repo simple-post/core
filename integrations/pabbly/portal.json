@@ -1,0 +1,64 @@
+{
+  "appName": "SimplePost",
+  "authentication": {
+    "type": "Bearer Token",
+    "validator": {
+      "name": "Check Connection",
+      "method": "GET",
+      "url": "https://app.simplepost.social/api/v1/accounts"
+    }
+  },
+  "accountDropdown": {
+    "name": "List Posting Accounts",
+    "method": "GET",
+    "url": "https://app.simplepost.social/api/v1/accounts?pc_json_parser_type=transform&pc_json_parser_template={\"accounts\":\"{{{ this.accounts.filter(a => !a.previewOnly).filter(a => a.credentialStatus?.state !== 'reauth_required').map(a => ({id: a.id, label: String(a.displayName || a.username || a.id).concat(' (', a.platform, ')')})) }}}\"}",
+    "responsePath": "accounts",
+    "labelKey": "label",
+    "valueKey": "id"
+  },
+  "postRequest": {
+    "method": "POST",
+    "url": "https://app.simplepost.social/api/v1/posts",
+    "contentType": "application/x-www-form-urlencoded",
+    "fields": {
+      "accountId": {
+        "label": "Social Account",
+        "type": "dropdown",
+        "required": true,
+        "help": "Select the connected account this post is for."
+      },
+      "message": {
+        "label": "Message",
+        "type": "text",
+        "required": true,
+        "help": "Enter or map the post text. Quotes, line breaks, and emoji are supported."
+      },
+      "idempotencyKey": {
+        "label": "Deduplication Key",
+        "type": "text",
+        "required": true,
+        "help": "Map a unique source record ID with a workflow prefix, such as airtable:content:rec123. Use the same key when retrying that record."
+      },
+      "scheduledFor": {
+        "label": "Scheduled For",
+        "type": "text",
+        "required": true,
+        "help": "A future UTC timestamp in ISO 8601 format, such as 2030-05-01T14:00:00Z."
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "Create Draft",
+      "description": "Saves a social post as a draft for review in SimplePost.",
+      "postingMode": "draft",
+      "fields": ["accountId", "message", "idempotencyKey"]
+    },
+    {
+      "name": "Schedule Post",
+      "description": "Schedules a social post for a future date and time.",
+      "postingMode": "schedule",
+      "fields": ["accountId", "message", "scheduledFor", "idempotencyKey"]
+    }
+  ]
+}

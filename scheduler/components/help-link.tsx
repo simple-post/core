@@ -1,19 +1,23 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import { CircleHelp } from "lucide-react";
 
 import { docsUrl } from "@/lib/docs";
+import { useUiTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 export function HelpLink({
   path = "/getting-started",
-  children = "Help",
+  children,
   className,
 }: {
   path?: string;
   children?: ReactNode;
   className?: string;
 }) {
+  const { t } = useUiTranslation();
   return (
     <a
       href={docsUrl(path)}
@@ -25,8 +29,8 @@ export function HelpLink({
       )}>
       <CircleHelp className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>
-        {children}
-        <span className="sr-only"> (opens in a new tab)</span>
+        {children ?? t("help")}
+        <span className="sr-only"> {t("opensNewTab")}</span>
       </span>
     </a>
   );

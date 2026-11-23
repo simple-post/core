@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useUiTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 interface TerminalBlockProps {
@@ -14,6 +15,7 @@ interface TerminalBlockProps {
 }
 
 export function TerminalBlock({ title, children, className }: TerminalBlockProps) {
+  const { t } = useUiTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -38,11 +40,12 @@ export function TerminalBlock({ title, children, className }: TerminalBlockProps
           variant="ghost"
           size="icon"
           className="h-6 w-6 text-muted-foreground hover:text-foreground"
+          aria-label={copied ? t("copiedToClipboard") : t("copyToClipboard")}
           onClick={handleCopy}>
           {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
         </Button>
       </div>
-      <pre className="px-4 py-3 font-mono text-[13px] text-foreground overflow-x-auto">
+      <pre dir="ltr" className="px-4 py-3 font-mono text-[13px] text-foreground overflow-x-auto">
         <code>{children}</code>
       </pre>
     </div>

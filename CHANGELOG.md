@@ -8,7 +8,17 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Added
 
+- Bluesky clickable links, hashtags and resolvable mentions, with UTF-8 facet ranges on posts and thread replies. Unresolved mentions remain plain text.
+- Bluesky external link cards for text posts without explicit media or quotes. Metadata and optional thumbnails use bounded public-only requests; failures fall back to the original clickable link.
 - Make custom app in `integrations/make`, in the Make Apps Editor local-development format. It adds instant triggers for published and failed posts, post search, get, create, validate and delete modules, media upload, an account list and selector, and a universal **Make an API call** module. See the [publishing guide](integrations/make/PUBLISHING.md).
+
+### Changed
+
+- TikTok video uploads automatically retry transient failures before the final chunk is sent, with at most two restarts. Final-chunk uncertainty still requires reconciliation. Recovery logs include the failed chunk and HTTP status without credentials or signed URLs.
+
+### Release notes
+
+- These additions are pending an SDK minor release and deployment of hosted consumers. Marketing and public documentation must retain the current rich-text limitation until the hosted publishing path is verified. No package release or deployment is triggered by this change.
 
 ## [1.4.0] - 2026-09-24
 

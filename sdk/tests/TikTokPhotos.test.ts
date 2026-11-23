@@ -6,7 +6,7 @@ import sharp from "sharp";
 
 import { TikTokPublisher } from "../src/publishers/tiktok";
 import { getTikTokPostText, validateTikTokContent } from "../src/publishers/tiktok/validation";
-import { PostErrorType } from "../src/types";
+import { PostError, PostErrorType } from "../src/types";
 import { downloadToTempFile } from "../src/utils/media";
 import { MediaResolver } from "../src/utils/media-resolver";
 import { S3MediaUploader } from "../src/utils/s3";
@@ -36,7 +36,11 @@ const photos = (count = 7): Content => ({
   })),
 });
 const publisher = () => new TikTokPublisher(options());
-function mockPublish(draft = false, status = draft ? "SEND_TO_USER_INBOX" : "PUBLISH_COMPLETE") {
+function mockPublish(
+  draft = false,
+  status = draft ? "SEND_TO_USER_INBOX" : "PUBLISH_COMPLETE",
+  reason = "photo_pull_failed",
+) {
   if (!draft)
     api.post.mockResolvedValueOnce({
       data: { data: { creator_username: "creator", privacy_level_options: ["SELF_ONLY"] }, error: { code: "ok" } },
@@ -47,7 +51,7 @@ function mockPublish(draft = false, status = draft ? "SEND_TO_USER_INBOX" : "PUB
       data: {
         status,
         publicaly_available_post_id: status === "PUBLISH_COMPLETE" ? ["123"] : undefined,
-        fail_reason: "photo_pull_failed",
+        fail_reason: reason,
       },
     },
   });
@@ -173,18 +177,23 @@ it("retains staged media after an ambiguous init timeout", async () => {
   api.post.mockRejectedValue(new Error("timeout"));
   await expect(
     publisher().postContent({ media: [{ type: "image", path: "/tmp/photo.jpg" }] }, options({ publishMode: "draft" })),
-  ).rejects.toThrow("timeout");
+  ).rejects.toMatchObject({ errorType: PostErrorType.API_ERROR, message: expect.stringContaining("did not confirm") });
   expect(uploadFile).toHaveBeenCalledTimes(1);
   expect(deleteFile).not.toHaveBeenCalled();
 });
-it("reports TikTok processing failures as failures", async () => {
-  mockPublish(true, "FAILED");
-  const result = await publisher().post(photos(), options({ publishMode: "draft" }));
-  expect(result).toMatchObject({
-    error: PostErrorType.API_ERROR,
-    message: expect.stringContaining("photo_pull_failed"),
-  });
-});
+it.each(["photo_pull_failed", "video_pull_failed", "internal", "picture_size_check_failed", "spam_risk"])(
+  "reports terminal %s processing failures as confirmed rejections",
+  async (code) => {
+    mockPublish(true, "FAILED", code);
+    const result = await publisher().post(photos(), options({ publishMode: "draft" }));
+    expect(result).toMatchObject({
+      error: PostErrorType.PUBLISH_REJECTED,
+      message: expect.stringContaining(code),
+      details: { phase: "status", status: "FAILED", code, publishId: "p_pub_url~123" },
+    });
+    expect(deleteFile).toHaveBeenCalledTimes(7);
+  },
+);
 it("rejects API errors returned with HTTP 200", async () => {
   api.post.mockResolvedValue({ data: { error: { code: "url_ownership_unverified", message: "Unverified domain" } } });
   await expect(publisher().postContent(photos(), options({ publishMode: "draft" }))).rejects.toThrow(
@@ -252,7 +261,10 @@ it("materializes TikTok photos once so the publisher stages the exact downloaded
 it("stages external photo bytes before submitting and retains them on timeout", async () => {
   api.post.mockRejectedValue(new Error("timeout"));
   const content = { media: [{ type: "image" as const, url: "https://images.pexels.com/photo.jpeg" }] };
-  await expect(publisher().postContent(content, options({ publishMode: "draft" }))).rejects.toThrow("timeout");
+  await expect(publisher().postContent(content, options({ publishMode: "draft" }))).rejects.toMatchObject({
+    errorType: PostErrorType.API_ERROR,
+    message: expect.stringContaining("did not confirm"),
+  });
   expect(uploadStream).toHaveBeenCalledTimes(1);
   const chunks: Buffer[] = [];
   for await (const chunk of uploadStream.mock.calls[0][0]) chunks.push(chunk);
@@ -265,6 +277,35 @@ it("classifies HTTP 403 URL ownership rejection as safely failed and cleans stag
   await expect(publisher().postContent(photos(1), options({ publishMode: "draft" }))).rejects.toMatchObject({
     errorType: PostErrorType.PUBLISH_REJECTED,
   });
+  expect(deleteFile).toHaveBeenCalledTimes(1);
+});
+
+it.each(["http", "envelope"])("explains the pending-share limit from a photo %s rejection", async (kind) => {
+  const body = { error: { code: "spam_risk_too_many_pending_share", log_id: "safe_log_id" } };
+  if (kind === "http") api.post.mockRejectedValue({ response: { status: 400, data: body } });
+  else api.post.mockResolvedValue({ data: body });
+  await expect(publisher().postContent(photos(1), options({ publishMode: "draft" }))).rejects.toMatchObject({
+    errorType: PostErrorType.PUBLISH_REJECTED,
+    message: expect.stringContaining("pending-upload limit"),
+    details: { code: "spam_risk_too_many_pending_share", logId: "safe_log_id" },
+  });
+  expect(deleteFile).toHaveBeenCalledTimes(1);
+});
+
+it("gates photo initialization and cleans staged photos when the local account budget is full", async () => {
+  const beforeUploadInit = jest
+    .fn()
+    .mockRejectedValue(
+      new PostError(PostErrorType.RATE_LIMIT_ERROR, "Account request budget is full", { localRateLimit: true }),
+    );
+  const opts: PostOptionsWithCredentials = {
+    tiktok: { ...options({ publishMode: "draft" }).tiktok!, beforeUploadInit },
+  };
+  await expect(new TikTokPublisher(opts).postContent(photos(1), opts)).rejects.toMatchObject({
+    errorType: PostErrorType.RATE_LIMIT_ERROR,
+  });
+  expect(beforeUploadInit).toHaveBeenCalledTimes(1);
+  expect(api.post).not.toHaveBeenCalled();
   expect(deleteFile).toHaveBeenCalledTimes(1);
 });
 it("does not submit if storage staging fails", async () => {

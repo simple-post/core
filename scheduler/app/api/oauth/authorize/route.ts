@@ -1,8 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { assertActiveSubscription } from "@/lib/billing/subscriptions";
 import { ensureTrialStarted } from "@/lib/billing/trial";
 import {
+  applyMcpAccessMode,
   canUpgradeLegacyMcpClientScope,
   getAppBaseUrl,
   isMcpScopeSubset,
@@ -10,6 +15,7 @@ import {
   validateMcpScope,
 } from "@/lib/mcp/config";
 import { createAuthorizationCode, updateClientScope, validateClient } from "@/lib/mcp/oauth";
+import { isPersonalMuseClient } from "@/lib/mcp/personal-muse";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 
@@ -18,61 +24,98 @@ import { handleApiError } from "@/lib/utils/errors";
  * Called by the authorize page when the user approves access.
  */
 export async function POST(req: NextRequest) {
+  let measurementUserId: string | null = null;
   try {
     const session = await requireBrowserSession(req);
+    measurementUserId = session.user.id;
+    await recordFunnelEvent(measurementUserId, "assistant_authorization_started");
     const body = await req.json();
 
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, resource, nonce } = body;
-
     if (!client_id || !redirect_uri || !state || !code_challenge) {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Missing required parameters" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Missing required parameters"), { status: 400 });
     }
 
     if (code_challenge_method && code_challenge_method !== "S256") {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "Only S256 code_challenge_method is supported" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Only S256 code_challenge_method is supported"), {
+        status: 400,
+      });
     }
 
     if (nonce != null && (typeof nonce !== "string" || nonce.length > 512)) {
-      return NextResponse.json(
-        { error: "invalid_request", error_description: "nonce must be a string of at most 512 characters" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("nonce must be a string of at most 512 characters"), {
+        status: 400,
+      });
     }
 
     // Validate client and redirect URI
     const client = await validateClient(client_id, redirect_uri);
     if (!client) {
-      return NextResponse.json(
-        { error: "invalid_client", error_description: "Unknown client or invalid redirect URI" },
-        { status: 400 },
-      );
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_client", serverMessage("Unknown client or invalid redirect URI"), {
+        status: 400,
+      });
+    }
+
+    const museClient = isPersonalMuseClient(client.clientId);
+    // Other clients retain the original requested-scope behavior, even if a
+    // caller sends Muse-only form fields. Only a verified client can opt in.
+    const accessMode = museClient ? (body.access_mode ?? "read_write") : "read_write";
+    if (accessMode !== "read_only" && accessMode !== "read_write") {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_request", serverMessage("Unsupported access mode"), { status: 400 });
     }
 
     let resolvedResource: string;
     try {
       resolvedResource = resolveMcpResource(resource);
     } catch (error) {
-      return NextResponse.json(
-        {
-          error: "invalid_target",
-          error_description: error instanceof Error ? error.message : "Unsupported MCP resource",
-        },
+      return oauthError(
+        req,
+        "invalid_target",
+        typeof resource === "string"
+          ? serverMessage("Unsupported MCP resource: {{resource}}", { resource })
+          : error instanceof Error
+            ? error.message
+            : serverMessage("Unsupported MCP resource"),
         { status: 400 },
       );
     }
 
     const scopeResult = validateMcpScope(typeof scope === "string" ? scope : client.scope);
     if (!scopeResult.ok) {
-      return NextResponse.json(
-        { error: "invalid_scope", error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}` },
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(
+        req,
+        "invalid_scope",
+        serverMessage("Unsupported scope(s): {{scopes}}", { scopes: scopeResult.unsupported.join(", ") }),
         { status: 400 },
       );
+    }
+
+    const grantedScope = museClient ? applyMcpAccessMode(scopeResult.scope, accessMode) : scopeResult.scope;
+    if (!grantedScope) {
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: "invalid_request" },
+      });
+      return oauthError(req, "invalid_scope", serverMessage("The requested scopes do not support read-only access"), {
+        status: 400,
+      });
     }
 
     // Connector-first users return directly here after signing in and never
@@ -88,14 +131,13 @@ export async function POST(req: NextRequest) {
       if (canUpgradeLegacyMcpClientScope(scopeResult.scope, client.scope)) {
         await updateClientScope(client_id, scopeResult.scope);
       } else {
-        return NextResponse.json(
-          { error: "invalid_scope", error_description: "Requested scopes exceed registered client scopes" },
-          { status: 400 },
-        );
+        return oauthError(req, "invalid_scope", serverMessage("Requested scopes exceed registered client scopes"), {
+          status: 400,
+        });
       }
     }
 
-    // Generate authorization code
+    // Generate authorization code with the user's narrowed consent, not the original request.
     const code = await createAuthorizationCode({
       clientId: client_id,
       userId: session.user.id,
@@ -104,7 +146,8 @@ export async function POST(req: NextRequest) {
       nonce: typeof nonce === "string" && nonce.length > 0 ? nonce : undefined,
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method || "S256",
-      scope: scopeResult.scope,
+      scope: grantedScope,
+      enforceRestScopes: museClient,
     });
 
     // RFC 9207 issuer identification prevents authorization-server mix-up
@@ -116,6 +159,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ redirectUrl: redirect.toString() });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "assistant_authorization_failed", {
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

@@ -1,9 +1,12 @@
+import { PostError, PostErrorType } from "@simple-post/sdk";
+
 import {
   getAccountPlatformConfig,
   getClientIdEnvVar,
   getClientSecretEnvVar,
   isAccountPlatform,
 } from "./account/platforms.js";
+import { refreshTikTokCredentials } from "./auth/tiktok.js";
 
 import type { AccountPlatform } from "./account/platforms.js";
 import type { SecretStore } from "./secrets.js";
@@ -13,6 +16,7 @@ import type { Platform, Post, PostOptions } from "@simple-post/sdk";
 export type AccountSelections = Partial<Record<Platform, string[]>>;
 
 const YOUTUBE_TOKEN_BUFFER_SEC = 5 * 60;
+const TIKTOK_TOKEN_BUFFER_SEC = 5 * 60;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -28,8 +32,15 @@ function parseOAuthAccountSecret(payload: unknown, platform: AccountPlatform): O
     accessToken: payload.accessToken,
     ...(typeof payload.refreshToken === "string" ? { refreshToken: payload.refreshToken } : {}),
     ...(typeof payload.expiresAt === "number" ? { expiresAt: payload.expiresAt } : {}),
+    ...(typeof payload.refreshTokenExpiresAt === "number"
+      ? { refreshTokenExpiresAt: payload.refreshTokenExpiresAt }
+      : {}),
     ...(tokenMetadata ? { tokenMetadata } : {}),
   };
+}
+
+function needsTikTokRefresh(secret: OAuthAccountSecretPayload): boolean {
+  return (secret.expiresAt ?? 0) <= Date.now() / 1000 + TIKTOK_TOKEN_BUFFER_SEC;
 }
 
 function getStoredClientId(platform: AccountPlatform, secret: OAuthAccountSecretPayload): string {
@@ -269,7 +280,15 @@ export class CredentialResolver {
       );
     }
 
-    const accountSecret = parseOAuthAccountSecret(await this.secretStore.read(account.secretRef), platform);
+    let accountSecret = parseOAuthAccountSecret(await this.secretStore.read(account.secretRef), platform);
+    if (platform === "tiktok" && needsTikTokRefresh(accountSecret)) {
+      try {
+        accountSecret = await this.refreshStoredTikTokAccount(account);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "TikTok credentials could not be refreshed.";
+        throw new PostError(PostErrorType.CREDENTIALS_ERROR, message);
+      }
+    }
     return {
       alias: account.alias,
       metadata: account,
@@ -277,6 +296,37 @@ export class CredentialResolver {
       postOptions: buildStoredAccountPostOptions(platform, account, accountSecret),
       secretRef: account.secretRef,
     };
+  }
+
+  private async refreshStoredTikTokAccount(
+    account: ResolvedStoredAccount["metadata"],
+  ): Promise<OAuthAccountSecretPayload> {
+    const reconnectMessage = `Reconnect TikTok with "simplepost account add tiktok --alias ${account.alias}".`;
+    const payload = await this.secretStore.update(account.secretRef, async (current) => {
+      const latest = parseOAuthAccountSecret(current, "tiktok");
+      if (!needsTikTokRefresh(latest)) return;
+      if (!latest.refreshToken || (latest.refreshTokenExpiresAt ?? Infinity) <= Date.now() / 1000) {
+        throw new Error(`Saved TikTok credentials have expired. ${reconnectMessage}`);
+      }
+      const secretEnv = getClientSecretEnvVar("tiktok");
+      const clientSecret = process.env[secretEnv];
+      if (!clientSecret) {
+        throw new Error(`Set ${secretEnv} for your TikTok app to refresh this account. ${reconnectMessage}`);
+      }
+      const refreshed = await refreshTikTokCredentials(
+        latest.refreshToken,
+        getStoredClientId("tiktok", latest),
+        clientSecret,
+      );
+
+      // A rejected or unusable refresh token must not be submitted again.
+      return refreshed ? { ...current, ...refreshed } : { ...current, refreshToken: undefined };
+    });
+    const secret = parseOAuthAccountSecret(payload, "tiktok");
+    if (!secret.refreshToken) {
+      throw new Error(`TikTok credentials could not be refreshed. ${reconnectMessage}`);
+    }
+    return secret;
   }
 
   public injectResolvedAccount(post: Post, account: ResolvedStoredAccount): Post {

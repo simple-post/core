@@ -55,14 +55,6 @@ interface PinterestProfile {
   profile_image?: { url?: string } | string;
 }
 
-interface YouTubeProfile {
-  id?: string;
-  sub?: string;
-  name?: string;
-  email?: string;
-  picture?: string;
-}
-
 interface DefaultProfile {
   id?: string;
   sub?: string;
@@ -75,7 +67,6 @@ type PlatformProfile =
   | ThreadsProfile
   | LinkedInProfile
   | PinterestProfile
-  | YouTubeProfile
   | DefaultProfile;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -218,14 +209,6 @@ async function extractProfileData(platform: string, profile: PlatformProfile, to
       displayName ||= username;
       const img = p.profile_image;
       profilePicture = (typeof img === "object" ? img?.url : img) || null;
-      break;
-    }
-    case "youtube": {
-      const p = profile as YouTubeProfile;
-      platformAccountId = p.id || p.sub || "";
-      displayName = p.name || null;
-      email = p.email || null;
-      profilePicture = p.picture || null;
       break;
     }
     default: {

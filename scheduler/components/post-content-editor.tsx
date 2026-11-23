@@ -3,6 +3,7 @@
 import type React from "react";
 import { useCallback, useRef } from "react";
 
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { getMainFieldCharCounterState } from "@/lib/message-length-ui";
 import type { MediaFile, ThreadSegment } from "@/types";
 
@@ -48,9 +49,10 @@ export function PostContentEditor({
   thread,
   maxTextLength,
   charCounter,
-  placeholder = "What's on your mind?",
+  placeholder,
   onPasteMedia,
 }: PostContentEditorProps) {
+  const { copy, locale } = useUiCopy();
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
 
   const handlePaste = useCallback(
@@ -70,7 +72,7 @@ export function PostContentEditor({
         id={id}
         message={message}
         onMessageChange={onMessageChange}
-        placeholder={placeholder}
+        placeholder={placeholder ?? copy("What's on your mind?")}
         onPaste={handlePaste}
         maxLength={maxTextLength}
         media={<MediaUpload ref={mediaUploadRef} media={media} onMediaChange={onMediaChange} compact />}
@@ -78,9 +80,11 @@ export function PostContentEditor({
           maxTextLength && charCounter ? (
             <>
               <span className={charCounter.countClassName}>
-                {charCounter.numerator.toLocaleString()}/{charCounter.denominator.toLocaleString()}
+                {charCounter.numerator.toLocaleString(locale)}/{charCounter.denominator.toLocaleString(locale)}
               </span>
-              {charCounter.showLongPostOnXHint ? <span className="text-muted-foreground">Long X post</span> : null}
+              {charCounter.showLongPostOnXHint ? (
+                <span className="text-muted-foreground">{copy("Long X post")}</span>
+              ) : null}
             </>
           ) : undefined
         }

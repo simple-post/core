@@ -473,6 +473,18 @@ for (const p of platforms)
     {},
     { interfaces: ["cli-app", "cli-local"], input: "json" },
   );
+// Large-original upload acceptance, selected only by `--profile uploads` so
+// smoke/full runs are unchanged. One image and one video per native video
+// platform (YouTube is video-only): 19 scenarios, one post each. Every
+// interface is declared so explicit --interface overrides work; the profile
+// itself defaults to UI. Platform defaults from materialize() still apply;
+// YouTube uses private visibility so the existing owner readback proves the
+// exact uploaded byte count, 30 s source duration and 720×1280 dimensions.
+for (const p of platforms) {
+  if (p === "forem") continue;
+  if (p !== "youtube") add(p, "uploads-image", ["uploadImage"], {}, { tags: ["uploads"] });
+  add(p, "uploads-video", ["uploadVideo"], p === "youtube" ? { privacyStatus: "private" } : {}, { tags: ["uploads"] });
+}
 export const catalog: readonly Scenario[] = cases;
 export function selectedCases(s = selection()) {
   const filter = s.filter?.startsWith("=") ? s.filter.slice(1) : s.filter;
@@ -536,7 +548,9 @@ export function materialize(
   );
   if (s.platform === "tiktok" && options.publishMode !== "draft") {
     if (options.privacyLevel) expectedFields.privacyLevel = options.privacyLevel;
-    if (s.media.length && s.media.every((x) => !x.toLowerCase().includes("video")))
+    // Upload acceptance covers image/video/media/audience only: photo cases still
+    // request autoAddMusic=false, but only explicit expectedFields demand music evidence.
+    if (s.media.length && s.media.every((x) => !x.toLowerCase().includes("video")) && !s.tags.includes("uploads"))
       expectedFields.autoAddMusic = options.autoAddMusic ?? iface === "mcp";
   }
   if (s.platform === "youtube") expectedFields.privacyStatus = options.privacyStatus;

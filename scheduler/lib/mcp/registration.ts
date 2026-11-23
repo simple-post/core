@@ -1,0 +1,136 @@
+import { randomUUID } from "node:crypto";
+
+import {
+  registerAppTool,
+  type McpUiAppToolConfig,
+  type ZodRawShape,
+  type LegacyToolCallback,
+} from "@modelcontextprotocol/ext-apps/server";
+import { z } from "zod";
+
+import { recordFunnelEvent } from "@/lib/analytics/events";
+import { measureMcpTool } from "@/lib/analytics/tool-measurement";
+import { withErrorContext } from "@/lib/error-reporting";
+import { createServerCopy, serverMessage } from "@/lib/i18n/server";
+import { localizeStandardSchema } from "@/lib/i18n/standard-schema";
+import { mcpUiTranslation, withMcpUiTranslation } from "@/lib/mcp/locale";
+import { toMcpErrorDiagnostic } from "@/lib/mcp/tool-errors";
+import { PaymentRequiredError } from "@/lib/utils/errors";
+
+import type {
+  CallToolResult,
+  InputRequiredResult,
+  McpServer,
+  StandardSchemaWithJSON,
+  ServerContext,
+  ToolCallback,
+  RegisteredTool,
+} from "@modelcontextprotocol/server";
+
+type Result = CallToolResult | InputRequiredResult;
+type Server = Pick<McpServer, "registerTool">;
+type ToolAccess = { userId: string; readOnly?: boolean };
+const SAVED_DATA_TOOLS = new Set([
+  "list_accounts",
+  "inspect_posts",
+  "get_schedule",
+  "show_schedule",
+  "show_post_preview",
+]);
+/** Preserve the SDK's schema-derived callbacks and forward both supported schema forms unchanged. */
+export function registerMeasuredTool<Input extends StandardSchemaWithJSON, Output extends StandardSchemaWithJSON>(
+  context: ToolAccess,
+  server: Server,
+  name: string,
+  config: McpUiAppToolConfig & { inputSchema: Input; outputSchema?: Output },
+  callback: (input: StandardSchemaWithJSON.InferOutput<Input>, ctx: ServerContext) => Result | Promise<Result>,
+): RegisteredTool;
+export function registerMeasuredTool<
+  Input extends ZodRawShape,
+  Output extends ZodRawShape | StandardSchemaWithJSON | undefined = undefined,
+>(
+  context: ToolAccess,
+  server: Server,
+  name: string,
+  config: McpUiAppToolConfig & { inputSchema: Input; outputSchema?: Output },
+  callback: LegacyToolCallback<Input>,
+): RegisteredTool;
+export function registerMeasuredTool(
+  context: ToolAccess,
+  server: Server,
+  name: string,
+  config: McpUiAppToolConfig,
+  callback: (input: never, ctx: ServerContext) => Result | Promise<Result>,
+): RegisteredTool {
+  const locale = mcpUiTranslation().locale;
+  const copy = createServerCopy(locale);
+  // Preserve schema inference and SDK validation while measuring calls and
+  // enforcing the narrow saved-data exception for expired trials.
+  const measured = (input: never, ctx: ServerContext) =>
+    measureMcpTool(context, name, () =>
+      withMcpUiTranslation(
+        ctx,
+        async () => {
+          if (
+            context.readOnly &&
+            (!SAVED_DATA_TOOLS.has(name) || (name === "show_post_preview" && !(input as { postId?: string }).postId))
+          ) {
+            await recordFunnelEvent(context.userId, "billing_denied", {
+              key: `${context.userId}:${name}:${new Date().toISOString().slice(0, 10)}`,
+              properties: { reason: "trial_expired", method: name },
+            });
+            const diagnostic = {
+              ...toMcpErrorDiagnostic(
+                new PaymentRequiredError(
+                  serverMessage(
+                    "Your trial has ended. Saved posts, accounts and the calendar are still viewable. Creating or changing posts requires an active plan in SimplePost.",
+                  ),
+                ),
+              ),
+              supportId: randomUUID(),
+            };
+            return {
+              isError: true,
+              content: [
+                {
+                  type: "text" as const,
+                  text: `${mcpUiTranslation().t("mcpTrialExpired")}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
+                },
+              ],
+              _meta: { "simplepost/retryable": false, "simplepost/error": diagnostic },
+            };
+          }
+          return withErrorContext({ toolName: name, area: "mcp.tool", userId: context.userId, surface: "mcp" }, () =>
+            callback(input, ctx),
+          );
+        },
+        locale,
+      ),
+    );
+  return registerAppTool(
+    server,
+    name,
+    {
+      ...config,
+      ...(config.title ? { title: copy(config.title) } : {}),
+      ...(config.description ? { description: copy(config.description) } : {}),
+      inputSchema: localizeStandardSchema(
+        config.inputSchema && "~standard" in config.inputSchema
+          ? (config.inputSchema as StandardSchemaWithJSON)
+          : z.object((config.inputSchema ?? {}) as z.ZodRawShape),
+        copy,
+      ),
+      ...(config.outputSchema
+        ? {
+            outputSchema: localizeStandardSchema(
+              "~standard" in config.outputSchema
+                ? (config.outputSchema as StandardSchemaWithJSON)
+                : z.object(config.outputSchema as z.ZodRawShape),
+              copy,
+            ),
+          }
+        : {}),
+    } as McpUiAppToolConfig & { inputSchema: StandardSchemaWithJSON; outputSchema?: StandardSchemaWithJSON },
+    measured as ToolCallback<StandardSchemaWithJSON>,
+  );
+}

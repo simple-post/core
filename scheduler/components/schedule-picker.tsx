@@ -9,8 +9,10 @@ import { CalendarClock, Check, ChevronDown, Zap } from "lucide-react";
 
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { UiCopy } from "@/components/ui-copy";
 import { usePostingSlots } from "@/hooks/use-posting-slots";
 import { usePaginatedPosts } from "@/hooks/use-posts";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { getUpcomingSlotOccurrences, hasEnabledSlots, slotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +42,7 @@ export function SchedulePicker({
   onScheduledTimeChange,
   excludePostId,
 }: SchedulePickerProps) {
+  const { copy, locale } = useUiCopy();
   const { data: slots = [], isLoading: slotsLoading } = usePostingSlots();
   // Slot occupancy only needs upcoming scheduled posts; 100 covers any
   // realistic queue and matches the API's page-size cap.
@@ -79,18 +82,20 @@ export function SchedulePicker({
 
   return (
     <div className="space-y-3">
-      <Label className="text-sm font-medium">Schedule</Label>
+      <Label className="text-sm font-medium">{copy("Schedule")}</Label>
 
       {showInactiveSlotsHint ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
           <span className="flex items-center gap-2 text-muted-foreground">
-            <CalendarClock className="h-4 w-4 text-primary" />
-            No active posting slots
+            <UiCopy
+              source="<part1></part1>No active posting slots"
+              components={{ part1: <CalendarClock className="h-4 w-4 text-primary" /> }}
+            />
           </span>
           <Link
             href="/settings"
             className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
-            Enable days in Settings
+            {copy("Enable days in Settings")}{" "}
           </Link>
         </div>
       ) : null}
@@ -103,16 +108,22 @@ export function SchedulePicker({
               disabled={!nextOpenSlot}
               data-active={Boolean(nextOpenSlot && selectedKey === slotOccurrenceKey(nextOpenSlot))}
               onClick={() => nextOpenSlot && selectSlot(nextOpenSlot)}
-              className="group flex min-h-12 flex-1 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5 disabled:pointer-events-none disabled:opacity-60 data-[active=true]:border-primary/40 data-[active=true]:bg-primary/10">
+              className="group flex min-h-12 flex-1 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-start transition-colors hover:border-primary/30 hover:bg-primary/5 disabled:pointer-events-none disabled:opacity-60 data-[active=true]:border-primary/40 data-[active=true]:bg-primary/10">
               <Zap className="h-4 w-4 shrink-0 text-primary" />
               <span className="flex min-w-0 flex-col">
                 <span className="text-sm font-medium text-foreground group-data-[active=true]:text-primary">
-                  {nextOpenSlot ? "Schedule for next slot" : "All upcoming slots are filled"}
+                  {nextOpenSlot ? copy("Schedule for next slot") : copy("All upcoming slots are filled")}
                 </span>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {nextOpenSlot
-                    ? format(nextOpenSlot, "EEE, MMM d 'at' h:mm a")
-                    : "Pick a custom time below or free up a slot."}
+                    ? new Intl.DateTimeFormat(locale, {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      }).format(nextOpenSlot)
+                    : copy("Pick a custom time below or free up a slot.")}
                 </span>
               </span>
               {nextOpenSlot && selectedKey === slotOccurrenceKey(nextOpenSlot) ? (
@@ -124,10 +135,10 @@ export function SchedulePicker({
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  aria-label="Choose a posting slot"
+                  aria-label={copy("Choose a posting slot")}
                   className="flex min-h-12 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                   <CalendarClock className="h-4 w-4" />
-                  <span className="hidden sm:inline">All slots</span>
+                  <span className="hidden sm:inline">{copy("All slots")}</span>
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
               </PopoverTrigger>
@@ -142,7 +153,17 @@ export function SchedulePicker({
                       key={key}
                       type="button"
                       disabled={isFilled}
-                      aria-label={`${format(occurrence, "EEEE, MMMM d 'at' h:mm a")}${isFilled ? ", booked" : ""}`}
+                      aria-label={
+                        isFilled
+                          ? copy("{{date}}, booked", {
+                              date: new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(
+                                occurrence,
+                              ),
+                            })
+                          : new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(
+                              occurrence,
+                            )
+                      }
                       onClick={() => {
                         selectSlot(occurrence);
                         setListOpen(false);
@@ -156,11 +177,17 @@ export function SchedulePicker({
                             : "text-foreground hover:bg-secondary",
                       )}>
                       <span className={cn("tabular-nums", isFilled && "line-through")}>
-                        {format(occurrence, "EEE, MMM d · h:mm a")}
+                        {new Intl.DateTimeFormat(locale, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        }).format(occurrence)}
                       </span>
                       {isFilled ? (
                         <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Booked
+                          {copy("Booked")}{" "}
                         </span>
                       ) : isActive ? (
                         <Check className="h-3.5 w-3.5 shrink-0" />
@@ -174,7 +201,7 @@ export function SchedulePicker({
 
           <div className="flex items-center gap-3">
             <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or pick a custom time</span>
+            <span className="text-xs text-muted-foreground">{copy("or pick a custom time")}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
         </>
@@ -190,11 +217,12 @@ export function SchedulePicker({
 
       {!slotsLoading && slots.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Tip: set up posting slots in{" "}
-          <Link href="/settings" className="underline underline-offset-2 hover:text-foreground">
-            Settings
-          </Link>{" "}
-          to schedule recurring times with one click.
+          <UiCopy
+            source="Tip: set up posting slots in  <part1>Settings </part1> to schedule recurring times with one click."
+            components={{
+              part1: <Link href="/settings" className="underline underline-offset-2 hover:text-foreground" />,
+            }}
+          />
         </p>
       ) : null}
     </div>

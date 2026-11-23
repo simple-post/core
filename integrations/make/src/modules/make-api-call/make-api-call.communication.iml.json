@@ -1,5 +1,5 @@
 {
-	"url": "/{{parameters.url}}",
+	"url": "/api/v1/{{parameters.url}}",
 	"method": "{{parameters.method}}",
 	"headers": {
 		"{{...}}": "{{toCollection(parameters.headers, 'key', 'value')}}"

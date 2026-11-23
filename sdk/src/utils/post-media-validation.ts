@@ -1,3 +1,6 @@
+import { displayMessage, getDisplayMessage, withDisplayMessage } from "../validation/display-message";
+import { copyDisplayMessage } from "../validation/display-message";
+import { describeDisplayMessage } from "../validation/display-message";
 import { mediaFormatFailure } from "./media-format-validation";
 import { inspectLocalMedia, inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 
@@ -51,30 +54,38 @@ export async function validatePostMedia(
           ...validateInspectedMedia(platform, inspection, {
             mediaCount: post.content.media?.length ?? 0,
             thumbnail: field === "thumbnail",
-          }).map((issue) => ({ ...issue, field })),
+          }).map((issue) => copyDisplayMessage(issue, { ...issue, field })),
         );
         const failure = mediaFormatFailure(inspection, platform, item.type);
-        if (failure) failures.push({ ...failure, platform, severity: "error", field });
+        if (failure) failures.push(copyDisplayMessage(failure, { ...failure, platform, severity: "error", field }));
         if (field === "thumbnail" && platform === "youtube" && inspection.size > 2 * 1024 * 1024) {
-          failures.push({
-            platform,
-            severity: "error",
-            code: "thumbnail_too_large",
-            message: "YouTube custom thumbnails cannot exceed 2 MB.",
-            field,
-          });
+          failures.push(
+            describeDisplayMessage(
+              {
+                platform,
+                severity: "error",
+                code: "thumbnail_too_large",
+                message: "YouTube custom thumbnails cannot exceed 2 MB.",
+                field,
+              },
+              "YouTube custom thumbnails cannot exceed 2 MB.",
+            ),
+          );
         }
       } catch (error) {
-        failures.push({
-          platform,
-          severity: "error",
-          field,
-          code: error instanceof MediaInspectionError ? error.code : "media_unavailable",
-          message:
+        failures.push(
+          withDisplayMessage(
+            {
+              platform,
+              severity: "error",
+              field,
+              code: error instanceof MediaInspectionError ? error.code : "media_unavailable",
+            },
             error instanceof MediaInspectionError
-              ? error.message
-              : "SimplePost couldn't inspect this media. Upload the file directly or use a public URL.",
-        });
+              ? (getDisplayMessage(error) ?? error.message)
+              : displayMessage("SimplePost couldn't inspect this media. Upload the file directly or use a public URL."),
+          ),
+        );
       }
     }
     const validation = validateContentForPlatform(platform, post.content, post.options);

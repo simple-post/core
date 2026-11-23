@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { PostsModel } from "@/lib/db";
+import { getConnectAccountsUrl, hasConnectedAccounts } from "@/lib/mcp/connect-guidance";
 import { getUserPostingSlots } from "@/lib/posting-slots/settings";
 import { prisma } from "@/lib/prisma";
 
@@ -66,6 +67,12 @@ export const showScheduleOutputSchema = z.object({
     failedCount: z.number(),
     pastCount: z.number(),
   }),
+  connectAccountsUrl: z
+    .string()
+    .optional()
+    .describe(
+      "Present only when no account is connected, even if earlier posts remain on the calendar: the SimplePost page where the user connects one.",
+    ),
 });
 
 type CalendarDate = {
@@ -265,9 +272,10 @@ export async function getSchedule(
   const rangeStart = zonedDateTimeToInstant(period.fetchStart, "00:00", input.timeZone);
   const rangeEnd = zonedDateTimeToInstant(period.fetchEnd, "00:00", input.timeZone);
   const repository = new PostsModel(userId);
-  const [slots, posts] = await Promise.all([
+  const [slots, posts, connected] = await Promise.all([
     getUserPostingSlots(userId),
     repository.getPostsBetween(rangeStart, rangeEnd),
+    hasConnectedAccounts(userId),
   ]);
 
   const accountIds = [...new Set(posts.flatMap((post) => post.accountIds))];
@@ -381,5 +389,6 @@ export async function getSchedule(
     rangeEnd: rangeEnd.toISOString(),
     days,
     summary,
+    ...(!connected && { connectAccountsUrl: getConnectAccountsUrl() }),
   };
 }

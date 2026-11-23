@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "./display-message";
 import { telegramMarkdown } from "./telegram-markdown";
 
 /** Telegram's HTML subset is deliberately smaller than browser HTML. */
@@ -26,11 +27,15 @@ export function telegramText(text: string, mode?: string): { text: string; error
   if (mode !== "HTML") return telegramMarkdown(text, mode === "Markdown");
   const stack: string[] = [];
   let output = "";
-  const invalid = () => ({
-    text: output,
-    error:
+  const invalid = () =>
+    describeDisplayMessage(
+      {
+        text: output,
+        error:
+          "Telegram HTML is invalid or unsupported. Balance formatting tags, escape literal <, > and & as &lt;, &gt; and &amp;, and use Telegram-supported tags and attributes.",
+      },
       "Telegram HTML is invalid or unsupported. Balance formatting tags, escape literal <, > and & as &lt;, &gt; and &amp;, and use Telegram-supported tags and attributes.",
-  });
+    );
   for (let index = 0; index < text.length; ) {
     switch (text[index]) {
       case "<": {

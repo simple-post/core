@@ -4,6 +4,7 @@ import * as z from "zod";
 
 import { assertActiveSubscription, toBillingSocialAccounts } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { repostToAccounts } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
@@ -43,10 +44,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!post) {
-      throw new NotFoundError("Post not found");
+      throw new NotFoundError(serverMessage("Post not found"));
     }
     if (post.status !== "published") {
-      throw new BadRequestError("Only published posts can be reposted");
+      throw new BadRequestError(serverMessage("Only published posts can be reposted"));
     }
 
     const requestedAccountIds = validated.accountIds ? new Set(validated.accountIds) : null;
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : post.accounts;
 
     if (requestedAccountIds && accounts.length !== requestedAccountIds.size) {
-      throw new BadRequestError("One or more accounts do not belong to this post");
+      throw new BadRequestError(serverMessage("One or more accounts do not belong to this post"));
     }
 
     const targets = buildRepostTargets({
@@ -64,7 +65,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (targets.length === 0) {
-      throw new BadRequestError("This post has no successful publish results on repost-capable accounts");
+      throw new BadRequestError(
+        serverMessage("This post has no successful publish results on repost-capable accounts"),
+      );
     }
 
     await assertActiveSubscription(session.user.id, {
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: { repostStatus: "pending" },
     });
     if (claimed === 0) {
-      throw new ConflictError("A repost for this post is already in progress");
+      throw new ConflictError(serverMessage("A repost for this post is already in progress"));
     }
 
     let results: Awaited<ReturnType<typeof repostToAccounts>>;

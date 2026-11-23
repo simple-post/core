@@ -4,7 +4,7 @@
 		"type": "text",
 		"label": "URL",
 		"required": true,
-		"help": "Enter the part of the URL that comes after `https://app.simplepost.social`. For example, `/api/v1/accounts`. For the available endpoints, see the [SimplePost API reference](https://docs.simplepost.social/api-reference)."
+		"help": "Enter the endpoint path after `/api/v1/`, for example `accounts`. For the available endpoints, see the [SimplePost API reference](https://docs.simplepost.social/api-reference)."
 	},
 	{
 		"name": "method",

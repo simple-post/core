@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, Video, YouTubeOptions } from "../../types/post";
@@ -38,48 +39,68 @@ export function validateYouTubeContent(content: Content, options?: YouTubeOption
   const { images, videos } = countMedia(media);
 
   if (media.length === 0 || videos === 0) {
-    errors.push({
-      platform: "youtube",
-      severity: "error",
-      code: "video_required",
-      message: "YouTube posts require a video.",
-      field: "video",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "youtube",
+          severity: "error",
+          code: "video_required",
+          message: "YouTube posts require a video.",
+          field: "video",
+        },
+        "YouTube posts require a video.",
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "youtube",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "youtube",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > 1) {
-    warnings.push({
-      platform: "youtube",
-      severity: "warning",
-      code: "too_many_videos",
-      message: "YouTube supports only one video per post. Only the first video will be uploaded.",
-      field: "media",
-      limit: 1,
-      actual: videos,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "youtube",
+          severity: "warning",
+          code: "too_many_videos",
+          message: "YouTube supports only one video per post. Only the first video will be uploaded.",
+          field: "media",
+          limit: 1,
+          actual: videos,
+        },
+        "YouTube supports only one video per post. Only the first video will be uploaded.",
+      ),
+    );
   }
 
   if (images > 0) {
-    warnings.push({
-      platform: "youtube",
-      severity: "warning",
-      code: "images_ignored",
-      message: "YouTube posts ignore images. Only the first video will be uploaded.",
-      field: "media",
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "youtube",
+          severity: "warning",
+          code: "images_ignored",
+          message: "YouTube posts ignore images. Only the first video will be uploaded.",
+          field: "media",
+        },
+        "YouTube posts ignore images. Only the first video will be uploaded.",
+      ),
+    );
   }
 
   const video = media.find((item) => item.type === "video") as Video | undefined;
@@ -92,23 +113,37 @@ export function validateYouTubeContent(content: Content, options?: YouTubeOption
     ] as const) {
       const actual = field === "description" ? new TextEncoder().encode(value).length : [...value].length;
       if (actual > limit)
-        errors.push({
-          platform: "youtube",
-          severity: "error",
-          code: `${field}_too_long`,
-          message: `YouTube ${field} is ${actual} ${field === "description" ? "UTF-8 bytes" : "characters"}; the limit is ${limit}. Shorten the final ${field}.`,
-          field,
-          limit,
-          actual,
-        });
+        errors.push(
+          describeDisplayMessage(
+            {
+              platform: "youtube",
+              severity: "error",
+              code: `${field}_too_long`,
+              message: `YouTube ${field} is ${actual} ${field === "description" ? "UTF-8 bytes" : "characters"}; the limit is ${limit}. Shorten the final ${field}.`,
+              field,
+              limit,
+              actual,
+            },
+            field === "description"
+              ? "YouTube description is {{actual}} UTF-8 bytes; the limit is {{limit}}. Shorten the final description."
+              : "YouTube title is {{actual}} characters; the limit is {{limit}}. Shorten the final title.",
+            { actual, limit },
+          ),
+        );
       if (/[<>]/.test(value))
-        errors.push({
-          platform: "youtube",
-          severity: "error",
-          code: `${field}_invalid_characters`,
-          message: `YouTube ${field} cannot contain < or >. Remove these characters.`,
-          field,
-        });
+        errors.push(
+          describeDisplayMessage(
+            {
+              platform: "youtube",
+              severity: "error",
+              code: `${field}_invalid_characters`,
+              message: `YouTube ${field} cannot contain < or >. Remove these characters.`,
+              field,
+            },
+            "YouTube {{field}} cannot contain < or >. Remove these characters.",
+            { field: String(field) },
+          ),
+        );
     }
   }
 

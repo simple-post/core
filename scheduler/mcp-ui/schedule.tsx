@@ -3,8 +3,10 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { Button } from "../components/ui/button";
+import { UiLocaleProvider } from "../lib/i18n/client";
 
 import { Calendar } from "./extensions/calendar";
+import { callTool } from "./extensions/host";
 import { useMcpToolData } from "./use-mcp-tool-data";
 
 import type { App } from "@modelcontextprotocol/ext-apps";
@@ -67,19 +69,11 @@ async function loadSchedule(
   app: App,
   input: { view: ScheduleView; date: string; timeZone: string },
 ): Promise<ScheduleData> {
-  const result = await app.callServerTool({
-    name: "get_schedule",
-    arguments: input,
-  });
-  if (result.isError || !result.structuredContent) {
-    const text = result.content.find((item) => item.type === "text");
-    throw new Error(text?.type === "text" ? text.text : "Couldn't load the schedule.");
-  }
-  return result.structuredContent as ScheduleData;
+  return callTool<ScheduleData>(app, "get_schedule", input);
 }
 
 function ScheduleApp() {
-  const { app, data, setData, isConnected, error, toolError, setToolError } =
+  const { app, data, setData, isConnected, error, toolError, setToolError, t, locale, messages } =
     useMcpToolData<ScheduleData>("SimplePost Schedule");
   const [loading, setLoading] = useState(false);
 
@@ -100,31 +94,33 @@ function ScheduleApp() {
     return <div className="state-card error-card">{error?.message ?? toolError}</div>;
   }
   if (!isConnected || !data) {
-    return <div className="state-card">Loading your schedule…</div>;
+    return <div className="state-card">{t("loadingSchedule")}</div>;
   }
 
   return (
-    <main className="sp-workspace" aria-busy={loading}>
-      <header className="sp-header">
-        <div>
-          <span className="sp-mark">SP</span>
-          <strong>SimplePost</strong>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void app?.requestDisplayMode({ mode: "fullscreen" })}>
-          Expand
-        </Button>
-      </header>
-      <Calendar
-        data={data}
-        busy={loading}
-        onNavigate={(input) =>
-          void navigate((input.view as ScheduleView) ?? data.view, (input.date as string) ?? data.anchorDate)
-        }
-      />
-      {data.summary.pastCount > 0 ? (
-        <p className="text-xs text-muted-foreground mt-3">{data.summary.pastCount} past items shown</p>
-      ) : null}
-    </main>
+    <UiLocaleProvider locale={locale} messages={messages}>
+      <main className="sp-workspace" aria-busy={loading}>
+        <header className="sp-header">
+          <div>
+            <span className="sp-mark">SP</span>
+            <strong>SimplePost</strong>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void app?.requestDisplayMode({ mode: "fullscreen" })}>
+            {t("expand")}
+          </Button>
+        </header>
+        <Calendar
+          data={data}
+          busy={loading}
+          onNavigate={(input) =>
+            void navigate((input.view as ScheduleView) ?? data.view, (input.date as string) ?? data.anchorDate)
+          }
+        />
+        {data.summary.pastCount > 0 ? (
+          <p className="text-xs text-muted-foreground mt-3">{t("pastItems", { count: data.summary.pastCount })}</p>
+        ) : null}
+      </main>
+    </UiLocaleProvider>
   );
 }
 

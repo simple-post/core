@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 
-const SDK_COMMIT = "94a0cd0906d86e0b4aaabe3ae0bb99c9ef6d86c9";
+const SDK_COMMIT = "6ff5f3dd9960ccbeb24de3beb1cca935de89eaa0";
 const SDK_RAW = `https://raw.githubusercontent.com/integromat/vscode-apps-sdk/${SDK_COMMIT}`;
 const IML_SCHEMAS = [
   "api-oauth.json",
@@ -33,6 +33,7 @@ const FILE_SCHEMAS = [
   [/\.(params|mappable-params|static-params|interface)\.iml\.json$/, "parameters.json"],
   [/\.(communication|attach|detach)\.iml\.json$/, "api.json"],
   [/\.samples\.iml\.json$/, "samples.json"],
+  [/\.scope\.iml\.json$/, "scope.json"],
   [/(^|\/)base\.iml\.json$/, "base.json"],
   [/(^|\/)common\.json$/, "common.json"],
   [/(^|\/)groups\.json$/, "groups.json"],
@@ -81,7 +82,7 @@ for (const name of [...IML_SCHEMAS, MAKECOMAPP_SCHEMA]) {
 let failures = 0;
 let checked = 0;
 for (const file of (await listFiles(srcDir)).sort()) {
-  const relative = path.relative(srcDir, file);
+  const relative = path.relative(srcDir, file).split(path.sep).join("/");
   const match = FILE_SCHEMAS.find(([pattern]) => pattern.test(relative));
   if (!match) continue;
   const validate = ajv.getSchema(match[1]);

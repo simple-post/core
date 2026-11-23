@@ -24,11 +24,11 @@ async function main() {
   const prefix = `experiment-${randomUUID()}`;
   const emails = [
     `${prefix}-google@example.invalid`,
-    `${prefix}-magic@example.invalid`,
+    `${prefix}-otp@example.invalid`,
     `${prefix}-existing@example.invalid`,
     `${prefix}-retention@example.invalid`,
   ];
-  let magicUrl = "";
+  let sentOtp = "";
   let googleEmail = emails[0];
   const originalFetch = globalThis.fetch;
   // Never contact Google or send email. Only provider transport is stubbed; the auth handler and DB are real.
@@ -36,9 +36,7 @@ async function main() {
     const url = String(input instanceof Request ? input.url : input);
     if (url === "https://api.resend.com/emails") {
       const body = JSON.parse(String(init?.body));
-      magicUrl = String(body.html)
-        .match(/href="([^"]+)"/)![1]
-        .replaceAll("&amp;", "&");
+      sentOtp = String(body.subject).match(/^\d{6}/)![0];
       return Response.json({ id: "local-review-email" });
     }
     if (url === "https://oauth2.googleapis.com/token") {
@@ -94,23 +92,25 @@ async function main() {
     assert.equal(response.headers.get("location"), "http://localhost:3000/schedule");
     return response;
   }
-  async function magicLogin(assignment: Assignment) {
-    magicUrl = "";
+  async function otpLogin(assignment: Assignment) {
+    sentOtp = "";
     const start = await auth.handler(
-      request("sign-in/magic-link", cookie(assignment), {
-        email: emails[1],
-        name: "Local magic fixture",
-        callbackURL: "http://localhost:3000/schedule",
-        experimentAttribution: { variant: "forged" },
-      }),
+      request("email-otp/send-verification-otp", cookie(assignment), { email: emails[1], type: "sign-in" }),
     );
     assert.equal(start.status, 200, await start.clone().text());
-    assert.ok(magicUrl.startsWith("http://localhost:3000/api/auth/magic-link/verify"));
-    const response = await auth.handler(new Request(magicUrl, { headers: { cookie: cookie(assignment) } }));
-    assert.equal(response.status, 302);
-    assert.equal(response.headers.get("location"), "http://localhost:3000/schedule");
+    assert.match(sentOtp, /^\d{6}$/);
+    const response = await auth.handler(
+      request("sign-in/email-otp", cookie(assignment), {
+        email: emails[1],
+        otp: sentOtp,
+        name: "Local OTP fixture",
+      }),
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.ok(response.headers.get("set-cookie"));
     return response;
   }
+
   try {
     const exposure = {
       id: assignmentKey(a),
@@ -154,13 +154,13 @@ async function main() {
     const updated = await prisma.user.findUniqueOrThrow({ where: { id: google.id } });
     assert.equal(updated.experimentAttribution, google.experimentAttribution);
     assert.equal(updated.isAdmin, false);
-    await magicLogin(b);
-    const magic = await prisma.user.findUniqueOrThrow({ where: { email: emails[1] } });
-    assert.equal(JSON.parse(magic.experimentAttribution!).assignmentId, assignmentKey(b));
-    await magicLogin(a);
+    await otpLogin(b);
+    const otp = await prisma.user.findUniqueOrThrow({ where: { email: emails[1] } });
+    assert.equal(JSON.parse(otp.experimentAttribution!).assignmentId, assignmentKey(b));
+    await otpLogin(a);
     assert.equal(
-      (await prisma.user.findUniqueOrThrow({ where: { id: magic.id } })).experimentAttribution,
-      magic.experimentAttribution,
+      (await prisma.user.findUniqueOrThrow({ where: { id: otp.id } })).experimentAttribution,
+      otp.experimentAttribution,
     );
     // A real pre-existing account must never become an experiment signup on later Google login.
     googleEmail = emails[2];
@@ -247,10 +247,10 @@ async function main() {
     assert.equal(retained.acquisition, "original-first-touch");
     assert.equal(retained.firstPayment?.amountPaid, 1000);
     assert.equal(await prisma.experimentExposure.count({ where: { id: oldKey } }), 0);
-    assert.ok((await prisma.user.findUniqueOrThrow({ where: { id: magic.id } })).experimentAttribution);
+    assert.ok((await prisma.user.findUniqueOrThrow({ where: { id: otp.id } })).experimentAttribution);
     // eslint-disable-next-line no-console
     console.log(
-      "PASS actual Google and magic-link callbacks, immutable private signup attribution, existing-user exclusion, concurrent exposure deduplication, durable first milestones account-deletion cleanup and retention cleanup",
+      "PASS actual Google and email OTP callbacks, immutable private signup attribution, existing-user exclusion, concurrent exposure deduplication, durable first milestones account-deletion cleanup and retention cleanup",
     );
   } finally {
     globalThis.fetch = originalFetch;

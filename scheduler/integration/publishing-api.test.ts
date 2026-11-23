@@ -4,9 +4,11 @@ import { post as sdkPost, PostErrorType } from "@simple-post/sdk";
 
 import { GET as getProgress, POST as reconcile } from "@/app/api/v1/posts/[id]/reconcile/route";
 import { PATCH as retry } from "@/app/api/v1/posts/[id]/route";
+import { POST as create } from "@/app/api/v1/posts/route";
 import { PostsModel } from "@/lib/db";
 import { requireAuth } from "@/lib/middleware/auth";
 import { postToAccounts } from "@/lib/posting";
+import * as posting from "@/lib/posting";
 import { runDurablePublish } from "@/lib/posting/durable-publish";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
@@ -197,3 +199,40 @@ it("HTTP reconciliation enforces owner, explicit confirmation, and current versi
   expect(sdkPost).not.toHaveBeenCalled();
   expect(await prisma.publishAttempt.count()).toBe(1);
 });
+
+it.each(["create", "edit"])(
+  "%s reports a server failure after platform acceptance as an uncertain 5xx outcome",
+  async (mode) => {
+    jest.mocked(sdkPost).mockResolvedValue(new Map([["x", { id: "accepted", error: PostErrorType.NO_ERROR }]]));
+    const summary = jest.spyOn(posting, "getPostingSummary").mockImplementationOnce(() => {
+      throw new Error("Finalization interrupted after publishing");
+    });
+    try {
+      const body = { message: "Root", media: [], accountIds: ["account"], postingMode: "now" };
+      const post =
+        mode === "edit"
+          ? await new PostsModel(userId).createPost(
+              { message: "Root", media: [], accountIds: ["account"], status: "draft", scheduledFor: new Date() },
+              userId,
+            )
+          : null;
+      const response = post
+        ? await retry(request(post.id, "PATCH", body), context(post.id))
+        : await create(
+            new NextRequest("http://localhost/api/v1/posts", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            }),
+          );
+      expect(response.status).toBe(500);
+      expect(await response.text()).toContain("Check Posts before retrying");
+      expect(sdkPost).toHaveBeenCalledTimes(1);
+      const saved = await prisma.post.findFirstOrThrow({ where: { userId } });
+      expect(saved.status).toBe("failed");
+      expect(await prisma.publishCheckpoint.count({ where: { postId: saved.id } })).toBe(1);
+    } finally {
+      summary.mockRestore();
+    }
+  },
+);

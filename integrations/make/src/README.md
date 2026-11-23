@@ -18,7 +18,7 @@ Self-hosted Scheduler users can enter their Scheduler address under **Show advan
 - **Watch published posts**: triggers when a post is published.
 - **Watch failed posts**: triggers when a post fails to publish to one or more accounts.
 
-Both triggers register a SimplePost webhook automatically and remove it when you delete the Make webhook. SimplePost allows up to 10 webhooks per user.
+Both triggers register a SimplePost webhook automatically and remove it when you delete the Make webhook. SimplePost allows up to 10 webhooks per user and attempts each delivery once. Keep the individual Make webhook URLs private.
 
 ### Posts
 
@@ -33,6 +33,8 @@ Both triggers register a SimplePost webhook automatically and remove it when you
 - **Upload a media file**: uploads an image or video from a previous module and returns a media item you can map into **Create a post**.
 - **List accounts**: lists your connected social accounts and their IDs.
 - **Make an API call**: calls any SimplePost API endpoint with your connection.
+
+Use a stable source item ID as the idempotency key when retrying **Create a post**. If SimplePost queues a Publish Now retry, the response includes the original post ID and the `scheduled` status.
 
 ## Learn more
 

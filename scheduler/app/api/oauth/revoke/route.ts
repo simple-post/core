@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
 import { hashValue, revokeMcpToken } from "@/lib/mcp/oauth";
 import { prisma } from "@/lib/prisma";
 
@@ -29,7 +32,7 @@ export async function POST(req: NextRequest) {
   const params = await requestParameters(req);
   const token = params.token;
   if (!token) {
-    return NextResponse.json({ error: "invalid_request", error_description: "token is required" }, { status: 400 });
+    return oauthError(req, "invalid_request", serverMessage("token is required"), { status: 400 });
   }
 
   const basic = parseBasicAuth(req.headers.get("authorization"));
@@ -39,10 +42,7 @@ export async function POST(req: NextRequest) {
   if (clientId) {
     const client = await prisma.mcpOAuthClient.findUnique({ where: { clientId } });
     if (!client || (client.clientSecret && (!clientSecret || hashValue(clientSecret) !== client.clientSecret))) {
-      return NextResponse.json(
-        { error: "invalid_client", error_description: "OAuth client authentication failed" },
-        { status: 401 },
-      );
+      return oauthError(req, "invalid_client", serverMessage("OAuth client authentication failed"), { status: 401 });
     }
   }
 

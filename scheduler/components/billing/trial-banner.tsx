@@ -9,13 +9,10 @@ import { Sparkles } from "lucide-react";
 import { LowAllowanceWarning, LOW_REMAINING } from "@/components/billing/trial-post-allowance";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
+import { UiCopy } from "@/components/ui-copy";
 import { useBillingStatus } from "@/hooks/use-billing";
 import { getPlatformName } from "@/lib/config";
-
-function formatDaysRemaining(days: number): string {
-  if (days <= 0) return "Ends today";
-  return days === 1 ? "1 day left" : `${days} days left`;
-}
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 /**
  * Free-trial status on the dashboard: time left, the upgrade path, and a
@@ -26,6 +23,7 @@ function formatDaysRemaining(days: number): string {
  * blocking dialog in SubscriptionGate handles instead.
  */
 export function TrialBanner() {
+  const { copy, locale } = useUiCopy();
   const { data: billing } = useBillingStatus();
   const trial = billing?.accessType === "trial" ? (billing.trial ?? null) : null;
 
@@ -37,8 +35,8 @@ export function TrialBanner() {
         remaining: Math.max(0, trial.postsPerPlatform - used),
       }))
       .filter((entry) => entry.remaining < LOW_REMAINING)
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [trial]);
+      .sort((a, b) => a.label.localeCompare(b.label, locale));
+  }, [trial, locale]);
 
   if (!trial || trial.status !== "active") {
     return null;
@@ -46,7 +44,7 @@ export function TrialBanner() {
 
   return (
     <section className="mb-6 space-y-3 animate-reveal">
-      <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 sm:p-5">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -54,17 +52,33 @@ export function TrialBanner() {
                 <Sparkles className="h-3.5 w-3.5" />
               </span>
               <h2 className="text-base font-semibold tracking-[-0.025em] text-foreground">
-                You are on the free trial. {formatDaysRemaining(trial.daysRemaining)}.
+                {trial.daysRemaining <= 0
+                  ? copy("You are on the free trial. Ends today.")
+                  : copy("You are on the free trial. {{count, number}} days left.", { count: trial.daysRemaining })}
               </h2>
             </div>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Every feature is unlocked, with {trial.postsPerPlatform} posts per platform. No credit card needed.
+              <UiCopy
+                source="Ends on <part1></part1>. Every feature is unlocked, with {{count, number}} posts per platform. No credit card needed. <part2>Trial details</part2>"
+                values={{ count: trial.postsPerPlatform }}
+                components={{
+                  part1: (
+                    <time dateTime={trial.expiresAt}>
+                      {new Date(trial.expiresAt).toLocaleDateString(locale, {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </time>
+                  ),
+                  part2: <HelpLink path="/billing#free-trial" className="align-baseline" />,
+                }}
+              />
             </p>
           </div>
 
-          <HelpLink path="/billing#free-trial">Trial limits and expiry</HelpLink>
-          <Button asChild className="shrink-0">
-            <Link href="/billing/plans">Choose a plan</Link>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <Link href="/billing/plans">{copy("Choose a plan")}</Link>
           </Button>
         </div>
       </div>

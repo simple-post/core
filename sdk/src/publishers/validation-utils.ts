@@ -1,3 +1,4 @@
+import { describeDisplayMessage, displayMessage } from "../validation/display-message";
 import type { Media, Platform } from "../types/post";
 import type { ValidationIssue } from "../types/validation";
 
@@ -24,13 +25,19 @@ export function countMedia(media: Media[]): { images: number; videos: number } {
   return { images, videos };
 }
 
-export function formatFileSize(bytes: number): string {
-  const gibibyte = 1024 * 1024 * 1024;
-  const mebibyte = 1024 * 1024;
+const gibibyte = 1024 * 1024 * 1024;
+const mebibyte = 1024 * 1024;
 
+export function formatFileSize(bytes: number): string {
   if (bytes % gibibyte === 0) return `${bytes / gibibyte} GB`;
   if (bytes % mebibyte === 0) return `${bytes / mebibyte} MB`;
   return `${bytes.toLocaleString("en-US")} bytes`;
+}
+
+function describeFileSize(bytes: number) {
+  if (bytes % gibibyte === 0) return displayMessage("{{size}} GB", { size: bytes / gibibyte });
+  if (bytes % mebibyte === 0) return displayMessage("{{size}} MB", { size: bytes / mebibyte });
+  return displayMessage("{{size, number}} bytes", { size: bytes });
 }
 
 export function validateMediaSizes(
@@ -48,15 +55,26 @@ export function validateMediaSizes(
     const limit = typeof configuredLimit === "function" ? configuredLimit(item) : configuredLimit;
     if (limit === undefined || item.size <= limit) continue;
 
-    errors.push({
-      platform,
-      severity: "error",
-      code: `${item.type}_too_large`,
-      message: `${platformName} ${item.type}s cannot exceed ${formatFileSize(limit)}.`,
-      field: `media[${index}]`,
-      limit,
-      actual: item.size,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform,
+          severity: "error",
+          code: `${item.type}_too_large`,
+          message: `${platformName} ${item.type}s cannot exceed ${formatFileSize(limit)}.`,
+          field: `media[${index}]`,
+          limit,
+          actual: item.size,
+        },
+        item.type === "image"
+          ? "{{platformName}} images cannot exceed {{size}}."
+          : "{{platformName}} videos cannot exceed {{size}}.",
+        {
+          platformName,
+          size: describeFileSize(limit),
+        },
+      ),
+    );
   }
 
   return errors;

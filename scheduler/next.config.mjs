@@ -56,7 +56,9 @@ const nextConfig = {
       // A missing historical hash reaches the recovery route. Do not override
       // its no-store redirect with the immutable policy for existing files.
       ...files
-        .filter((filename) => /^(workspace|post-editor|schedule|post-preview)-[A-Z0-9]{8}\.(js|css)$/i.test(filename))
+        .filter((filename) =>
+          /^(workspace|post-editor|schedule|post-preview|locale-[a-z-]+)-[A-Z0-9]{8}\.(js|css)$/i.test(filename),
+        )
         .map((filename) => ({
           source: `/mcp-widgets/${filename}`,
           headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],

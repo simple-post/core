@@ -1,3 +1,5 @@
+import { validationMessage, joinedValidationMessages } from "@/lib/i18n/validation-display";
+import type { AuthoredMessage } from "@/lib/i18n/server";
 import { Feature, Prisma } from "@prisma/client";
 import {
   ImageFitSchema,
@@ -17,12 +19,17 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
+import { authoredError, canonicalMessage, serverMessage, serverT } from "@/lib/i18n/server";
+import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { deferPostRetry } from "@/lib/posting/defer-post-retry";
+import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { getTikTokPostRecovery, recoveryForResult } from "@/lib/posting/tiktok-recovery";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -99,6 +106,18 @@ export const createPostSchema = z.object({
 
 export const previewPostSchema = createPostSchema;
 
+const recoverySchema = z.object({
+  code: z.string(),
+  title: z.string(),
+  message: z.string(),
+  state: z.string(),
+  automaticRetry: z.boolean(),
+  canScheduleRetry: z.boolean(),
+  actions: z.array(z.string()),
+  tool: z.string(),
+  instructions: z.string(),
+});
+
 const mcpPostSchema = z.object({
   id: z.string(),
   message: z.string(),
@@ -106,6 +125,7 @@ const mcpPostSchema = z.object({
   accountOptions: AccountOptionsMapSchema,
   scheduledFor: z.string().nullable(),
   status: z.string(),
+  recovery: recoverySchema.optional(),
   publishedAt: z.string().nullable(),
   repostEnabled: z.boolean(),
   repostDelayHours: z.number(),
@@ -132,6 +152,7 @@ const postingResultSchema = z.object({
   postUrl: z.string().optional(),
   postId: z.string().optional(),
   threadResults: z.array(threadSegmentResultSchema).optional(),
+  recovery: recoverySchema.optional(),
 });
 
 const scheduleWarningSchema = z.object({
@@ -217,7 +238,9 @@ export const updateScheduledPostSchema = z.object({
   imageFit: ImageFitSchema.optional(),
   postId: z
     .string()
-    .describe("ID of the draft or future scheduled SimplePost post to edit. Use inspect_posts to find it."),
+    .describe(
+      "ID of a draft, upcoming scheduled post, or recoverable TikTok failure. Use inspect_posts. For a failed TikTok post, change only scheduledFor and postingMode='schedule'; keep content and destinations intact.",
+    ),
   postingMode: z
     .enum(["draft", "schedule"])
     .optional()
@@ -306,6 +329,7 @@ const managedPostSchema = z.object({
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
   errorMessage: z.string().nullable(),
+  recovery: recoverySchema.optional(),
   repostEnabled: z.boolean(),
   repostDelayHours: z.number(),
   repostDueAt: z.string().nullable(),
@@ -340,12 +364,18 @@ export const inspectPostsOutputSchema = z.object({
     postedCount: z.number(),
     failedCount: z.number(),
   }),
+  connectAccountsUrl: z
+    .string()
+    .optional()
+    .describe(
+      "Present only when no account is connected, even if earlier posts remain: the SimplePost page where the user connects one.",
+    ),
 });
 
 export const updateScheduledPostOutputSchema = z.object({
   kind: z.literal("scheduled_post_update"),
   post: managedPostSchema,
-  validation: validatePostOutputSchema,
+  validation: validatePostOutputSchema.optional(),
   warnings: z.array(scheduleWarningSchema).optional(),
   summary: z.object({
     updated: z.boolean(),
@@ -416,6 +446,7 @@ function mapPost(post: {
   accountOptions?: SocialPost["accountOptions"];
   scheduledFor: Date | null;
   status: string;
+  errorDetails?: SocialPost["errorDetails"];
   publishedAt?: Date | null;
   repostEnabled?: boolean;
   repostDelayHours?: number;
@@ -430,6 +461,7 @@ function mapPost(post: {
     accountOptions: post.accountOptions ?? {},
     scheduledFor: post.scheduledFor?.toISOString() ?? null,
     status: post.status,
+    recovery: getTikTokPostRecovery({ status: post.status as SocialPost["status"], errorDetails: post.errorDetails }),
     publishedAt: post.publishedAt?.toISOString() ?? null,
     repostEnabled: post.repostEnabled ?? false,
     repostDelayHours: post.repostDelayHours ?? 12,
@@ -505,6 +537,7 @@ function mapManagedPost(
     publishedAt: post.publishedAt?.toISOString() ?? null,
     status: mapManagedStatus(post.status),
     errorMessage: post.errorMessage ?? null,
+    recovery: getTikTokPostRecovery(post),
     repostEnabled: post.repostEnabled ?? false,
     repostDelayHours: post.repostDelayHours ?? 12,
     repostDueAt: post.repostDueAt?.toISOString() ?? null,
@@ -581,13 +614,15 @@ function resolveUpdatedScheduledFor(value: string | undefined, currentValue: Dat
  * prose would otherwise read the default `stop` and never offer to fit.
  */
 function validationFailureError(
-  message: string,
+  message: AuthoredMessage,
   canOfferImageFitting: boolean,
   logContext: { accountIds: string[]; platforms: string[] },
 ): McpToolError {
   return new McpToolError({
     code: canOfferImageFitting ? "POST_IMAGE_FIT_AVAILABLE" : "POST_VALIDATION_FAILED",
-    message: canOfferImageFitting ? `${message} ${IMAGE_FIT_HELP}` : message,
+    message: canOfferImageFitting
+      ? serverMessage("{{message}} {{help}}", { message, help: serverMessage(IMAGE_FIT_HELP) })
+      : message,
     stage: canOfferImageFitting ? "media_validation" : "tool_execution",
     recovery: canOfferImageFitting ? "retry_with_image_fit" : "stop",
     maxAutomaticRetries: canOfferImageFitting ? 1 : 0,
@@ -639,7 +674,8 @@ async function assertCredentialsReadyForPublish(params: {
     userId: params.userId,
   });
   if (issues.length > 0) {
-    throw new Error(issues.map((issue) => issue.message).join(" "));
+    const message = joinedValidationMessages(issues, " ");
+    throw authoredError(new Error(canonicalMessage(message)), message);
   }
 }
 
@@ -744,6 +780,8 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
   const accountMap = await getAccountMap(userId);
   const page = input.page ?? 1;
   const limit = input.limit ?? 10;
+  const guidance: { connectAccountsUrl?: string } =
+    accountMap.size === 0 ? { connectAccountsUrl: getConnectAccountsUrl() } : {};
 
   if (input.postId) {
     const post = await repository.getPostById(input.postId);
@@ -758,6 +796,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
       posts,
       pagination: null,
       summary: countStatuses(posts),
+      ...guidance,
     };
   }
 
@@ -772,6 +811,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
       posts,
       pagination: result.pagination,
       summary: countStatuses(posts),
+      ...guidance,
     };
   }
 
@@ -791,6 +831,7 @@ export async function inspectPosts(userId: string, input: z.infer<typeof inspect
     posts,
     pagination: null,
     summary: countStatuses(posts),
+    ...guidance,
   };
 }
 
@@ -818,9 +859,47 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   if (!currentPost) {
     throw new Error(POST_NOT_FOUND_MESSAGE);
   }
+  if (getTikTokPostRecovery(currentPost)) {
+    const contentFields = [
+      "message",
+      "accountIds",
+      "media",
+      "thread",
+      "accountOverrides",
+      "accountOptions",
+      "imageFit",
+      "quotePostId",
+    ] as const;
+    if (
+      input.scheduledFor &&
+      input.postingMode !== "draft" &&
+      contentFields.every((field) => input[field] === undefined)
+    ) {
+      const updated = await scheduleTikTokRetry(userId, input.postId, input.scheduledFor, input.expectedUpdatedAt);
+      return {
+        kind: "scheduled_post_update" as const,
+        post: mapManagedPost(updated, await getAccountMap(userId)),
+        summary: {
+          updated: true,
+          messageChanged: false,
+          accountsChanged: false,
+          mediaChanged: false,
+          threadChanged: false,
+          accountOverridesChanged: false,
+          statusChanged: currentPost.status !== "scheduled",
+          scheduledForChanged: true,
+          quoteChanged: false,
+        },
+      };
+    }
+    if (currentPost.status === "failed")
+      throw new Error(
+        "To recover this TikTok failure, provide only scheduledFor, postingMode='schedule', postId and expectedUpdatedAt. The existing content and successful destinations will be preserved.",
+      );
+  }
   assertEditableManagedPost(currentPost);
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
-    throw new ConflictError("This post changed. Reload it before saving.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before saving."));
   }
 
   const message = input.message ?? currentPost.message;
@@ -901,12 +980,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   // Drafts save unconditionally here too; the returned `validation` is what
   // tells the user the draft is not publishable yet.
   if (targetPostingMode === "schedule" && !validation.isValid) {
-    const errorMessages = validation.accounts
-      .flatMap((account) => account.errors)
-      .map((error) => error.message)
-      .join("; ");
+    const errorMessages = joinedValidationMessages(validation.accounts.flatMap((account) => account.errors));
     throw validationFailureError(
-      `Couldn't save these changes because the scheduled post would be invalid: ${errorMessages}`,
+      serverMessage("Couldn't save these changes because the scheduled post would be invalid: {{errors}}", {
+        errors: errorMessages,
+      }),
       validation.imageFitHelp !== undefined,
       { accountIds, platforms: validation.platforms },
     );
@@ -929,7 +1007,12 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
     userId,
   });
 
-  const updates: Partial<SocialPost> = {};
+  const updates: Partial<SocialPost> & { tiktokRetryApproved?: boolean } = {
+    tiktokRetryApproved:
+      targetPostingMode === "schedule" &&
+      input.scheduledFor !== undefined &&
+      Boolean(getTikTokPostRecovery(currentPost)),
+  };
   if (input.message !== undefined) updates.message = message;
   if (input.accountIds !== undefined) updates.accountIds = accountIds;
   if (accountOptions !== undefined) updates.accountOptions = accountOptions;
@@ -1017,7 +1100,7 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
   const media = collectMediaForCleanup(post);
 
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== post.updatedAt.toISOString()) {
-    throw new ConflictError("This post changed. Reload it before discarding.");
+    throw new ConflictError(serverMessage("This post changed. Reload it before discarding."));
   }
   await repository.deletePost(input.postId, post.updatedAt);
   if (media.length > 0) {
@@ -1043,6 +1126,7 @@ function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof
     success: r.success,
     error: r.error,
     message: r.message,
+    recovery: recoveryForResult(r),
     postUrl: r.postUrl,
     postId: r.postId,
     threadResults: r.threadResults?.map((s) => ({
@@ -1194,10 +1278,15 @@ export async function createPost(
   // reports what must be fixed before the post can go out. Structural failures
   // — unknown account, media that could not be imported, quota — still throw.
   if (postingMode !== "draft" && !validation.summary.isValid) {
-    const errorMessages = validation.summary.errors.map((e) => e.message).join("; ");
-    const action = postingMode === "schedule" ? "scheduled" : "published";
+    const errorMessages = joinedValidationMessages(validation.summary.errors);
     throw validationFailureError(
-      `The post can't be ${action} because it failed validation: ${errorMessages}`,
+      postingMode === "schedule"
+        ? serverMessage("The post can't be scheduled because it failed validation: {{errors}}", {
+            errors: errorMessages,
+          })
+        : serverMessage("The post can't be published because it failed validation: {{errors}}", {
+            errors: errorMessages,
+          }),
       canOfferImageFitting,
       { accountIds: input.accountIds, platforms: validation.platforms },
     );
@@ -1318,7 +1407,10 @@ export async function createPost(
       const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
       const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
-      if (summary.overallSuccess) {
+      const deferred = await deferPostRetry(post.id, results, accountResults, threadResultsByAccount);
+      if (deferred) {
+        // The original record is queued; no failure webhook is emitted.
+      } else if (summary.overallSuccess) {
         const publishedAt = new Date();
         const repostState = buildPublishedRepostState({
           enabled: repostSettings.enabled,
@@ -1357,6 +1449,7 @@ export async function createPost(
             error: r.error,
             message: r.message,
             threadResults: r.threadResults,
+            details: r.details,
           })),
         }) as Record<string, unknown>;
 
@@ -1379,7 +1472,12 @@ export async function createPost(
       }
 
       const updatedPost = await repository.getPostById(post.id);
-      const sanitizedResults = mapPostingResultsForMcp(results);
+      const sanitizedResults = mapPostingResultsForMcp(results).map((result) => ({
+        ...result,
+        ...(deferred && result.recovery
+          ? { recovery: { ...result.recovery, automaticRetry: true, state: "waiting" } }
+          : {}),
+      }));
 
       return {
         kind: "post" as const,
@@ -1396,7 +1494,7 @@ export async function createPost(
           threadSegmentCount,
           successCount: summary.successCount,
           failureCount: summary.failureCount,
-          scheduledCount: 0,
+          scheduledCount: deferred ? 1 : 0,
           draftCount: 0,
           overallSuccess: summary.overallSuccess,
         },
@@ -1421,7 +1519,9 @@ export async function createPost(
     post: mapPost(post),
     validation: mcpValidation,
     imageFitHelp: canOfferImageFitting
-      ? fittableImageIssues.map((issue) => `${issue.platform}: ${issue.message}`).join(" ") + " " + IMAGE_FIT_HELP
+      ? fittableImageIssues.map((issue) => `${issue.platform}: ${validationMessage(issue)}`).join(" ") +
+        " " +
+        serverT(IMAGE_FIT_HELP)
       : undefined,
     postingResults: [],
     warnings: scheduleWarnings,

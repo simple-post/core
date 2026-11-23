@@ -1,30 +1,40 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { handoffSource } from "@/lib/accounts/assistant-handoff";
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
+  let source: "assistant_handoff" | undefined;
+  let measurementUserId: string | null = null;
+  let measurementPlatform = "unknown";
   try {
     const { platform } = await params;
+    measurementPlatform = platform;
     const session = await requireAuth(request, { action: "connect_social_account", platform });
+    measurementUserId = session.user.id;
+    source = handoffSource(request.nextUrl.searchParams.get("handoffToken"), session.user.id, platform);
+    await recordFunnelEvent(measurementUserId, "social_connection_started", { properties: { platform, source } });
 
     if (!isSocialPlatformEnabled(platform)) {
-      throw new BadRequestError("Social platform is not enabled in this environment");
+      throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
     const config = getPlatformOAuthConfig(platform);
     if (!config || !config.clientId) {
-      throw new BadRequestError("Platform not supported or not configured");
+      throw new BadRequestError(serverMessage("Platform not supported or not configured"));
     }
 
     const baseURL = env.NEXT_PUBLIC_APP_URL;
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
-    const state = createOAuthState(session.user.id, platform);
+    const state = createOAuthState(session.user.id, platform, source);
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
@@ -51,7 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
       case "youtube": {
         authUrl.searchParams.set("access_type", "offline");
-        authUrl.searchParams.set("prompt", "consent");
+        authUrl.searchParams.set("prompt", "consent select_account");
         break;
       }
       case "instagram": {
@@ -68,6 +78,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     return response;
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: measurementPlatform, source, reason: measurementFailure(error) },
+      });
     return handleApiError(error, request);
   }
 }

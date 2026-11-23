@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getPlatformName } from "@/lib/config";
 import { env } from "@/lib/env";
+import { normalizeLocale } from "@/lib/i18n/locales";
 import { createLogger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { EmailDeliveryError, sendNotificationEmail, type NotificationEmail } from "@/lib/resend/notification-email";
@@ -84,7 +85,7 @@ async function deliver(
         username: true,
         displayName: true,
         credentialRefreshBlockedAt: true,
-        user: { select: { email: true } },
+        user: { select: { email: true, uiLocale: true } },
       },
     });
     if (!account || account.credentialRefreshBlockedAt?.getTime() !== notification.disconnectedAt.getTime())
@@ -104,6 +105,7 @@ async function deliver(
         from: env.RESEND_FROM_ADDRESS,
         to: account.user.email,
         ...renderDisconnectEmail({
+          locale: normalizeLocale(account.user.uiLocale),
           platformName: getPlatformName(account.platform),
           accountLabel: account.username
             ? account.username.startsWith("@")

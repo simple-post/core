@@ -81,9 +81,9 @@ Reviewers need fresh execution logs for every module, and the logs must not cont
 2. **Scenario A, main flow** (one route, no errors): **List accounts** (limit 1) → **Upload a media file** (fed by an **HTTP › Get a file** module with a public test image) → **Validate a post** → **Create a post** (Posting mode: Schedule, 1 hour ahead, media mapped from Upload) → **Get a post** → **Delete a post**.
 3. **Scenario B, publish now**: **Create a post** with Posting mode **Publish now** to a test account. Before running it, turn on scenarios C and D.
 4. **Scenario C**: **Watch published posts**. Creating the webhook must register it in SimplePost (`GET /api/v1/webhooks` with your key shows the Make URL). Running scenario B must trigger it.
-5. **Scenario D**: **Watch failed posts**. Trigger it by publishing an invalid post, for example to Instagram with no media, from scenario B or the SimplePost app.
-6. **Scenario E, search** (search modules at the end of a route): **Search posts** with Status **Published** and Limit `150`. You need more than 100 matching posts so the log shows a second page request. Then **Make an API call** with `GET` `/api/v1/accounts`.
-7. **Scenario F, error**: **Create a post** with Posting mode **Schedule** and a time in the past. The log should show `[400] …`.
+5. **Scenario D**: **Watch failed posts**. Schedule a valid post to a dedicated test account and revoke its token after scheduling but before dispatch. Confirm that the post reaches Failed in SimplePost and the scenario receives the event.
+6. **Scenario E, search** (search modules at the end of a route): **Search posts** with Status **Published** and Limit `150`. You need more than 100 matching posts so the log shows a second page request. Then **Make an API call** with method `GET` and URL `accounts`.
+7. **Scenario F, error**: **Create a post** with Posting mode **Schedule** and a time in the past. The log should show `[400] …`. Also try a post that fails platform validation, such as a text-only Instagram post, and check that the reason is visible and the API key is masked.
 8. Delete scenarios C and D's webhooks in Make and confirm `GET /api/v1/webhooks` no longer lists them (detach works).
 9. Run every scenario right before requesting review, and again after each fix. Make deletes old execution logs and reviewers can't see them.
 

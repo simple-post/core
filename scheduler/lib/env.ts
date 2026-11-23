@@ -57,6 +57,12 @@ export const env = {
   get RESEND_FROM_ADDRESS() {
     return process.env.RESEND_FROM_ADDRESS || "auth@simplepost.social";
   },
+  get BILLING_EMAIL_REPLY_TO() {
+    return getRuntimeEnvironmentVariable("BILLING_EMAIL_REPLY_TO") || "support@simplepost.social";
+  },
+  get BILLING_EMAIL_MONITOR_BCC() {
+    return getRuntimeEnvironmentVariable("BILLING_EMAIL_MONITOR_BCC")?.trim() || undefined;
+  },
   /**
    * Self-hosted mode: disables all billing and Stripe integration. Every user
    * gets unrestricted access, billing UI is hidden, and Stripe environment
@@ -66,9 +72,8 @@ export const env = {
     return getBoolean("SELF_HOSTED");
   },
   /**
-   * Enables the hard-coded demo account password logins
-   * (openai@simplepost.social and demo@simplepost.social). Should only be set in
-   * review/staging environments.
+   * Enables the fixed 123456 demo password for demo@simplepost.social.
+   * Should only be set in review/staging environments.
    */
   get ENABLE_OPENAI_TEST_LOGIN() {
     return getBoolean("ENABLE_OPENAI_TEST_LOGIN");

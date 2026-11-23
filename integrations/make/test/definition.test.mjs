@@ -153,6 +153,12 @@ test("every request uses a path relative to the base URL", () => {
   for (const request of requests) assert.match(request.url, /^\//, request.url);
 });
 
+test("the universal module keeps the request on the configured API origin", () => {
+  const [id] = modules.find(([, module]) => module.moduleType === "universal");
+  const { url } = moduleCode(id, "communication");
+  assert.equal(url, "/api/v1/{{parameters.url}}");
+});
+
 test("search modules expose an optional limit as their last parameter", () => {
   for (const [id, module] of modules.filter(([, module]) => module.moduleType === "search")) {
     const parameters = moduleCode(id, "mappableParams");

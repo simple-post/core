@@ -5,13 +5,13 @@
 		"id": "cmabc123post",
 		"status": "failed",
 		"message": "We just shipped scheduled reposts. Try them today!",
-		"errorMessage": "Instagram requires at least one image or video.",
+		"errorMessage": "Reconnect Instagram before publishing.",
 		"accountResults": {
 			"cmabc123account": {
 				"platform": "instagram",
 				"success": false,
-				"error": "media_required",
-				"message": "Instagram requires at least one image or video."
+				"error": "reauth_required",
+				"message": "Reconnect Instagram before publishing."
 			}
 		}
 	}

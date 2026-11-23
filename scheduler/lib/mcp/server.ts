@@ -1,16 +1,22 @@
 import { randomUUID } from "node:crypto";
 
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { type McpServer } from "@modelcontextprotocol/server";
 
+import type { Locale } from "@/lib/i18n/locales";
+import { localizedPostStatus, localizedSchedulePeriod } from "@/lib/i18n/presentation";
+import { authoredError, canonicalMessage, displayError, serverMessage, serverT } from "@/lib/i18n/server";
+import type { MessageKey } from "@/lib/i18n/translate";
 import { createLogger, serializeError } from "@/lib/logger";
+import { mcpText, mcpUiTranslation } from "@/lib/mcp/locale";
+import { registerMeasuredTool } from "@/lib/mcp/registration";
 import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 
 import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
+import { formatConnectAccountsGuidance, NO_CONNECTED_ACCOUNTS_CODE } from "./connect-guidance";
 import { registerExtensionTools } from "./extensions/register";
-import { formatBytes, formatDateTime, platformLabel, plural } from "./format";
+import { formatBytes, formatDateTime as formatUtcDateTime, platformLabel, plural } from "./format";
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { isMcpBillingDenial, MCP_ERROR_INSTRUCTIONS, mcpToolLogLevel, toMcpErrorDiagnostic } from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
@@ -42,14 +48,19 @@ import type { z } from "zod";
 
 const log = createLogger("mcp:tools");
 
+const formatDateTime = (iso: string) => formatUtcDateTime(iso, mcpUiTranslation().locale);
+const statusLabel = (status: string) =>
+  mcpUiTranslation().locale === "en" ? status : localizedPostStatus(status, mcpUiTranslation().t);
+const accountGuidance = (url?: string) => formatConnectAccountsGuidance(url, mcpUiTranslation().t);
+
 export const IMAGE_FITTING_INSTRUCTIONS =
   "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. A call that fails with recovery retry_with_image_fit means exactly this: repeat it once with imageFit set. Drafts are saved either way — when a saved draft reports fixable image errors, say so and offer to fit rather than re-saving it. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
 
-export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Account connection and edits or deletions of already-published social content are unsupported by these tools; explain that limitation and direct the user to the SimplePost web app or social platform.
+export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Tools can provide links for user-controlled social account authorization in the browser. Edits or deletions of already-published social content must happen on the social platform.
 
-# No-tool routing rules
+# Connection handoff and unsupported actions
 
-- If the user asks to connect, add, disconnect, reauthorize, reconnect, or fix OAuth for a social account, do not call a SimplePost tool for that action. Tell them SimplePost account management must happen in the SimplePost web app.
+- To connect or add a social account, read \`list_accounts\` or the workspace and show the requested platform’s \`connectionLinks\` URL unchanged. Ask which platform only if unclear. OAuth links go to provider authorization after any required SimplePost sign-in; manual providers open a web setup form. The user approves access in the browser. Never ask for provider passwords, keys, or tokens in chat. When they return, refresh accounts and verify the requested platform before continuing. Reconnection of an existing account, disconnection, and other account management remain in the SimplePost web app.
 - If the user asks to delete, edit, undo, remove, or take down a post already published on a social platform such as X, Instagram, Facebook, YouTube, Threads, Telegram, or Bluesky, do not call a SimplePost tool for that action. Explain that SimplePost tools can only manage drafts and future scheduled posts, and direct them to the social platform.
 - Do not inspect accounts or posts merely to confirm that an unsupported action is unsupported.
 - If the user asks for generic writing, brainstorming, translation, arithmetic, meeting calendars, reminders, or SEO research without a social publishing action or selected SimplePost editor, do not call any SimplePost tool. Writing changes to a selected SimplePost working copy are supported through the editor tools when available.
@@ -64,7 +75,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, previe
 
 - Check each account's trialAllowance from list_accounts before posting or scheduling. The allowance is shared across accounts on the same platform; drafts do not consume it. If access or an allowance prevents posting, explain the returned restriction without offering a purchase or subscription. Do not retry automatically or repeatedly inspect accounts to bypass the denial.
 
-1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. If the list is empty, give the user this direct link: https://app.simplepost.social/accounts?onboarding=connect . Explain that connecting SimplePost to their assistant does not connect a social account. Ask them to connect one destination there, return to this conversation, and say "My account is connected; help me save my first draft." There is no MCP tool to add accounts.
+1. Call \`list_accounts\` first to discover which platforms the user has connected and to get the \`accountId\` values you must pass to other tools. Never invent account IDs. Use the requested platform’s \`connectionLinks\` URL to help connect a destination, including additional accounts. If the platform is unclear, ask once. Use \`connectAccountsUrl\` as a fallback when platform links are unavailable. When no suitable destination is connected, explain that assistant authorization does not connect a social account. Ask them to approve the selected destination in the browser and return to this conversation. There is no MCP tool to add accounts.
 
 2. If the post needs an image or video, attach it via the \`media\` field on \`validate_post\`, \`preview_post\`, and \`create_post\`. See the "Media" section below for how to obtain a URL.
 
@@ -82,7 +93,7 @@ export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, previe
 
 6. When the user asks to quote an earlier post in natural language (for example, "quote my last post about the gym"), call \`inspect_posts\` to find the matching published or scheduled SimplePost record, then pass its exact \`id\` as \`quotePostId\` to \`preview_post\` or \`create_post\`. Never infer or invent a post ID. Native quotes are used on X, Bluesky, Threads, and LinkedIn; other selected platforms publish the new content as an ordinary post. If the source is scheduled, schedule the quote after it so SimplePost can resolve the platform IDs at dispatch time.
 
-7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
+7. Use \`inspect_posts\` when the user asks what is drafted, scheduled, already posted, or failed. Use \`update_scheduled_post\` for drafts or future scheduled posts when the user wants to change content, accounts, root media, thread, quote source, scheduled time, or move between draft and scheduled. A TikTok failure with \`recovery.canScheduleRetry\` also supports a timing-only retry using the same postId, postingMode='schedule', scheduledFor and expectedUpdatedAt. Offer tomorrow or a user-chosen time; for several posts, offer a spaced schedule and confirm exact times with timezone before updating each original. Never create duplicates to recover a limit. Minute limits wait automatically; confirmed transient processing failures retry up to three times at one-minute intervals. Daily/inbox caps pause the account; explain any TikTok inbox action and never guarantee a reset or successful retry. The timing-only recovery response may omit validation because content is unchanged; normal dispatch validation still runs. Use \`discard_scheduled_post\` when the user asks to cancel or delete a draft or future scheduled post.
 
 8. Use \`get_schedule\` when the user wants a text or structured-data schedule for a day, week, or month. Use \`show_schedule\` when they ask to show or open the interactive calendar. Include the user's IANA timezone. Both include open slots as well as scheduled, pending, published, failed, and past activity. Use \`inspect_posts\` for a post search or one exact post.
 
@@ -155,16 +166,20 @@ Example: a long single post on X and LinkedIn plus a thread on Bluesky and Threa
 # Error handling
 
 - ${MCP_ERROR_INSTRUCTIONS}
+- \`NO_CONNECTED_ACCOUNTS\` means the user has no social account connected at all. Call \`list_accounts\` and show the requested platform’s \`connectionLinks\` URL; ask which platform only if unclear. Use the message’s generic link only if platform links are unavailable. Stop posting until the user returns and accounts have been refreshed; do not retry with other account IDs.
 - \`create_post\` and \`update_scheduled_post\` return \`validation\` alongside the saved post. Warnings never block: surface them (for example, that a non-thread-capable account receives only the root segment) rather than dropping them from your answer.
 - A successful \`create_post\` with \`postingMode: "now"\` may still report per-platform failures inside \`postingResults\`. Always inspect \`summary.overallSuccess\` and the individual results — do not assume success just because the tool didn't throw. For threads, a root post can succeed while a later segment fails; check \`threadResults\` on that account.
 - If \`validate_post\` or \`preview_post\` was explicitly requested and returns \`isValid: false\`, surface the per-account error messages to the user and offer a fix (shorter text, add media, drop a platform) instead of calling \`create_post\` anyway.
 
 # What this server does NOT do
 
-- It cannot connect, disconnect, or re-auth social accounts — direct the user to the SimplePost web app for that.
+- Tools return connection links; the user authorizes social accounts in the browser. Disconnecting or reconnecting an existing account still happens in the SimplePost web app.
 - It cannot edit or discard posts that are already published, failed, pending, or due for dispatch.`;
 
 export interface McpToolAuthContext {
+  uiLocale?: Locale;
+  readOnly?: boolean;
+  onboardingTrialDays?: number | null;
   imageFittingEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;
@@ -184,15 +199,15 @@ function fittingSchema<T extends z.ZodRawShape & { imageFit: z.ZodType }>(
 
 const OAUTH_SECURITY_SCHEMES = [{ type: "oauth2", scopes: [...MCP_SCOPES] }];
 
-function toolMeta(invoking: string, invoked: string) {
+function toolMeta(invoking: MessageKey, invoked: MessageKey) {
   return {
     securitySchemes: OAUTH_SECURITY_SCHEMES,
-    "openai/toolInvocation/invoking": invoking,
-    "openai/toolInvocation/invoked": invoked,
+    "openai/toolInvocation/invoking": mcpText(invoking),
+    "openai/toolInvocation/invoked": mcpText(invoked),
   };
 }
 
-function widgetToolMeta(invoking: string, invoked: string, resourceUri: string) {
+function widgetToolMeta(invoking: MessageKey, invoked: MessageKey, resourceUri: string) {
   return {
     ...toolMeta(invoking, invoked),
     ui: {
@@ -215,6 +230,7 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
     {
       ...apiFields,
       userId: context.userId,
+      userEmail: context.userEmail,
       clientId: context.clientId,
       supportId: diagnostic.supportId,
       diagnostic,
@@ -222,11 +238,18 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
     "MCP tool returned an error",
   );
 
+  const userMessage =
+    diagnostic.code === NO_CONNECTED_ACCOUNTS_CODE
+      ? accountGuidance()
+      : displayError(error) +
+        (billingDenied
+          ? " " + serverT("Do not retry until the user changes their plan or allowance in SimplePost.")
+          : "");
   return {
     content: [
       {
         type: "text" as const,
-        text: `${diagnostic.message}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
+        text: `${userMessage}\nSIMPLEPOST_ERROR ${JSON.stringify(diagnostic)}`,
       },
     ],
     isError: true,
@@ -237,18 +260,38 @@ function errorResult(error: unknown, context: McpToolAuthContext) {
   };
 }
 
-const SCOPE_ACTIONS: Record<McpScope, string> = {
-  "accounts:read": "view your connected accounts",
-  "posts:read": "view your posts",
-  "posts:validate": "check posts against platform rules",
-  "posts:write": "create or change posts",
+const scopeMessage = (scope: McpScope) => {
+  switch (scope) {
+    case "accounts:read": {
+      return serverMessage(
+        "SimplePost doesn't have permission to view your connected accounts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:read": {
+      return serverMessage(
+        "SimplePost doesn't have permission to view your posts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:validate": {
+      return serverMessage(
+        "SimplePost doesn't have permission to check posts against platform rules for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+    case "posts:write": {
+      return serverMessage(
+        "SimplePost doesn't have permission to create or change posts for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: {{scope}}).",
+        { scope },
+      );
+    }
+  }
 };
-
 function requireScope(context: McpToolAuthContext, scope: McpScope): void {
   if (!hasMcpScope(context.scope, scope)) {
-    throw new Error(
-      `SimplePost doesn't have permission to ${SCOPE_ACTIONS[scope]} for this connection. Please reconnect SimplePost and approve the requested access (missing OAuth scope: ${scope}).`,
-    );
+    const message = scopeMessage(scope);
+    throw authoredError(new Error(canonicalMessage(message)), message);
   }
 }
 
@@ -261,8 +304,8 @@ function formatSegments(heading: string, message: string, thread?: Array<{ messa
   }
 
   return [
-    `${heading}\nRoot:\n${message}`,
-    ...segments.map((segment, index) => `Reply ${index + 1}:\n${segment.message ?? ""}`),
+    `${heading}\n${mcpText("mcpRoot")}\n${message}`,
+    ...segments.map((segment, index) => `${mcpText("mcpReply", { index: index + 1 })}:\n${segment.message ?? ""}`),
   ].join("\n\n");
 }
 
@@ -275,10 +318,10 @@ function formatPostContent(
     ([, override]) => override.message !== undefined || override.thread !== undefined,
   );
   return [
-    formatSegments("Post content:", message, thread),
+    formatSegments(mcpText("mcpPostContent"), message, thread),
     ...overrides.map(([accountId, override]) =>
       formatSegments(
-        `Custom content for account ${accountId}:`,
+        mcpText("mcpCustomContent", { id: accountId }),
         override.message ?? message,
         override.thread ?? thread,
       ),
@@ -317,15 +360,19 @@ function formatAccount(account: AccountSummary): string {
   const name =
     account.displayName && handle && account.displayName !== handle
       ? `${account.displayName} (${handle})`
-      : (account.displayName ?? handle ?? "Unnamed account");
-  return `${name} on ${platformLabel(account.platform)} (account ID: ${account.accountId})`;
+      : (account.displayName ?? handle ?? mcpText("mcpUnnamedAccount"));
+  return mcpText("mcpAccountLine", { name, platform: platformLabel(account.platform), id: account.accountId });
 }
 
-function formatAccounts(accounts: AccountSummary[]): string {
-  if (accounts.length === 0)
-    return "Your assistant is connected, but no social account is linked yet. Connect one at https://app.simplepost.social/accounts?onboarding=connect, then return to this conversation and ask me to save your first draft.";
+function formatAccounts(accounts: AccountSummary[], connectAccountsUrl?: string): string {
+  if (accounts.length === 0) return accountGuidance(connectAccountsUrl);
 
-  return `Connected accounts:\n${accounts.map((account) => `- ${formatAccount(account)}`).join("\n")}`;
+  return `${mcpText("connectedAccounts")}:\n${accounts.map((account) => `- ${formatAccount(account)}`).join("\n")}`;
+}
+
+/** Appended to read-only results that still make sense without a destination. */
+function withConnectGuidance(text: string, connectAccountsUrl: string | undefined): string {
+  return connectAccountsUrl ? `${text}\n\n${accountGuidance(connectAccountsUrl)}` : text;
 }
 
 function formatValidationIssue(issue: ValidationIssue): string {
@@ -338,27 +385,29 @@ function formatValidationDetails(validation: {
   summary: { errorCount: number; warningCount: number };
 }): string {
   if (validation.accounts.length === 0) {
-    return "Validation: no matching accounts were checked.";
+    return mcpText("mcpNoValidationAccounts");
   }
 
   const { errorCount, warningCount } = validation.summary;
   const headline =
     errorCount === 0 && warningCount === 0
-      ? "Validation: all good — no errors or warnings."
-      : `Validation: ${plural(errorCount, "error")}, ${plural(warningCount, "warning")}.`;
+      ? mcpText("mcpValidationOkay")
+      : mcpUiTranslation().locale === "en"
+        ? `Validation: ${plural(errorCount, "error")}, ${plural(warningCount, "warning")}.`
+        : mcpText("mcpValidationCount", { errors: errorCount, warnings: warningCount });
 
   const accounts = validation.accounts
     .map((account) => {
       const errors = account.errors.map((issue) => formatValidationIssue(issue));
       const warnings = account.warnings.map((issue) => formatValidationIssue(issue));
       const details = [
-        errors.length > 0 ? `errors: ${errors.join("; ")}` : "",
-        warnings.length > 0 ? `warnings: ${warnings.join("; ")}` : "",
+        errors.length > 0 ? mcpText("mcpErrors", { details: errors.join("; ") }) : "",
+        warnings.length > 0 ? mcpText("mcpWarnings", { details: warnings.join("; ") }) : "",
       ]
         .filter(Boolean)
         .join("; ");
 
-      return `- ${formatAccount(account)}: ${account.isValid ? "OK" : "has issues"}${details ? ` (${details})` : ""}`;
+      return `- ${formatAccount(account)}: ${account.isValid ? mcpText("mcpOkay") : mcpText("mcpIssues")}${details ? ` (${details})` : ""}`;
     })
     .join("\n");
 
@@ -366,9 +415,10 @@ function formatValidationDetails(validation: {
 }
 
 function formatTiming(postingMode: string, scheduledFor: string | null): string {
-  if (postingMode === "draft") return "When: saved as a draft (not scheduled)";
-  if (postingMode === "schedule" && scheduledFor) return `When: scheduled for ${formatDateTime(scheduledFor)}`;
-  return "When: published immediately";
+  if (postingMode === "draft") return mcpText("mcpDraftTiming");
+  if (postingMode === "schedule" && scheduledFor)
+    return mcpText("mcpScheduledAt", { date: formatDateTime(scheduledFor) });
+  return mcpText("mcpImmediate");
 }
 
 function formatPreviewDetails(result: {
@@ -376,17 +426,18 @@ function formatPreviewDetails(result: {
   scheduledFor: string | null;
   mediaCount: number;
   quotePostId: string | null;
+  recovery?: { title: string; message: string; automaticRetry: boolean };
   accounts: AccountSummary[];
   validation: { accounts: ValidationAccount[]; summary: { errorCount: number; warningCount: number } };
   summary: { threadSegmentCount: number };
 }): string {
   return [
-    "Preview details:",
+    mcpText("mcpPreviewDetails"),
     formatTiming(result.postingMode, result.scheduledFor),
-    result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
-    result.quotePostId ? `Quotes SimplePost post: ${result.quotePostId}` : "",
+    result.mediaCount > 0 ? mcpText("mcpMediaCount", { count: result.mediaCount }) : "",
+    result.quotePostId ? mcpText("mcpQuote", { id: result.quotePostId }) : "",
     result.summary.threadSegmentCount > 0
-      ? `Thread: ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+      ? mcpText("mcpThreadCount", { count: result.summary.threadSegmentCount })
       : "",
     formatAccounts(result.accounts),
     formatValidationDetails(result.validation),
@@ -404,6 +455,7 @@ function formatPostingResults(
     message?: string;
     postUrl?: string;
     postId?: string;
+    recovery?: { automaticRetry: boolean };
     threadResults?: Array<{
       index: number;
       success: boolean;
@@ -418,11 +470,11 @@ function formatPostingResults(
     return "";
   }
 
-  return `Posting results:\n${results
+  return `${mcpText("mcpPostingResults")}\n${results
     .map((result) => {
       const details = [
-        result.postUrl ? `link: ${result.postUrl}` : "",
-        !result.postUrl && result.postId ? `post ID: ${result.postId}` : "",
+        result.postUrl ? mcpText("mcpLink", { url: result.postUrl }) : "",
+        !result.postUrl && result.postId ? mcpText("mcpPostId", { id: result.postId }) : "",
         result.message ?? "",
         result.error ?? "",
       ]
@@ -433,25 +485,56 @@ function formatPostingResults(
           ? `\n${result.threadResults
               .map((segment) => {
                 const segmentDetails = [
-                  segment.postUrl ? `link: ${segment.postUrl}` : "",
-                  !segment.postUrl && segment.postId ? `post ID: ${segment.postId}` : "",
+                  segment.postUrl ? mcpText("mcpLink", { url: segment.postUrl }) : "",
+                  !segment.postUrl && segment.postId ? mcpText("mcpPostId", { id: segment.postId }) : "",
                   segment.message ?? "",
                   segment.error ?? "",
                 ]
                   .filter(Boolean)
                   .join(" — ");
-                return `  - ${segment.index === 0 ? "Root post" : `Reply ${segment.index}`}: ${
-                  segment.success ? "published" : "failed"
-                }${segmentDetails ? ` (${segmentDetails})` : ""}`;
+                return `  - ${segment.index === 0 ? serverT("Root post") : mcpText("mcpReply", { index: segment.index })}: ${statusLabel(
+                  segment.success ? "published" : "failed",
+                )}${segmentDetails ? ` (${segmentDetails})` : ""}`;
               })
               .join("\n")}`
           : "";
 
-      return `- ${platformLabel(result.platform)} (account ID: ${result.accountId}): ${
-        result.success ? "published" : "failed"
+      return `- ${serverT("{{platform}} (account ID: {{accountId}})", { platform: platformLabel(result.platform), accountId: result.accountId })}: ${
+        result.recovery?.automaticRetry && !result.success
+          ? mcpText("mcpRetryQueued")
+          : statusLabel(result.success ? "published" : "failed")
       }${details ? ` (${details})` : ""}${threadResults}`;
     })
     .join("\n")}`;
+}
+
+function localizedPostOutcome(result: {
+  postingMode: string;
+  post: { status: string };
+  summary: { accountCount: number; successCount: number; failureCount: number };
+}) {
+  if (result.postingMode === "draft") return mcpText("mcpSavedCount", { count: result.summary.accountCount });
+  if (result.postingMode === "schedule") return mcpText("mcpScheduledCount", { count: result.summary.accountCount });
+  if (result.post.status === "scheduled") return mcpText("mcpTikTokRetry");
+  return mcpText("mcpPublishedCount", {
+    success: result.summary.successCount,
+    total: result.summary.accountCount,
+    failed: result.summary.failureCount,
+  });
+}
+
+function scheduleSummary(result: Awaited<ReturnType<typeof getSchedule>>, opening: boolean) {
+  const { locale } = mcpUiTranslation();
+  const summary = result.summary;
+  return locale === "en"
+    ? `${opening ? "Showing" : "Loaded"} ${result.periodLabel}: ${summary.scheduledCount} scheduled, ${summary.publishedCount} published, ${summary.failedCount} failed, and ${summary.openSlotCount} open slots.`
+    : mcpText("mcpScheduleCounts", {
+        period: localizedSchedulePeriod(result, locale),
+        scheduled: summary.scheduledCount,
+        published: summary.publishedCount,
+        failed: summary.failedCount,
+        open: summary.openSlotCount,
+      });
 }
 
 function formatCreatedPostDetails(result: {
@@ -478,29 +561,31 @@ function formatCreatedPostDetails(result: {
 }): string {
   const { summary, post } = result;
   const outcome =
-    result.postingMode === "draft"
-      ? `Saved as a draft for ${plural(summary.accountCount, "account")}.`
-      : result.postingMode === "schedule"
-        ? `Scheduled for ${plural(summary.accountCount, "account")}.`
-        : summary.failureCount === 0
-          ? `Published to ${summary.accountCount === 1 ? "the account" : `all ${summary.accountCount} accounts`}.`
-          : `Published to ${summary.successCount} of ${plural(summary.accountCount, "account")}; ${plural(
-              summary.failureCount,
-              "account",
-            )} failed.`;
+    mcpUiTranslation().locale === "en"
+      ? result.postingMode === "draft"
+        ? `Saved as a draft for ${plural(summary.accountCount, "account")}.`
+        : result.postingMode === "schedule"
+          ? `Scheduled for ${plural(summary.accountCount, "account")}.`
+          : post.status === "scheduled"
+            ? mcpText("mcpTikTokRetry")
+            : summary.failureCount === 0
+              ? `Published to ${summary.accountCount === 1 ? "the account" : `all ${summary.accountCount} accounts`}.`
+              : `Published to ${summary.successCount} of ${plural(summary.accountCount, "account")}; ${plural(
+                  summary.failureCount,
+                  "account",
+                )} failed.`
+      : localizedPostOutcome(result);
 
   return [
-    "Post details:",
-    `Post ID: ${post.id} (status: ${post.status})`,
+    mcpText("mcpPostDetails"),
+    `${mcpText("mcpPostId", { id: post.id })} · ${statusLabel(post.status)}`,
     outcome,
-    result.postingResults.length === 0 ? `Account IDs: ${post.accountIds.join(", ")}` : "",
-    post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
-    post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
-    post.quotePostId ? `Quotes SimplePost post: ${post.quotePostId}` : "",
-    result.mediaCount > 0 ? `Media: ${plural(result.mediaCount, "item")}` : "",
-    summary.threadSegmentCount > 0
-      ? `Thread: ${plural(summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
-      : "",
+    result.postingResults.length === 0 ? mcpText("mcpAccountIds", { ids: post.accountIds.join(", ") }) : "",
+    post.scheduledFor ? mcpText("mcpScheduledAt", { date: formatDateTime(post.scheduledFor) }) : "",
+    post.publishedAt ? mcpText("mcpPublishedAt", { date: formatDateTime(post.publishedAt) }) : "",
+    post.quotePostId ? mcpText("mcpQuote", { id: post.quotePostId }) : "",
+    result.mediaCount > 0 ? mcpText("mcpMediaCount", { count: result.mediaCount }) : "",
+    summary.threadSegmentCount > 0 ? mcpText("mcpThreadCount", { count: summary.threadSegmentCount }) : "",
     formatPostingResults(result.postingResults),
   ]
     .filter(Boolean)
@@ -520,28 +605,30 @@ function formatManagedPostDetails(post: {
   threadSegmentCount: number;
   errorMessage: string | null;
   quotePostId: string | null;
+  recovery?: { title: string; message: string; automaticRetry: boolean };
 }): string {
   return [
-    `Post ${post.id} (${post.status})`,
+    `${mcpText("mcpPostId", { id: post.id })} · ${statusLabel(post.status)}`,
     formatManagedPostContent(post),
     post.accounts.length > 0
-      ? `Accounts: ${post.accounts.map((account) => formatAccount(account)).join("; ")}`
-      : `Account IDs: ${post.accountIds.join(", ")}`,
-    post.mediaCount > 0 ? `Media: ${plural(post.mediaCount, "item")}` : "",
-    post.threadSegmentCount > 0
-      ? `Thread: ${plural(post.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+      ? `${mcpText("accounts")}: ${post.accounts.map((account) => formatAccount(account)).join("; ")}`
+      : mcpText("mcpAccountIds", { ids: post.accountIds.join(", ") }),
+    post.mediaCount > 0 ? mcpText("mcpMediaCount", { count: post.mediaCount }) : "",
+    post.threadSegmentCount > 0 ? mcpText("mcpThreadCount", { count: post.threadSegmentCount }) : "",
+    post.scheduledFor ? mcpText("mcpScheduledAt", { date: formatDateTime(post.scheduledFor) }) : "",
+    post.publishedAt ? mcpText("mcpPublishedAt", { date: formatDateTime(post.publishedAt) }) : "",
+    post.quotePostId ? mcpText("mcpQuote", { id: post.quotePostId }) : "",
+    post.errorMessage ? mcpText("mcpLastError", { error: post.errorMessage }) : "",
+    post.recovery
+      ? `${post.recovery.title}: ${post.recovery.message}${post.recovery.automaticRetry ? " " + serverT("No action is needed for this scheduled attempt.") : " " + serverT("Offer to reschedule this original post for tomorrow or a chosen time; get approval for exact times and timezone.")}`
       : "",
-    post.scheduledFor ? `Scheduled for: ${formatDateTime(post.scheduledFor)}` : "",
-    post.publishedAt ? `Published at: ${formatDateTime(post.publishedAt)}` : "",
-    post.quotePostId ? `Quotes SimplePost post: ${post.quotePostId}` : "",
-    post.errorMessage ? `Last error: ${post.errorMessage}` : "",
   ]
     .filter(Boolean)
     .join("\n");
 }
 
 function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDetails>[0]>) {
-  if (posts.length === 0) return "No posts matched — nothing drafted, scheduled, posted, or failed for this filter.";
+  if (posts.length === 0) return mcpText("mcpNoPosts");
 
   return posts.map((post, index) => `${index + 1}. ${formatManagedPostDetails(post)}`).join("\n\n");
 }
@@ -554,16 +641,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
   registerMcpUiResources(server, context.pluginExtensionsEnabled);
   if (context.pluginExtensionsEnabled) registerExtensionTools(server, context, errorResult);
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "list_accounts",
     {
-      title: "List Connected Accounts",
-      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
+      title: mcpText("mcpListAccounts"),
+      description: `Use this to list the authenticated user's connected social accounts and obtain the exact accountId values required by posting tools. Also use this when the user asks how to connect a social account. To add a destination, show the requested platform’s connectionLinks URL unchanged, even if accounts already exist. Ask which platform only if unclear; fall back to connectAccountsUrl if platform links are unavailable. After the user returns, call this tool again to verify the connection. It only reads SimplePost data; connecting, disconnecting, or reauthorizing accounts is handled in the SimplePost web app.`,
       inputSchema: listAccountsSchema,
       outputSchema: listAccountsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.list_accounts,
-      _meta: toolMeta("Checking your connected accounts", "Found your accounts"),
+      _meta: toolMeta("mcpCheckAccounts", "mcpFoundAccounts"),
     },
     async () => {
       try {
@@ -576,11 +664,11 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               type: "text",
               text:
                 result.summary.total === 0
-                  ? formatAccounts(result.accounts)
-                  : `You have ${plural(result.summary.total, "connected account")} across ${plural(
-                      result.summary.platforms.length,
-                      "platform",
-                    )}.\n\n${formatAccounts(result.accounts)}`,
+                  ? `${formatAccounts(result.accounts, result.connectAccountsUrl)}\n${mcpText("mcpConnectHint")}`
+                  : `${mcpUiTranslation().t("mcpAccountSummary", {
+                      accounts: result.summary.total,
+                      platforms: result.summary.platforms.length,
+                    })}\n\n${formatAccounts(result.accounts)}`,
             },
           ],
         };
@@ -590,17 +678,18 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "get_tiktok_creator_info",
     {
-      title: "Get TikTok Posting Settings",
+      title: mcpText("mcpTikTokSettings"),
       description:
         "Get a connected TikTok creator's current identity, allowed privacy levels, interaction settings and posting limits when inspecting settings or troubleshooting publishing. MCP posts default to public; pass accountOptions[accountId].privacyLevel to create_post to override that audience. Does not publish content.",
       inputSchema: getTikTokCreatorInfoSchema,
       outputSchema: getTikTokCreatorInfoOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.get_tiktok_creator_info,
-      _meta: toolMeta("Checking TikTok posting settings", "TikTok settings loaded"),
+      _meta: toolMeta("mcpCheckingTikTok", "mcpTikTokReady"),
     },
     async (input) => {
       try {
@@ -616,17 +705,18 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "upload_media",
     {
-      title: "Upload Media",
+      title: mcpText("mcpUploadMedia"),
       description: UPLOAD_MEDIA_DESCRIPTION,
       inputSchema: uploadMediaSchema,
       outputSchema: uploadMediaOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.upload_media,
       _meta: {
-        ...toolMeta("Uploading your media", "Media uploaded"),
+        ...toolMeta("mcpUploadingMedia", "mcpMediaUploaded"),
         "openai/fileParams": ["file"],
       },
     },
@@ -644,9 +734,13 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text: [
-                `Uploaded the ${result.type} ${result.filename} (${formatBytes(result.size)}, ${result.mimeType}).`,
+                mcpText("mcpUploadedFile", {
+                  name: result.filename,
+                  size: formatBytes(result.size),
+                  type: result.mimeType,
+                }),
                 `URL: ${result.url}`,
-                `Media item to attach to a post: {"type":"${result.type}","url":"${result.url}"}`,
+                mcpText("mcpAttachment", { media: JSON.stringify({ type: result.type, url: result.url }) }),
               ].join("\n"),
             },
           ],
@@ -657,16 +751,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "validate_post",
     {
-      title: "Validate Post",
+      title: mcpText("mcpValidatePost"),
       description: `Use this when the user asks to validate, check, test, or troubleshoot post text and optional media for selected accounts. It returns platform-specific errors and warnings without creating, scheduling, or publishing a post. create_post performs the same blocking validation internally.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""}`,
       inputSchema: fittingSchema(validatePostSchema, context.imageFittingEnabled),
       outputSchema: validatePostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.validate_post,
-      _meta: toolMeta("Checking your post", "Check complete"),
+      _meta: toolMeta("mcpCheckingPost", "mcpCheckComplete"),
     },
     async (input) => {
       try {
@@ -678,20 +773,23 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: result.isValid
-                ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
-                    input.message,
-                    input.thread,
-                    input.accountOverrides,
-                  )}\n\n${formatValidationDetails(result)}`
-                : `The post has ${plural(
-                    result.summary.errorCount,
-                    "problem",
-                  )} that would block publishing.\n\n${formatPostContent(
-                    input.message,
-                    input.thread,
-                    input.accountOverrides,
-                  )}\n\n${formatValidationDetails(result)}`,
+              text:
+                mcpUiTranslation().locale === "en"
+                  ? result.isValid
+                    ? `The post is good to go for ${plural(result.summary.accountCount, "account")}.\n\n${formatPostContent(
+                        input.message,
+                        input.thread,
+                        input.accountOverrides,
+                      )}\n\n${formatValidationDetails(result)}`
+                    : `The post has ${plural(
+                        result.summary.errorCount,
+                        "problem",
+                      )} that would block publishing.\n\n${formatPostContent(
+                        input.message,
+                        input.thread,
+                        input.accountOverrides,
+                      )}\n\n${formatValidationDetails(result)}`
+                  : `${mcpText(result.isValid ? "mcpCanPublish" : "mcpPublishBlockers", { count: result.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}\n\n${formatValidationDetails(result)}`,
             },
           ],
         };
@@ -701,34 +799,38 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "preview_post",
     {
-      title: "Preview Post",
+      title: mcpText("mcpPreviewPost"),
       description: `Use this for a text and structured-data preflight before creating a post. It resolves accounts, media, thread, quote source, timing, and validation without saving a post or rendering UI.${context.imageFittingEnabled ? " Optional imageFit uploads fitted image previews and requires posts:write scope." : ""} scheduledFor must be a timezone-aware ISO 8601 datetime.`,
       inputSchema: fittingSchema(previewPostSchema, context.imageFittingEnabled),
       outputSchema: previewPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.preview_post,
-      _meta: toolMeta("Preparing a preview", "Preview ready"),
+      _meta: toolMeta("mcpPreparePreview", "mcpPreviewReady"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:validate");
         if (input.imageFit) requireScope(context, "posts:write");
         const result = await previewPost(context.userId, input);
-        const summaryText = result.validation.isValid
-          ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
-              result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
-            }${
-              result.summary.threadSegmentCount > 0
-                ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
-                : ""
-            }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-          : `The preview found ${plural(
-              result.summary.errorCount,
-              "problem",
-            )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
+        const summaryText =
+          mcpUiTranslation().locale === "en"
+            ? result.validation.isValid
+              ? `Here's a preview for ${plural(result.summary.accountCount, "account")}${
+                  result.summary.mediaCount > 0 ? ` with ${plural(result.summary.mediaCount, "media item")}` : ""
+                }${
+                  result.summary.threadSegmentCount > 0
+                    ? ` and ${plural(result.summary.threadSegmentCount, "follow-up reply", "follow-up replies")}`
+                    : ""
+                }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+              : `The preview found ${plural(
+                  result.summary.errorCount,
+                  "problem",
+                )} that would block publishing.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+            : `${mcpText(result.validation.isValid ? "mcpPreviewAccounts" : "mcpPublishBlockers", { count: result.validation.isValid ? result.summary.accountCount : result.summary.errorCount })}\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
 
         return {
           structuredContent: result,
@@ -745,16 +847,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "show_post_preview",
     {
-      title: "Show Post Preview",
+      title: mcpText("mcpShowPreview"),
       description: `Use this when the user asks to see a post. It renders a realistic MCP Apps preview with a platform switcher for either a saved postId or supplied unsaved content. It is read-only and also returns a text fallback; use preview_post for a data-only preflight.`,
       inputSchema: showPostPreviewSchema,
       outputSchema: showPostPreviewOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.show_post_preview,
-      _meta: widgetToolMeta("Building platform previews", "Platform previews ready", POST_PREVIEW_WIDGET_URI),
+      _meta: widgetToolMeta("buildPreviews", "mcpPreviewsReady", POST_PREVIEW_WIDGET_URI),
     },
     async (input) => {
       try {
@@ -766,10 +869,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Showing a visual preview across ${plural(
-                result.summary.platformCount,
-                "platform",
-              )}.\n\n${formatPostContent(result.message, result.previews[0]?.data.thread)}`,
+              text: `${mcpText("mcpVisualPlatforms", { count: result.summary.platformCount })}\n\n${formatPostContent(result.message, result.previews[0]?.data.thread)}`,
             },
           ],
         };
@@ -779,16 +879,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "create_post",
     {
-      title: "Create Post",
+      title: mcpText("createPost"),
       description: `Connected-account publishing supports X (Twitter), LinkedIn, Instagram, Facebook, Threads, Bluesky, TikTok, YouTube, Pinterest, and Telegram. Use this when the user wants to publish a social post now, schedule it for later, or save a draft to connected accounts, with optional media, thread replies, or a quoted SimplePost source. Do not use for copywriting alone, private messages, or editing already-published social content. One call covers every selected account; use accountOverrides for per-account text or thread shape (for example a long post on X and LinkedIn with a thread on Bluesky and Threads) instead of creating separate posts. postingMode "now" publishes immediately, "schedule" requires a future timezone-aware scheduledFor, and "draft" saves without publishing. The tool validates internally and returns per-account results. TikTok defaults to public (PUBLIC_TO_EVERYONE) when privacy is omitted. Photo posts use message as the description and as a short title, and default autoAddMusic to true. Pass autoAddMusic:false, title, description, or photoCoverIndex inside accountOptions[accountId] to override. Respect an explicit audience by passing privacyLevel in accountOptions keyed by account ID. get_tiktok_creator_info returns allowed choices when needed.`,
       inputSchema: fittingSchema(createPostSchema, context.imageFittingEnabled),
       outputSchema: createPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.create_post,
-      _meta: toolMeta("Working on your post", "Finished working on your post"),
+      _meta: toolMeta("mcpWorkingPost", "mcpWorkedPost"),
     },
     async (input) => {
       try {
@@ -802,27 +903,37 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
         // here — over MCP this text is the only thing the user ever sees.
         const blockerCount = result.validation && !result.validation.isValid ? result.validation.summary.errorCount : 0;
         const summaryText =
-          result.post.status === "draft"
-            ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
-                blockerCount > 0
-                  ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
-                  : ""
-              }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-            : result.post.status === "scheduled"
-              ? `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
-                  result.summary.scheduledCount,
-                  "account",
-                )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-              : result.summary.overallSuccess
-                ? `Published the post to ${plural(
-                    result.summary.successCount,
-                    "account",
-                  )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
-                : `Published to ${result.summary.successCount} of ${plural(
-                    result.summary.accountCount,
-                    "account",
-                  )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`;
-        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
+          mcpUiTranslation().locale === "en"
+            ? result.post.status === "draft"
+              ? `Saved the post as a draft for ${plural(result.summary.draftCount, "account")}${threadSuffix}${
+                  blockerCount > 0
+                    ? `, but it can't be published as it stands — ${plural(blockerCount, "problem")} to fix first`
+                    : ""
+                }.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+              : result.post.status === "scheduled"
+                ? result.postingMode === "now"
+                  ? `Queued for TikTok's request limit. Another attempt is scheduled automatically for ${formatDateTime(result.post.scheduledFor ?? "")}. You do not need to resubmit the post.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                  : `Scheduled the post for ${formatDateTime(result.post.scheduledFor ?? "")} on ${plural(
+                      result.summary.scheduledCount,
+                      "account",
+                    )}${threadSuffix}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                : result.summary.overallSuccess
+                  ? `Published the post to ${plural(
+                      result.summary.successCount,
+                      "account",
+                    )}${threadSuffix ? `${threadSuffix} on thread-capable accounts` : ""}.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+                  : `Published to ${result.summary.successCount} of ${plural(
+                      result.summary.accountCount,
+                      "account",
+                    )} — ${plural(result.summary.failureCount, "account")} failed; see the posting results below.\n\n${formatPostContent(input.message, input.thread, input.accountOverrides)}`
+            : [
+                blockerCount > 0 ? mcpText("mcpPublishBlockers", { count: blockerCount }) : "",
+                formatPostContent(input.message, input.thread, input.accountOverrides),
+              ]
+                .filter(Boolean)
+                .join("\n\n");
+        const warningText =
+          result.warnings?.map((warning) => mcpText("mcpWarnings", { details: warning.message })).join("\n") ?? "";
 
         return {
           structuredContent: result,
@@ -845,16 +956,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "inspect_posts",
     {
-      title: "Inspect Posts",
+      title: mcpText("mcpInspectPosts"),
       description: `Use this to list or inspect the authenticated user's SimplePost records that are drafts, scheduled, posted, or failed. It supports status filtering, pagination, and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It has no text-search parameter and cannot retrieve engagement, impressions, follower growth, comments, or social inbox messages.`,
       inputSchema: inspectPostsSchema,
       outputSchema: inspectPostsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
-      _meta: toolMeta("Looking up your posts", "Found your posts"),
+      _meta: toolMeta("mcpLookingPosts", "mcpFoundPosts"),
     },
     async (input) => {
       try {
@@ -876,13 +988,18 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
               text:
                 result.status === "single"
                   ? result.posts.length > 0
-                    ? `Found the post (${result.posts[0].status}).\n\n${formatManagedPostDetails(result.posts[0])}`
-                    : "Couldn't find that post — it may have been deleted."
-                  : result.summary.totalReturned === 0
-                    ? formatManagedPosts(result.posts)
-                    : `Found ${plural(result.summary.totalReturned, "post")}${
-                        statusBreakdown ? ` (${statusBreakdown})` : ""
-                      }.\n\n${formatManagedPosts(result.posts)}`,
+                    ? `${mcpText("mcpFoundCount", { count: 1 })}\n\n${formatManagedPostDetails(result.posts[0])}`
+                    : mcpText("mcpPostMissing")
+                  : withConnectGuidance(
+                      result.summary.totalReturned === 0
+                        ? formatManagedPosts(result.posts)
+                        : mcpUiTranslation().locale === "en"
+                          ? `Found ${plural(result.summary.totalReturned, "post")}${
+                              statusBreakdown ? ` (${statusBreakdown})` : ""
+                            }.\n\n${formatManagedPosts(result.posts)}`
+                          : `${mcpText("mcpFoundCount", { count: result.summary.totalReturned })}\n\n${formatManagedPosts(result.posts)}`,
+                      result.connectAccountsUrl,
+                    ),
             },
           ],
         };
@@ -892,16 +1009,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "get_schedule",
     {
-      title: "Get Schedule",
+      title: mcpText("mcpGetSchedule"),
       description: `Use this when the user wants a text or structured-data view of a day, week, or month of SimplePost posting slots and activity. It includes open slots and scheduled, pending, published, failed, and past posts without rendering UI. Use for questions like "What social posts are scheduled next week?", not meeting calendars, reminders, or engagement analytics.`,
       inputSchema: showScheduleSchema,
       outputSchema: showScheduleOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.get_schedule,
-      _meta: toolMeta("Reading your schedule", "Schedule ready"),
+      _meta: toolMeta("mcpReadingSchedule", "mcpScheduleReady"),
     },
     async (input) => {
       try {
@@ -912,7 +1030,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Loaded ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+              text: withConnectGuidance(scheduleSummary(result, false), result.connectAccountsUrl),
             },
           ],
         };
@@ -922,16 +1040,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "show_schedule",
     {
-      title: "Show Schedule",
+      title: mcpText("mcpShowSchedule"),
       description: `Use this when the user asks to show or open a day, week, or month SimplePost schedule. It renders an interactive MCP Apps calendar with open slots and scheduled, pending, published, failed, and past activity, and also returns a text fallback. Use get_schedule for the same period as data without UI.`,
       inputSchema: showScheduleSchema,
       outputSchema: showScheduleOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.show_schedule,
-      _meta: widgetToolMeta("Opening your schedule", "Schedule ready", SCHEDULE_WIDGET_URI),
+      _meta: widgetToolMeta("mcpOpeningSchedule", "mcpScheduleReady", SCHEDULE_WIDGET_URI),
     },
     async (input) => {
       try {
@@ -942,7 +1061,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Showing ${result.periodLabel}: ${result.summary.scheduledCount} scheduled, ${result.summary.publishedCount} published, ${result.summary.failedCount} failed, and ${result.summary.openSlotCount} open slots.`,
+              text: withConnectGuidance(scheduleSummary(result, true), result.connectAccountsUrl),
             },
           ],
         };
@@ -952,40 +1071,53 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "update_scheduled_post",
     {
-      title: "Update Scheduled Post",
-      description: `Use this to change a draft or future scheduled SimplePost post by postId. Omitted fields stay unchanged; postingMode can move a post between draft and scheduled. Scheduled results are validated before saving. It cannot edit posted, failed, pending, or due posts.`,
+      title: mcpText("mcpUpdateScheduled"),
+      description: `Change a draft or future scheduled SimplePost post. Also reschedule a recoverable TikTok failure when inspect_posts returns recovery.canScheduleRetry: pass the original postId, postingMode='schedule', scheduledFor and expectedUpdatedAt only. Preserve content and successful account results. Ask for or honor the user's exact retry time and timezone; never promise TikTok will accept it. Other failed, posted, pending and due posts cannot be edited here.`,
       inputSchema: fittingSchema(updateScheduledPostSchema, context.imageFittingEnabled),
       outputSchema: updateScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
-      _meta: toolMeta("Updating your post", "Post updated"),
+      _meta: toolMeta("mcpUpdatingPost", "mcpPostUpdated"),
     },
     async (input) => {
       try {
         requireScope(context, "posts:write");
         const result = await updateScheduledPost(context.userId, input);
-        const warningText = result.warnings?.map((warning) => `Warning: ${warning.message}`).join("\n") ?? "";
+        const warningText =
+          result.warnings?.map((warning) => mcpText("mcpWarnings", { details: warning.message })).join("\n") ?? "";
         return {
           structuredContent: result,
           content: [
             {
               type: "text",
               text:
-                result.post.status === "draft"
-                  ? `Updated the draft${
-                      result.validation.isValid
-                        ? ""
-                        : ` — it can't be published as it stands (${plural(
-                            result.validation.summary.errorCount,
-                            "problem",
-                          )} to fix first)`
-                    }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                  : `Updated the post — it's now scheduled for ${formatDateTime(
-                      result.post.scheduledFor ?? "",
-                    )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`,
+                mcpUiTranslation().locale === "en"
+                  ? result.validation
+                    ? result.post.status === "draft"
+                      ? `Updated the draft${
+                          result.validation.isValid
+                            ? ""
+                            : ` — it can't be published as it stands (${plural(
+                                result.validation.summary.errorCount,
+                                "problem",
+                              )} to fix first)`
+                        }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                      : `Updated the post — it's now scheduled for ${formatDateTime(
+                          result.post.scheduledFor ?? "",
+                        )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                    : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`
+                  : [
+                      result.validation ? mcpText("mcpPostUpdated") : mcpText("mcpTikTokRetry"),
+                      warningText,
+                      formatManagedPostDetails(result.post),
+                      result.validation && formatValidationDetails(result.validation),
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
             },
           ],
         };
@@ -995,16 +1127,17 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     },
   );
 
-  registerAppTool(
+  registerMeasuredTool(
+    context,
     server,
     "discard_scheduled_post",
     {
-      title: "Discard Scheduled Post",
+      title: mcpText("mcpDiscardScheduled"),
       description: `Use this when the user asks to cancel, delete, or discard a draft or future scheduled SimplePost post by postId. It permanently deletes the SimplePost record and stored media. It cannot remove or undo posts already published to external platforms.`,
       inputSchema: discardScheduledPostSchema,
       outputSchema: discardScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.discard_scheduled_post,
-      _meta: toolMeta("Deleting your post", "Post deleted"),
+      _meta: toolMeta("mcpDeletingPost", "mcpPostDeleted"),
     },
     async (input) => {
       try {
@@ -1015,11 +1148,14 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
           content: [
             {
               type: "text",
-              text: `Deleted the ${
-                result.post.status === "draft" ? "draft" : "scheduled post"
-              } — it will not be published.\n\n${formatManagedPostDetails(
-                result.post,
-              )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`,
+              text:
+                mcpUiTranslation().locale === "en"
+                  ? `Deleted the ${
+                      result.post.status === "draft" ? "draft" : "scheduled post"
+                    } — it will not be published.\n\n${formatManagedPostDetails(
+                      result.post,
+                    )}\n\nNote: this only removes drafts and upcoming scheduled posts from SimplePost; posts already published to social platforms can't be taken back this way.`
+                  : `${mcpText("mcpDeleteLocal")}\n\n${formatManagedPostDetails(result.post)}`,
             },
           ],
         };

@@ -1,22 +1,22 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 
-import { Check, Copy, Cpu, ExternalLink, Plug, Terminal } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Copy, Cpu, ExternalLink, MoreHorizontal, Plug, Terminal } from "lucide-react";
 
 import { ClaudeIcon, OpenAIIcon } from "@/components/brand-icons";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
-import { trackEvent } from "@/lib/analytics/plausible";
-import { STARTER_PROMPTS } from "@/lib/distribution/starter-prompts";
+import { useUiTranslation } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/translate";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 type IconComponent = ComponentType<{ className?: string }>;
 
 type CodeBlock = {
   code: string;
-  label: string;
-  href?: string;
+  label: MessageKey;
   shell?: boolean;
 };
 
@@ -24,82 +24,85 @@ type AssistantOption = {
   id: string;
   label: string;
   Icon: IconComponent;
-  description: string;
-  action?: { href: string; label: string };
+  description: MessageKey;
   commands?: CodeBlock[];
 };
 
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://app.simplepost.social").replace(/\/+$/, "");
-const MCP_URL = `${APP_URL}/mcp`;
-const CLAUDE_DIRECTORY_URL = "https://claude.ai/directory/simplepost";
-const CHATGPT_PLUGIN_URL = "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795";
-
-const options: AssistantOption[] = [
+const HOSTED_APP_URL = "https://app.simplepost.social";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || HOSTED_APP_URL;
+const connectors = [
   {
     id: "chatgpt",
-    label: "ChatGPT",
+    name: "ChatGPT",
+    label: "chatGptPlugin",
     Icon: OpenAIIcon,
-    description: "Open the SimplePost plugin, select + to install it, then start a new chat.",
-    action: { href: CHATGPT_PLUGIN_URL, label: "Install SimplePost in ChatGPT" },
+    directoryUrl: "https://chatgpt.com/plugins/plugin_asdk_app_69f882652190819192ab1c88f1218795",
+    setupUrl: "https://chatgpt.com/plugins",
   },
   {
-    id: "claude-desktop",
-    label: "Claude",
+    id: "claude",
+    name: "Claude",
+    label: "claudeConnector",
     Icon: ClaudeIcon,
-    description: "Open SimplePost in Claude, click Connect, then approve access.",
-    action: { href: CLAUDE_DIRECTORY_URL, label: "Connect SimplePost in Claude" },
+    directoryUrl: "https://claude.ai/directory/simplepost",
+    setupUrl: "https://claude.ai/",
   },
-  {
-    id: "claude-code",
-    label: "Claude Code",
-    Icon: ClaudeIcon,
-    description: "Run this once in your terminal. Then use /mcp in Claude Code and finish the browser login.",
-    commands: [{ code: `claude mcp add --transport http simplepost ${MCP_URL}`, label: "Command", shell: true }],
-  },
-  {
-    id: "openclaw",
-    label: "OpenClaw",
-    Icon: Cpu,
-    description: "OpenClaw needs the server added first, then a separate OAuth login command.",
-    commands: [
-      {
-        code: `openclaw mcp add simplepost --url ${MCP_URL} --transport streamable-http --auth oauth --no-probe`,
-        label: "Add server",
-        shell: true,
-      },
-      { code: "openclaw mcp login simplepost", label: "Log in", shell: true },
-      { code: "openclaw mcp login simplepost --code <code>", label: "Finish login", shell: true },
-    ],
-  },
-  {
-    id: "mcp",
-    label: "MCP",
-    Icon: Plug,
-    description: "Use this for any MCP-compatible client that asks for a remote server URL.",
-    commands: [{ code: MCP_URL, href: MCP_URL, label: "Remote MCP URL" }],
-  },
-  {
-    id: "cli",
-    label: "CLI",
-    Icon: Terminal,
-    description:
-      "Install the CLI, configure secret storage, then connect your accounts. Hosted CLI access requires Advanced, Pro, or an active trial.",
-    commands: [
-      { code: "npm install -g @simple-post/cli", label: "Install", shell: true },
-      { code: "simplepost setup --backend keychain", label: "Configure secret storage", shell: true },
-      { code: `simplepost connect --url ${APP_URL}`, label: "Connect", shell: true },
-    ],
-  },
-];
+] as const;
+type ConnectorId = (typeof connectors)[number]["id"];
 
-function CopyButton({ text, promptId }: { text: string; promptId?: string }) {
+function otherOptions(appUrl: string, mcpUrl: string): AssistantOption[] {
+  return [
+    {
+      id: "claude-code",
+      label: "Claude Code",
+      Icon: ClaudeIcon,
+      description: "claudeCodeInstructions",
+      commands: [{ code: `claude mcp add --transport http simplepost ${mcpUrl}`, label: "command", shell: true }],
+    },
+    {
+      id: "openclaw",
+      label: "OpenClaw",
+      Icon: Cpu,
+      description: "openClawInstructions",
+      commands: [
+        {
+          code: `openclaw mcp add simplepost --url ${mcpUrl} --transport streamable-http --auth oauth --no-probe`,
+          label: "addServer",
+          shell: true,
+        },
+        { code: "openclaw mcp login simplepost", label: "signIn", shell: true },
+        { code: "openclaw mcp login simplepost --code <code>", label: "finishLogin", shell: true },
+      ],
+    },
+    {
+      id: "mcp",
+      label: "MCP",
+      Icon: Plug,
+      description: "mcpSetupInstructions",
+      commands: [{ code: mcpUrl, label: "remoteMcpUrl" }],
+    },
+    {
+      id: "cli",
+      label: "CLI",
+      Icon: Terminal,
+      description: "cliSetupInstructions",
+      commands: [
+        { code: "npm install -g @simple-post/cli", label: "install", shell: true },
+        { code: "simplepost setup --backend keychain", label: "configureSecretStorage", shell: true },
+        { code: `simplepost connect --url ${appUrl}`, label: "connect", shell: true },
+      ],
+    },
+  ];
+}
+
+function CopyButton({ text }: { text: string }) {
+  const { t } = useUiTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      if (promptId) trackEvent("Assistant Starter Copied", { prompt: promptId });
       setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard access can be blocked by the browser.
@@ -112,8 +115,8 @@ function CopyButton({ text, promptId }: { text: string; promptId?: string }) {
       variant="ghost"
       size="icon"
       onClick={handleCopy}
-      aria-label={copied ? "Copied to clipboard" : "Copy to clipboard"}
-      title={copied ? "Copied" : "Copy"}
+      aria-label={copied ? t("copiedToClipboard") : t("copyToClipboard")}
+      title={copied ? t("copied") : t("copy")}
       className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground">
       {copied ? <Check className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
     </Button>
@@ -121,23 +124,14 @@ function CopyButton({ text, promptId }: { text: string; promptId?: string }) {
 }
 
 function CopyField({ command }: { command: CodeBlock }) {
+  const { t } = useUiTranslation();
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{command.label}</p>
-        {command.href ? (
-          <a
-            href={command.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-            Open
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : null}
+        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">{t(command.label)}</p>
       </div>
       <div className="flex min-w-0 items-start gap-2 rounded-xl border border-border bg-background px-3 py-2.5">
-        <pre className="min-w-0 flex-1 overflow-x-auto font-mono text-[13px] leading-6 text-foreground">
+        <pre dir="ltr" className="min-w-0 flex-1 overflow-x-auto font-mono text-[13px] leading-6 text-foreground">
           <code>
             {command.shell ? <span className="select-none text-muted-foreground">$ </span> : null}
             {command.code}
@@ -149,114 +143,155 @@ function CopyField({ command }: { command: CodeBlock }) {
   );
 }
 
-export function AssistantSelector() {
+export function AssistantSelector({ onInstall, appUrl = APP_URL }: { onInstall?: () => void; appUrl?: string }) {
+  const { t } = useUiTranslation();
+  const { copy } = useUiCopy();
+  const baseUrl = appUrl.replace(/\/+$/, "");
+  const hosted = baseUrl === HOSTED_APP_URL;
+  const mcpUrl = `${baseUrl}/mcp`;
+  const options = otherOptions(baseUrl, mcpUrl);
+  const [view, setView] = useState<"overview" | "others" | ConnectorId>("overview");
   const [activeId, setActiveId] = useState(options[0].id);
   const activeOption = options.find((option) => option.id === activeId) ?? options[0];
-  const ActiveIcon = activeOption.Icon;
+  const connector = connectors.find((option) => option.id === view);
+  const overviewRef = useRef<HTMLDivElement>(null);
+  const lastChoice = useRef<"others" | ConnectorId | null>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (view !== "overview") {
+      backRef.current?.focus();
+      return;
+    }
+    if (lastChoice.current)
+      overviewRef.current?.querySelector<HTMLButtonElement>(`[data-choice="${lastChoice.current}"]`)?.focus();
+  }, [view]);
+
+  function choose(next: "others" | ConnectorId) {
+    lastChoice.current = next;
+    setView(next);
+  }
+
+  if (view === "overview") {
+    const choiceClassName =
+      "flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-start text-base font-medium transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={overviewRef} className="grid gap-3" role="group" aria-label={t("aiIntegrations")}>
+          {connectors.map(({ id, label, Icon, directoryUrl }) =>
+            hosted ? (
+              <a
+                key={id}
+                href={directoryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onInstall}
+                className={choiceClassName}>
+                <Icon className="h-7 w-7 shrink-0" />
+                <span className="flex-1">
+                  {t(label)}
+                  <span className="sr-only"> {t("opensNewTab")}</span>
+                </span>
+                <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </a>
+            ) : (
+              <button key={id} type="button" onClick={() => choose(id)} data-choice={id} className={choiceClassName}>
+                <Icon className="h-7 w-7 shrink-0" />
+                <span className="flex-1">{t(label)}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:rotate-180" aria-hidden="true" />
+              </button>
+            ),
+          )}
+          <button
+            data-choice="others"
+            type="button"
+            onClick={() => choose("others")}
+            className="flex min-h-24 items-center gap-4 rounded-xl border border-border bg-card p-5 text-start transition-colors hover:border-primary/45 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <MoreHorizontal className="h-7 w-7 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-medium">{t("others")}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">Claude Code, OpenClaw, MCP, CLI</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 rtl:rotate-180 text-muted-foreground" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid min-w-0 gap-4">
-      <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm leading-6 text-muted-foreground">
-        Using ChatGPT?{" "}
-        <a
-          href={CHATGPT_PLUGIN_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-semibold text-foreground underline underline-offset-4 transition-colors hover:text-primary">
-          Install SimplePost
-        </a>
-        . For other assistants, choose an option below.
-      </div>
-
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
-        <div className="grid min-w-0 grid-cols-2 gap-2 self-start sm:grid-cols-3 lg:grid-cols-1">
-          {options.map((option) => {
-            const isActive = option.id === activeId;
-            const Icon = option.Icon;
-
-            return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
+      <Button
+        ref={backRef}
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="shrink-0 self-start"
+        onClick={() => setView("overview")}>
+        <ArrowLeft className="h-4 w-4 rtl:rotate-180" /> {t("allIntegrations")}
+      </Button>
+      {connector ? (
+        <section aria-label={t("setupAssistant", { name: connector.name })} className="grid gap-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            {connector.id === "chatgpt"
+              ? copy("In ChatGPT Plugins, choose +, then Add custom MCP server. Use this URL and select OAuth.")
+              : copy("In Claude, go to Customize → Connectors and add a custom web connector with this URL.")}
+          </p>
+          <CopyField command={{ code: mcpUrl, label: "remoteMcpUrl" }} />
+          <Button asChild size="sm" className="justify-self-start">
+            <a href={connector.setupUrl} target="_blank" rel="noopener noreferrer" onClick={onInstall}>
+              {copy("Open {{assistant}}", { assistant: connector.name })}
+              <span className="sr-only"> {t("opensNewTab")}</span>
+              <ExternalLink aria-hidden="true" />
+            </a>
+          </Button>
+        </section>
+      ) : (
+        <>
+          <div
+            className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-4"
+            role="group"
+            aria-label={t("otherIntegrations")}>
+            {options.map(({ id, label, Icon }) => (
               <button
-                key={option.id}
+                key={id}
                 type="button"
-                aria-pressed={isActive}
-                onClick={() => setActiveId(option.id)}
+                aria-pressed={activeId === id}
+                onClick={() => setActiveId(id)}
                 className={cn(
-                  "flex h-10 min-w-0 items-center gap-2 rounded-lg border px-3 text-left text-sm font-medium transition-colors",
-                  isActive
+                  "flex min-h-10 items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  activeId === id
                     ? "border-primary/45 bg-primary/10 text-foreground"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                    : "border-border text-muted-foreground hover:text-foreground",
                 )}>
-                <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                <span className="truncate">{option.label}</span>
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
               </button>
-            );
-          })}
-        </div>
-
-        <section className="min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-primary">
-              <ActiveIcon className="h-4 w-4" />
-            </span>
-            <h2 className="text-base font-semibold text-foreground">{activeOption.label}</h2>
+            ))}
           </div>
-          <p className="mb-5 text-sm leading-6 text-muted-foreground">{activeOption.description}</p>
-
-          <HelpLink
-            path={
-              activeId === "cli"
-                ? "/cli#scheduler-connected-accounts"
-                : `/mcp#${activeId === "claude-desktop" ? "claude" : activeId === "mcp" ? "other-clients" : activeId}`
-            }
-            className="mb-4">
-            Full setup guide and troubleshooting
-          </HelpLink>
-          {activeOption.action ? (
-            <Button asChild>
-              <a href={activeOption.action.href} target="_blank" rel="noopener noreferrer">
-                {activeOption.action.label}
-                <ExternalLink />
-              </a>
-            </Button>
-          ) : null}
-
-          {activeOption.commands?.length ? (
+          <section
+            key={activeId}
+            aria-label={t("setupAssistant", { name: activeOption.label })}
+            tabIndex={0}
+            className="min-h-32 flex-1 overflow-y-auto rounded-xl border border-border p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <p className="mb-4 text-sm leading-6 text-muted-foreground">{t(activeOption.description)}</p>
             <div className="grid gap-4">
-              {activeOption.commands.map((command) => (
-                <CopyField key={`${activeOption.id}-${command.label}`} command={command} />
+              {activeOption.commands?.map((command) => (
+                <CopyField key={command.label} command={command} />
               ))}
             </div>
-          ) : null}
-          {activeId !== "cli" && (
-            <div className="mt-6 border-t border-border pt-5">
-              <h3 className="text-sm font-semibold">Start with a draft</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Connect a social account in{" "}
-                <a href="/accounts?onboarding=connect" className="underline underline-offset-4">
-                  Accounts
-                </a>
-                , then paste a prompt into your assistant with SimplePost enabled. Connecting the assistant alone does
-                not connect a social account.
-              </p>
-              <div className="mt-4 grid gap-3">
-                {STARTER_PROMPTS.map((starter) => (
-                  <details key={starter.id} className="rounded-lg border border-border bg-background p-3">
-                    <summary className="cursor-pointer text-sm font-medium">{starter.title}</summary>
-                    <div className="mt-3 flex items-start gap-2">
-                      <p className="select-all text-sm leading-6 text-muted-foreground">{starter.prompt}</p>
-                      <CopyButton text={starter.prompt} promptId={starter.id} />
-                    </div>
-                  </details>
-                ))}
-              </div>
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                Replace bracketed details with your own. You can select and copy the text if clipboard access is
-                blocked.
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
+            <HelpLink
+              className="mt-4"
+              path={
+                activeId === "cli"
+                  ? "/cli#scheduler-connected-accounts"
+                  : `/mcp#${activeId === "mcp" ? "other-clients" : activeId}`
+              }>
+              {t("setupGuide")}
+            </HelpLink>
+          </section>
+        </>
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import {
   failPendingPostingResults,
+  postingOutcomeUncertain,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
+import { ApiResponseError } from "@/lib/utils/api-response-error";
 
 describe("posting progress client state", () => {
   const pending = [
@@ -48,4 +50,12 @@ describe("posting progress client state", () => {
     expect(updated[0]).toMatchObject({ success: true });
     expect(updated[1]).toMatchObject({ success: false, error: "Connection lost" });
   });
+});
+
+it("distinguishes an unknown network/5xx outcome from a rejected 4xx request", () => {
+  expect(postingOutcomeUncertain(new TypeError("Network error"))).toBe(true);
+  expect(postingOutcomeUncertain(new ApiResponseError(null, "Failure", 500))).toBe(true);
+  expect(postingOutcomeUncertain(new ApiResponseError(null, "Rejected", 400))).toBe(false);
+  const results = failPendingPostingResults([{ accountId: "unknown", platform: "x" }], "Connection lost", true);
+  expect(results[0].uncertain).toBe(true);
 });

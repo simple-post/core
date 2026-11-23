@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { handoffSource } from "@/lib/accounts/assistant-handoff";
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
+import { serverMessage } from "@/lib/i18n/server";
 import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
@@ -9,18 +12,25 @@ import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 const log = createLogger("api:connect:telegram");
 
 export async function POST(req: NextRequest) {
+  let source: "assistant_handoff" | undefined;
+  let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(req, { action: "connect_social_account", platform: "telegram" });
-    if (!isSocialPlatformEnabled("telegram")) {
-      throw new BadRequestError("Telegram is not enabled in this environment");
-    }
+    measurementUserId = session.user.id;
     const body = await req.json();
+    source = handoffSource(body.handoffToken, session.user.id, "telegram");
+    await recordFunnelEvent(measurementUserId, "social_connection_started", {
+      properties: { platform: "telegram", source },
+    });
+    if (!isSocialPlatformEnabled("telegram")) {
+      throw new BadRequestError(serverMessage("Telegram is not enabled in this environment"));
+    }
     const { botToken, chatId, channelName } = body;
     const trimmedToken = typeof botToken === "string" ? botToken.trim() : "";
     const trimmedChatId = typeof chatId === "string" ? chatId.trim() : "";
 
     if (!trimmedToken || !trimmedChatId) {
-      throw new BadRequestError("Bot token and chat ID are required");
+      throw new BadRequestError(serverMessage("Bot token and chat ID are required"));
     }
 
     // Validate the bot token and chat ID by making a test API call to Telegram
@@ -29,7 +39,7 @@ export async function POST(req: NextRequest) {
       const botInfo = await botInfoResponse.json();
 
       if (!botInfoResponse.ok || !botInfo.ok) {
-        const msg = botInfo?.description || "Invalid bot token";
+        const msg = botInfo?.description || serverMessage("Invalid bot token");
         throw new BadRequestError(msg);
       }
 
@@ -46,16 +56,24 @@ export async function POST(req: NextRequest) {
         const apiMsg = chatInfo?.description;
         const isLikelyUser = /^\d+$/.test(trimmedChatId) && Number.parseInt(trimmedChatId, 10) > 0;
         const hint = isLikelyUser
-          ? "For direct messages, the user must message the bot with /start first before you can connect."
-          : "Could not find the chat. Make sure the bot is added as an admin to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).";
-        throw new BadRequestError(apiMsg ? `${apiMsg} ${hint}` : hint);
+          ? serverMessage(
+              "For direct messages, the user must message the bot with /start first before you can connect.",
+            )
+          : serverMessage(
+              "Could not find the chat. Make sure the bot is added as an admin to the channel/group, or use the numeric chat ID (you can get it from @userinfobot).",
+            );
+        throw new BadRequestError(
+          apiMsg ? serverMessage("{{detail}} {{hint}}", { detail: String(apiMsg), hint }) : hint,
+        );
       }
 
       // Extract the numeric chat ID from the API response (works for usernames like @channel)
       const numericChatId = chatInfo.result.id.toString();
       if (numericChatId === String(botInfo.result.id)) {
         throw new BadRequestError(
-          "The destination is the bot itself. Use your own numeric user ID after sending /start to the bot, or a channel/group where the bot is an admin.",
+          serverMessage(
+            "The destination is the bot itself. Use your own numeric user ID after sending /start to the bot, or a channel/group where the bot is an admin.",
+          ),
         );
       }
       const chatTitle = chatInfo.result.title || channelName || chatInfo.result.username || numericChatId;
@@ -75,6 +93,9 @@ export async function POST(req: NextRequest) {
         profilePicture: null,
       });
 
+      await recordFunnelEvent(session.user.id, "social_connection_completed", {
+        properties: { platform: "telegram", source },
+      });
       return NextResponse.json({
         success: true,
         account: {
@@ -89,10 +110,16 @@ export async function POST(req: NextRequest) {
       // Log unexpected errors (network, DB, etc.) for debugging
       log.error({ err: serializeError(error) }, "Telegram connect error");
       throw new BadRequestError(
-        "Failed to validate Telegram credentials. Please check your bot token and chat ID. The bot must be added as an admin to the channel/group.",
+        serverMessage(
+          "Failed to validate Telegram credentials. Please check your bot token and chat ID. The bot must be added as an admin to the channel/group.",
+        ),
       );
     }
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "social_connection_failed", {
+        properties: { platform: "telegram", source, reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

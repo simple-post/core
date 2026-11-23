@@ -28,7 +28,9 @@ export type MediaKey =
   | "squareVideo"
   | "shortVideo"
   | "slowVideo"
-  | "disguisedVideo";
+  | "disguisedVideo"
+  | "uploadImage"
+  | "uploadVideo";
 export interface Scenario {
   id: string;
   platform: Platform;
@@ -75,6 +77,7 @@ export interface PostingResult {
   postUrl?: string;
   message?: string;
   error?: string;
+  details?: unknown;
   threadResults?: PostingResult[];
 }
 export interface Receipt {
@@ -100,5 +103,7 @@ export interface JournalEntry {
   error?: string;
   historicalErrors?: string[];
   evidence?: string[];
+  timings?: import("./timing.js").StageTimings;
+  pendingMutation?: "schedule";
   cleanup: "not-created" | "review-external-post" | "pending-schedule" | "discarded";
 }

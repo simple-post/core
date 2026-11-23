@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { FACEBOOK_NO_PAGES_MESSAGE } from "@/lib/oauth/error-messages";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { prisma } from "@/lib/prisma";
 
@@ -33,9 +34,7 @@ export async function handleFacebookCallback(ctx: CallbackContext): Promise<Next
   const accounts = await fetchFacebookPages(ctx.accessToken);
 
   if (accounts.length === 0) {
-    return NextResponse.redirect(
-      `${ctx.baseURL}/accounts?error=${encodeURIComponent("No Facebook Pages found. Make sure you have a Facebook Page connected to your account.")}`,
-    );
+    return NextResponse.redirect(`${ctx.baseURL}/accounts?error=${encodeURIComponent(FACEBOOK_NO_PAGES_MESSAGE)}`);
   }
 
   await prisma.pendingOAuthConnection.deleteMany({ where: { userId: ctx.userId, platform: ctx.platform } });
@@ -44,7 +43,7 @@ export async function handleFacebookCallback(ctx: CallbackContext): Promise<Next
     data: {
       userId: ctx.userId,
       platform: ctx.platform,
-      data: { accounts, scope: ctx.scope },
+      data: { accounts, scope: ctx.scope, ...(ctx.source && { source: ctx.source }) },
       expiresAt: new Date(Date.now() + PENDING_OAUTH_TTL_MS),
     },
   });

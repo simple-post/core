@@ -15,11 +15,11 @@ Source of the SimplePost custom app for [Make](https://www.make.com). The app is
 | Posts    | Delete a post          | Action (delete) | `DELETE /api/v1/posts/{id}`                   |
 | Other    | Upload a media file    | Action (create) | `POST /api/v1/upload` (multipart)             |
 | Other    | List accounts          | Search          | `GET /api/v1/accounts`                        |
-| Other    | Make an API call       | Universal       | Any path relative to the SimplePost URL       |
+| Other    | Make an API call       | Universal       | A path relative to `/api/v1/`       |
 
 The connection takes a Scheduler API key (`sp_api_…`, sent as `Authorization: Bearer`) and checks it against `GET /api/v1/accounts`. API keys require the `apiAccess` plan feature. The base URL defaults to `https://app.simplepost.social`; self-hosted Scheduler users can change it under the connection's advanced settings. The `listAccounts` RPC fills the **Accounts** selector in **Create a post** and **Validate a post**.
 
-Requests run with a 300-second timeout (Make's maximum) because **Create a post** in **Publish now** mode waits for every platform to respond, and video uploads can take longer than Make's 40-second default.
+Requests run with a 300-second timeout (Make's maximum) because **Publish now** waits for the initial publishing attempt. If SimplePost queues a retry, **Create a post** returns the original post ID with status `scheduled`. Use a stable idempotency key to avoid duplicate posts when Make retries a request.
 
 ## Layout
 

@@ -132,6 +132,23 @@ test("captionless private messages still require matching bot, direction, and su
   const found = await telegramWebMessage(page, { ...smoke, expectedText: "" }, webAccount, window);
   expect(found.id).toBe("22135");
 });
+test("Telegram's current caption wrapper excludes message timestamps while retaining exact matching", async ({
+  page,
+}) => {
+  await webFixture(page, smoke.expectedText);
+  await page.locator(".translatable-message").evaluateAll((nodes) => {
+    for (const node of nodes) {
+      node.removeAttribute("class");
+      node.setAttribute("data-message-text-source", "");
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = "11:57";
+      node.parentElement!.append(time);
+    }
+  });
+  const found = await telegramWebMessage(page, smoke, webAccount, window);
+  expect(found.id).toBe("22135");
+});
 test("private Telegram rejects an unusable timestamp window instead of matching arbitrary history", async ({
   page,
 }) => {

@@ -20,6 +20,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useIsMobile } from "@/components/ui/use-mobile";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 interface ScheduleDateTimePickerProps {
@@ -53,6 +55,7 @@ function ScheduleDateTimePicker({
   className,
   hideLabel,
 }: ScheduleDateTimePickerProps) {
+  const { copy, locale } = useUiCopy();
   const labelId = useId();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
@@ -92,10 +95,10 @@ function ScheduleDateTimePicker({
     () => combineDateAndTime(scheduledDate, scheduledTime),
     [scheduledDate, scheduledTime],
   );
-  const timeZoneLabel = useMemo(() => getTimeZoneLabel(), []);
+  const timeZoneLabel = useMemo(() => getTimeZoneLabel(copy), [copy]);
   const hasCompleteDateTime = Boolean(selectedDateTime);
   const isPastSelection = selectedDateTime ? selectedDateTime <= now : false;
-  const triggerLabel = getTriggerLabel(scheduledDate, scheduledTime, selectedDateTime);
+  const triggerLabel = getTriggerLabel(scheduledDate, scheduledTime, selectedDateTime, locale, copy);
 
   const content = (
     <SchedulePickerContent
@@ -112,7 +115,7 @@ function ScheduleDateTimePicker({
     <div className={cn("space-y-3", className)}>
       {hideLabel ? null : (
         <Label id={labelId} className="text-sm font-medium">
-          Schedule
+          {copy("Schedule")}{" "}
         </Label>
       )}
 
@@ -122,18 +125,18 @@ function ScheduleDateTimePicker({
             <ScheduleTrigger label={triggerLabel} timeZoneLabel={timeZoneLabel} isPastSelection={isPastSelection} />
           </DrawerTrigger>
           <DrawerContent aria-labelledby={hideLabel ? undefined : labelId}>
-            <DrawerHeader className="text-left">
-              <DrawerTitle>Schedule</DrawerTitle>
+            <DrawerHeader className="text-start">
+              <DrawerTitle>{copy("Schedule")}</DrawerTitle>
               <DrawerDescription>
                 {selectedDateTime && !isPastSelection
-                  ? `${format(selectedDateTime, "EEEE, MMMM d 'at' h:mm a")} · ${timeZoneLabel}`
-                  : "Pick a publishing date and time."}
+                  ? `${new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(selectedDateTime)} · ${timeZoneLabel}`
+                  : copy("Pick a publishing date and time.")}
               </DrawerDescription>
             </DrawerHeader>
             <div className="overflow-y-auto px-4 pb-2">{content}</div>
             <DrawerFooter>
               <Button type="button" onClick={() => setOpen(false)} disabled={!hasCompleteDateTime || isPastSelection}>
-                Done
+                {copy("Done")}{" "}
               </Button>
             </DrawerFooter>
           </DrawerContent>
@@ -169,7 +172,7 @@ const ScheduleTrigger = forwardRef<HTMLButtonElement, ScheduleTriggerProps>(func
       variant="outline"
       aria-invalid={isPastSelection}
       className={cn(
-        "h-auto min-h-12 w-full justify-start gap-3 text-left font-normal",
+        "h-auto min-h-12 w-full justify-start gap-3 text-start font-normal",
         isPastSelection && "border-destructive/50 text-destructive",
         className,
       )}
@@ -191,8 +194,9 @@ function SchedulePickerContent({
   onScheduledTimeChange,
   onClose,
 }: SchedulePickerContentProps) {
+  const { copy, locale } = useUiCopy();
   const selectedDate = parseDateValue(scheduledDate);
-  const presets = useMemo(() => getPresetOptions(now), [now]);
+  const presets = useMemo(() => getPresetOptions(now, copy), [now, copy]);
 
   // When the chosen day is today, stop the native time field from stepping into the past.
   const minTime = selectedDate && isSameCalendarDay(selectedDate, now) ? formatTimeValue(now) : undefined;
@@ -230,7 +234,7 @@ function SchedulePickerContent({
 
   return (
     <div className="flex flex-col sm:flex-row">
-      <div className="flex justify-center border-b border-border p-3 sm:border-b-0 sm:border-r">
+      <div className="flex justify-center border-b border-border p-3 sm:border-b-0 sm:border-e">
         <Calendar
           mode="single"
           selected={selectedDate}
@@ -242,7 +246,7 @@ function SchedulePickerContent({
 
       <div className="flex w-full flex-col gap-5 p-4 sm:w-64">
         <section className="space-y-1.5">
-          <p className="px-1 text-xs font-medium tracking-wide text-muted-foreground">Quick picks</p>
+          <p className="px-1 text-xs font-medium tracking-wide text-muted-foreground">{copy("Quick picks")}</p>
           <div className="space-y-0.5">
             {presets.map((preset) => {
               const isActive =
@@ -255,12 +259,18 @@ function SchedulePickerContent({
                   type="button"
                   data-active={isActive}
                   onClick={() => commitDateTime(preset.dateTime, true)}
-                  className="group flex w-full flex-col items-start gap-0.5 rounded-lg border border-transparent px-3 py-2 text-left transition-colors hover:bg-secondary data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10">
+                  className="group flex w-full flex-col items-start gap-0.5 rounded-lg border border-transparent px-3 py-2 text-start transition-colors hover:bg-secondary data-[active=true]:border-primary/30 data-[active=true]:bg-primary/10">
                   <span className="text-sm font-medium text-foreground group-data-[active=true]:text-primary">
                     {preset.label}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {format(preset.dateTime, "EEE, MMM d · h:mm a")}
+                    {new Intl.DateTimeFormat(locale, {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    }).format(preset.dateTime)}
                   </span>
                 </button>
               );
@@ -269,13 +279,13 @@ function SchedulePickerContent({
         </section>
 
         <section className="space-y-2">
-          <p className="px-1 text-xs font-medium tracking-wide text-muted-foreground">Time</p>
+          <p className="px-1 text-xs font-medium tracking-wide text-muted-foreground">{copy("Time")}</p>
           <Popover open={timeOpen} onOpenChange={setTimeOpen}>
             <PopoverAnchor asChild>
-              <div className="flex w-44 items-center rounded-lg border border-border bg-input/60 pr-1.5 transition-colors focus-within:border-primary/40 focus-within:ring-[3px] focus-within:ring-primary/20">
+              <div className="flex w-44 items-center rounded-lg border border-border bg-input/60 pe-1.5 transition-colors focus-within:border-primary/40 focus-within:ring-[3px] focus-within:ring-primary/20">
                 <input
                   type="time"
-                  aria-label="Time"
+                  aria-label={copy("Time")}
                   step={60}
                   value={scheduledTime}
                   min={minTime}
@@ -287,7 +297,7 @@ function SchedulePickerContent({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
-                    aria-label="Choose a time"
+                    aria-label={copy("Choose a time")}
                     className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                     <ChevronDown className="size-4" />
                   </button>
@@ -320,7 +330,7 @@ function SchedulePickerContent({
                       "flex w-full items-center rounded-md px-3 py-1.5 text-sm tabular-nums outline-none transition-colors focus-visible:bg-secondary disabled:pointer-events-none disabled:opacity-40",
                       isActive ? "bg-primary/15 font-medium text-primary" : "text-foreground hover:bg-secondary",
                     )}>
-                    {formatTimeLabel(value)}
+                    {formatTimeLabel(value, locale)}
                   </button>
                 );
               })}
@@ -378,25 +388,41 @@ function formatTimeValue(date: Date): string {
   return format(date, "HH:mm");
 }
 
-function formatTimeLabel(timeValue: string): string {
+function formatTimeLabel(timeValue: string, locale: string): string {
   const dateTime = combineDateAndTime("2000-01-01", timeValue);
-  return dateTime ? format(dateTime, "h:mm a") : timeValue;
+  return dateTime ? new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(dateTime) : timeValue;
 }
 
-function getTriggerLabel(dateValue: string, timeValue: string, dateTime: Date | undefined): string {
-  if (dateTime) return format(dateTime, "EEE, MMM d 'at' h:mm a");
+function getTriggerLabel(
+  dateValue: string,
+  timeValue: string,
+  dateTime: Date | undefined,
+  locale: string,
+  copy: SourceCopy,
+): string {
+  if (dateTime)
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(dateTime);
 
   const date = parseDateValue(dateValue);
-  if (date) return `${format(date, "EEE, MMM d")} at pick time`;
+  if (date)
+    return copy("{{date}} — pick time", {
+      date: new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric" }).format(date),
+    });
 
   const time = parseTimeValue(timeValue);
-  if (time) return `Pick date at ${formatTimeLabel(timeValue)}`;
+  if (time) return copy("Pick date at {{time}}", { time: formatTimeLabel(timeValue, locale) });
 
-  return "Pick date and time";
+  return copy("Pick date and time");
 }
 
-function getTimeZoneLabel(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "Local time";
+function getTimeZoneLabel(copy: SourceCopy): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || copy("Local time");
 }
 
 function startOfCalendarDay(date: Date): Date {
@@ -472,7 +498,7 @@ function getDateValueForTime(currentDateValue: string, timeValue: string, now: D
   return isPastDateTime(todayValue, timeValue, now) ? formatDateValue(addCalendarDays(now, 1)) : todayValue;
 }
 
-function getPresetOptions(now: Date): Array<{ id: string; label: string; dateTime: Date }> {
+function getPresetOptions(now: Date, copy: SourceCopy): Array<{ id: string; label: string; dateTime: Date }> {
   const inOneHour = getRecommendedDateTime(now);
   const todayEvening = atTime(now, 18);
   const evening = todayEvening > now ? todayEvening : atTime(addCalendarDays(now, 1), 18);
@@ -480,10 +506,14 @@ function getPresetOptions(now: Date): Array<{ id: string; label: string; dateTim
   const nextWeekday = getNextWeekdayMorning(now);
 
   return [
-    { id: "one-hour", label: "In 1 hour", dateTime: inOneHour },
-    { id: "evening", label: isSameCalendarDay(evening, now) ? "Tonight" : "Tomorrow evening", dateTime: evening },
-    { id: "tomorrow", label: "Tomorrow morning", dateTime: tomorrowMorning },
-    { id: "weekday", label: "Next weekday", dateTime: nextWeekday },
+    { id: "one-hour", label: copy("In 1 hour"), dateTime: inOneHour },
+    {
+      id: "evening",
+      label: isSameCalendarDay(evening, now) ? copy("Tonight") : copy("Tomorrow evening"),
+      dateTime: evening,
+    },
+    { id: "tomorrow", label: copy("Tomorrow morning"), dateTime: tomorrowMorning },
+    { id: "weekday", label: copy("Next weekday"), dateTime: nextWeekday },
   ];
 }
 

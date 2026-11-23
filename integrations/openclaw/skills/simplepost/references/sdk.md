@@ -2,6 +2,8 @@
 
 Use `@simple-post/sdk` when building or editing a TypeScript app or agent that can publish in-process.
 
+Running a posting example sends the supplied content and media to external social platforms. Examples are documentation, not permission to execute a live post. Confirm the exact targets, payload, timing, and audience when not already explicitly authorized. User-managed credentials belong in approved server-side secret storage; never search local files or environment values for secrets, paste them into chat, or expose them in client-side code.
+
 ## Basic Posting
 
 ```typescript

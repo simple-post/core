@@ -353,6 +353,8 @@ export type InstagramOptionsWithCredentials = InstagramOptions & {
 };
 export type TikTokOptionsWithCredentials = TikTokOptions & {
   credentials: NonNullable<TikTokOptions["credentials"]>;
+  /** Runtime-only request gate, called before every video/photo initialization, including session restarts. */
+  beforeUploadInit?: () => Promise<void>;
 };
 export type BlueskyOptionsWithCredentials = BlueskyOptions & {
   credentials: NonNullable<BlueskyOptions["credentials"]>;

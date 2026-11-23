@@ -1,3 +1,14 @@
+jest.mock("@/lib/i18n/server-catalogs", () => ({
+  serverCatalogs: {
+    en: {},
+    ar: {
+      "Loading SimplePost…": "LOADING_AR </script><b>",
+      Retry: "RETRY_AR",
+      "Interactive day, week, and month view of posting slots and post activity.": "DESCRIPTION_AR",
+    },
+    ja: { "Loading SimplePost…": "LOADING_JA", Retry: "RETRY_JA" },
+  },
+}));
 jest.mock("@modelcontextprotocol/ext-apps/server", () => ({
   RESOURCE_MIME_TYPE: "text/html;profile=mcp-app",
   registerAppResource: (
@@ -9,7 +20,11 @@ jest.mock("@modelcontextprotocol/ext-apps/server", () => ({
   ) => server.registerResource(name, uri, { mimeType: "text/html;profile=mcp-app", ...config }, callback),
 }));
 
+import { transform } from "esbuild";
+
+import { withMcpLocale } from "@/lib/mcp/locale";
 import {
+  EDITOR_WIDGET_URI,
   LEGACY_SCHEDULE_WIDGET_URIS,
   POST_PREVIEW_WIDGET_URI,
   registerMcpUiResources,
@@ -53,7 +68,7 @@ describe("MCP UI resources", () => {
       scripts: Record<string, string>;
     };
 
-    expect(packageJson.scripts.build).toMatch(/^yarn build:mcp-widgets && next build/);
+    expect(packageJson.scripts.build).toMatch(/(?:^|&& )yarn build:mcp-widgets && next build/);
     expect(packageJson.scripts.dev).toMatch(/^yarn build:mcp-widgets && next dev/);
     expect(packageJson.scripts.prebuild).toBeUndefined();
     expect(packageJson.scripts.predev).toBeUndefined();
@@ -156,5 +171,49 @@ describe("MCP UI resources", () => {
         }),
       );
     }
+  });
+
+  it("allows the configured upload origin in the post preview and editor sandboxes", async () => {
+    const previous = process.env.S3_STORAGE_BASE_URL;
+    process.env.S3_STORAGE_BASE_URL = "https://media.example.test/uploads";
+    try {
+      const registerResource = jest.fn();
+      registerMcpUiResources({ registerResource } as unknown as McpServer, true);
+      for (const uri of [POST_PREVIEW_WIDGET_URI, EDITOR_WIDGET_URI]) {
+        const registration = registerResource.mock.calls.find((call) => call[1] === uri)!;
+        const callback = registration[3] as (requestedUri: URL) => Promise<ResourceResult>;
+        const resource = await callback(new URL(uri));
+        for (const meta of [registration[2]._meta, resource.contents[0]._meta]) {
+          expect(meta.ui.csp.resourceDomains).toContain("https://media.example.test");
+        }
+      }
+    } finally {
+      if (previous === undefined) delete process.env.S3_STORAGE_BASE_URL;
+      else process.env.S3_STORAGE_BASE_URL = previous;
+    }
+  });
+
+  it("captures each resource locale and safely renders bootstrap labels without changing resource identifiers", async () => {
+    const registerResource = jest.fn();
+    await withMcpLocale("ar", () => registerMcpUiResources({ registerResource } as unknown as McpServer));
+    const schedule = registerResource.mock.calls.find((call) => call[1] === SCHEDULE_WIDGET_URI)!;
+    expect(schedule[0]).toBe("SimplePost schedule");
+    expect(schedule[2].description).toBe("DESCRIPTION_AR");
+    const [arabic, japanese] = await Promise.all([
+      schedule[3](new URL(SCHEDULE_WIDGET_URI), {}),
+      schedule[3](new URL(SCHEDULE_WIDGET_URI), { mcpReq: { _meta: { "openai/locale": "ja" } } }),
+    ]);
+    const ar = arabic.contents[0].text as string;
+    const ja = japanese.contents[0].text as string;
+    expect(ar).toContain('<html lang="ar" dir="rtl">');
+    expect(ar).toContain("ui_locale=ar");
+    expect(ar).toContain("RETRY_AR");
+    expect(ar).not.toContain("</script><b>");
+    expect(ar).toContain("&lt;/script&gt;&lt;b&gt;");
+    expect(ja).toContain('<html lang="ja" dir="ltr">');
+    expect(ja).toContain("LOADING_JA");
+    expect(ja).not.toContain("LOADING_AR");
+    const script = ar.match(/<script>([\s\S]*?)<\/script>/)![1];
+    await expect(transform(script, { loader: "js", target: "es2022" })).resolves.toBeDefined();
   });
 });

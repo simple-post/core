@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content } from "../../types/post";
@@ -32,72 +33,104 @@ export function validateLinkedInContent(content: Content): ValidationResult {
   const { images, videos } = countMedia(media);
 
   if (!text.trim() && mediaCount === 0) {
-    errors.push({
-      platform: "linkedin",
-      severity: "error",
-      code: "content_required",
-      message: "LinkedIn posts require text or media.",
-      field: "text",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "linkedin",
+          severity: "error",
+          code: "content_required",
+          message: "LinkedIn posts require text or media.",
+          field: "text",
+        },
+        "LinkedIn posts require text or media.",
+      ),
+    );
   }
 
   if (text.length > LINKEDIN_MAX_TEXT_LENGTH) {
-    errors.push({
-      platform: "linkedin",
-      severity: "error",
-      code: "text_too_long",
-      message: `LinkedIn text cannot exceed ${LINKEDIN_MAX_TEXT_LENGTH} characters.`,
-      field: "text",
-      limit: LINKEDIN_MAX_TEXT_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "linkedin",
+          severity: "error",
+          code: "text_too_long",
+          message: `LinkedIn text cannot exceed ${LINKEDIN_MAX_TEXT_LENGTH} characters.`,
+          field: "text",
+          limit: LINKEDIN_MAX_TEXT_LENGTH,
+          actual: text.length,
+        },
+        "LinkedIn text cannot exceed {{LINKEDIN_MAX_TEXT_LENGTH}} characters.",
+        { LINKEDIN_MAX_TEXT_LENGTH: String(LINKEDIN_MAX_TEXT_LENGTH) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "linkedin",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "linkedin",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (videos > 0 && images > 0) {
-    errors.push({
-      platform: "linkedin",
-      severity: "error",
-      code: "mixed_media_not_supported",
-      message: "LinkedIn posts cannot mix images and videos.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "linkedin",
+          severity: "error",
+          code: "mixed_media_not_supported",
+          message: "LinkedIn posts cannot mix images and videos.",
+          field: "media",
+        },
+        "LinkedIn posts cannot mix images and videos.",
+      ),
+    );
   }
 
   if (videos > LINKEDIN_MAX_VIDEOS) {
-    errors.push({
-      platform: "linkedin",
-      severity: "error",
-      code: "too_many_videos",
-      message: "LinkedIn supports only one video per post.",
-      field: "media",
-      limit: LINKEDIN_MAX_VIDEOS,
-      actual: videos,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "linkedin",
+          severity: "error",
+          code: "too_many_videos",
+          message: "LinkedIn supports only one video per post.",
+          field: "media",
+          limit: LINKEDIN_MAX_VIDEOS,
+          actual: videos,
+        },
+        "LinkedIn supports only one video per post.",
+      ),
+    );
   }
 
   if (images > LINKEDIN_MAX_IMAGES) {
-    warnings.push({
-      platform: "linkedin",
-      severity: "warning",
-      code: "too_many_images",
-      message: `LinkedIn supports up to ${LINKEDIN_MAX_IMAGES} images. Only the first ${LINKEDIN_MAX_IMAGES} will be posted.`,
-      field: "media",
-      limit: LINKEDIN_MAX_IMAGES,
-      actual: images,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "linkedin",
+          severity: "warning",
+          code: "too_many_images",
+          message: `LinkedIn supports up to ${LINKEDIN_MAX_IMAGES} images. Only the first ${LINKEDIN_MAX_IMAGES} will be posted.`,
+          field: "media",
+          limit: LINKEDIN_MAX_IMAGES,
+          actual: images,
+        },
+        "LinkedIn supports up to {{LINKEDIN_MAX_IMAGES}} images. Only the first {{LINKEDIN_MAX_IMAGES2}} will be posted.",
+        { LINKEDIN_MAX_IMAGES: String(LINKEDIN_MAX_IMAGES), LINKEDIN_MAX_IMAGES2: String(LINKEDIN_MAX_IMAGES) },
+      ),
+    );
   }
 
   errors.push(

@@ -49,18 +49,28 @@ for (const save of [true, false])
     } catch {
       test.skip(true, "Installed Chrome is optional for offline checks");
     }
+    // Launching real Chrome and exporting its storage is slower on shared CI runners.
+    test.slow();
     const directory = await mkdtemp(path.join(os.tmpdir(), "chrome-auth-"));
     const file = path.join(directory, "state.json");
     await writeFile(file, "previous-session");
     let ready!: () => void;
-    const pageReady = new Promise<void>((resolve) => {
+    let failReady!: (error: Error) => void;
+    const pageReady = new Promise<void>((resolve, reject) => {
       ready = resolve;
+      failReady = reject;
     });
+    // The rejection is observed by the readiness race below; this guard only prevents an
+    // unhandled rejection if the page reports an error before that race starts.
+    pageReady.catch(() => {});
     let requests = 0;
     const server = createServer((request, response) => {
       if (request.url === "/ready") {
         response.end("ok");
         ready();
+      } else if (request.url?.startsWith("/error")) {
+        response.end("error");
+        failReady(new Error("Fixture page failed to populate IndexedDB in Chrome"));
       } else {
         if (request.url === "/") requests++;
         response.writeHead(200, {
@@ -69,13 +79,22 @@ for (const save of [true, false])
         });
         response.end(
           `<title>Local authentication test</title><p>Local fixture only; no social login.</p><script>localStorage.setItem("test-user", "fixture-user");
-        const request = indexedDB.open("test-auth", 1);
-        request.onupgradeneeded = () => request.result.createObjectStore("session");
-        request.onsuccess = () => {
-          const transaction = request.result.transaction("session", "readwrite");
-          transaction.objectStore("session").put("fixture-value", "test-key");
-          transaction.oncomplete = () => { request.result.close(); fetch("/ready"); };
-        };</script>`,
+        const fail = (stage) => () => { fetch("/error?stage=" + stage); };
+        try {
+          const request = indexedDB.open("test-auth", 1);
+          request.onerror = fail("open");
+          request.onblocked = fail("blocked");
+          request.onupgradeneeded = () => request.result.createObjectStore("session");
+          request.onsuccess = () => {
+            try {
+              const transaction = request.result.transaction("session", "readwrite");
+              transaction.onerror = fail("transaction");
+              transaction.onabort = fail("abort");
+              transaction.objectStore("session").put("fixture-value", "test-key");
+              transaction.oncomplete = () => { request.result.close(); fetch("/ready"); };
+            } catch { fail("transaction-throw")(); }
+          };
+        } catch { fail("open-throw")(); }</script>`,
         );
       }
     });
@@ -86,13 +105,14 @@ for (const save of [true, false])
     try {
       const operation = chromeAuth(url, file, async (signal) => {
         // The page's script must run in ordinary Chrome before export attaches.
-        await Promise.race([
-          pageReady,
-          new Promise<never>((_, reject) => {
-            if (signal.aborted) reject(signal.reason);
-            else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-          }),
-        ]);
+        await test.step("wait for fixture page readiness", () =>
+          Promise.race([
+            pageReady,
+            new Promise<never>((_, reject) => {
+              if (signal.aborted) reject(signal.reason);
+              else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+            }),
+          ]));
         expect(await readFile(file, "utf8")).toBe("previous-session");
         if (!save) throw new Error("User cancelled");
       });

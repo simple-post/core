@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG NODE_VERSION=22.14.0
+ARG NODE_VERSION=22.23.4
 ARG UBUNTU_VERSION=24.04
 ARG DISTROLESS_IMAGE=gcr.io/distroless/nodejs22-debian12:nonroot
 ARG RUNTIME_FLAVOR=distroless
@@ -48,6 +48,8 @@ RUN yarn workspace @simple-post/sdk build
 RUN yarn workspace @simple-post/scheduler build --webpack
 
 FROM ${DISTROLESS_IMAGE} AS runtime-distroless
+# Keep distroless while using the patched Debian Node binary.
+COPY --from=base /usr/local/bin/node /nodejs/bin/node
 COPY --from=media-runtime /ffprobe-root/ /
 WORKDIR /app
 ENV NODE_ENV=production
@@ -66,6 +68,8 @@ COPY --from=builder --chown=nonroot:nonroot /app/scheduler/.next ./scheduler/.ne
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/prisma ./scheduler/prisma
 COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/verify-openai-ads.mjs ./scheduler/scripts/verify-openai-ads.mjs
+COPY --from=builder --chown=nonroot:nonroot /app/scheduler/scripts/relay-openai-ads.mjs ./scheduler/scripts/relay-openai-ads.mjs
 USER nonroot:nonroot
 WORKDIR /app/scheduler
 EXPOSE 3000
@@ -82,6 +86,7 @@ RUN apt-get update \
     > /etc/apt/sources.list.d/nodesource.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends nodejs \
+  && node -e "const [M,m,p]=process.versions.node.split('.').map(Number); if(M!==22 || m<23 || (m===23 && p<4)) process.exit(1)" \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN groupadd --system --gid 1001 nodejs \
@@ -102,6 +107,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scheduler/.next ./scheduler/.next
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/docker-entrypoint.mjs ./scheduler/docker-entrypoint.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/prisma ./scheduler/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/prune-experiments.mjs ./scheduler/scripts/prune-experiments.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/verify-openai-ads.mjs ./scheduler/scripts/verify-openai-ads.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scheduler/scripts/relay-openai-ads.mjs ./scheduler/scripts/relay-openai-ads.mjs
 USER nextjs
 WORKDIR /app/scheduler
 EXPOSE 3000

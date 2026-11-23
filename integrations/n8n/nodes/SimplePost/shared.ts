@@ -7,7 +7,7 @@ import type {
 	ILoadOptionsFunctions,
 	INode,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeOperationError, tryToParseDateTime } from 'n8n-workflow';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const DEFAULT_BASE_URL = 'https://app.simplepost.social';
@@ -46,15 +46,15 @@ export async function simplePostApiRequest(
 
 // The Scheduler API only accepts UTC `Z` timestamps, while n8n date pickers and
 // Luxon expressions commonly produce offset or zone-less ISO strings.
-export function normalizeScheduledFor(value: string, node: INode): string {
-	const parsed = new Date(value);
-	if (!value.trim() || Number.isNaN(parsed.getTime())) {
+export function normalizeScheduledFor(value: string, node: INode, timezone = 'UTC'): string {
+	try {
+		if (!value.trim()) throw new Error('Missing timestamp');
+		return tryToParseDateTime(value, timezone).toUTC().toJSDate().toISOString();
+	} catch {
 		throw new NodeOperationError(node, "The 'Scheduled For' value is not a valid date and time", {
 			description: 'Use an ISO 8601 date and time, for example 2026-08-01T09:30:00+02:00',
 		});
 	}
-
-	return parsed.toISOString();
 }
 
 function parseJson(value: string, fieldName: string, node: INode): unknown {
@@ -126,7 +126,13 @@ export function isValidWebhookSignature(
 	body: string,
 	now = Date.now(),
 ): boolean {
-	if (!timestamp || !signature?.startsWith('sha256=')) return false;
+	if (
+		!timestamp ||
+		!/^\d+$/.test(timestamp) ||
+		!signature ||
+		!/^sha256=[a-f0-9]{64}$/.test(signature)
+	)
+		return false;
 
 	const sentAt = Number(timestamp);
 	if (!Number.isFinite(sentAt) || Math.abs(now - sentAt) > WEBHOOK_TOLERANCE_MS) return false;

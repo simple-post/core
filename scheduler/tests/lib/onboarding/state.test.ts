@@ -23,13 +23,13 @@ it("keeps assistant-only users at the account connection step", async () => {
     hasAiConnection: true,
   });
 });
-it("only counts scheduled/published posts as preparation and published posts as success", async () => {
+it("counts drafts, scheduled posts, and published posts for onboarding", async () => {
   (prisma.post.count as jest.Mock).mockResolvedValueOnce(1).mockResolvedValueOnce(0);
   const state = await getOnboardingState("user");
   expect(state.hasPost).toBe(true);
   expect(state.hasPublishedPost).toBe(false);
   expect(prisma.post.count).toHaveBeenNthCalledWith(1, {
-    where: { userId: "user", status: { in: ["scheduled", "published"] } },
+    where: { userId: "user", status: { in: ["draft", "scheduled", "published"] } },
     take: 1,
   });
   expect(prisma.post.count).toHaveBeenNthCalledWith(2, { where: { userId: "user", status: "published" }, take: 1 });

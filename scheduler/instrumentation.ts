@@ -1,3 +1,5 @@
+import type { Instrumentation } from "next";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") {
     return;
@@ -42,3 +44,26 @@ export async function register() {
     throw error;
   }
 }
+
+export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  try {
+    const { requestErrorContext, flushErrorReports } = await import("@/lib/error-reporting");
+    const headers = new Headers();
+    for (const [key, value] of Object.entries(request.headers))
+      if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+    const details: Record<string, unknown> = requestErrorContext(headers, request.path, request.method);
+    try {
+      const { auth } = await import("@/lib/auth/auth");
+      const session = await auth.api.getSession({ headers });
+      if (session) Object.assign(details, { userId: session.user.id, userEmail: session.user.email });
+    } catch {
+      /* Identity can be unavailable during an authentication/database outage. */
+    }
+    const { logger } = await import("@/lib/logger");
+    logger.error({ ...details, error, area: `${context.routeType}:${context.routePath}` }, "Unhandled request error");
+    await flushErrorReports();
+  } catch {
+    console.warn("Request error reporting failed");
+  }
+};

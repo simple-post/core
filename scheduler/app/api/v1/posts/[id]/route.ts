@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { PostsModel } from "@/lib/db";
-import { requireAuth } from "@/lib/middleware/auth";
+import { serverMessage } from "@/lib/i18n/server";
+import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
 import type { PostingResultCallback } from "@/lib/posting";
 import { createPostingProgressStream, wantsPostingProgress } from "@/lib/posting/progress-stream";
 import { executePostUpdate } from "@/lib/posting/update-post";
@@ -13,12 +14,12 @@ import { deleteAccountOptionFiles, deleteMediaFiles } from "@/lib/utils/media-cl
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
     const repository = new PostsModel(session.user.id);
 
     const post = await repository.getPostById(id);
     if (!post) {
-      throw new NotFoundError("Post not found");
+      throw new NotFoundError(serverMessage("Post not found"));
     }
 
     return NextResponse.json({ post });
@@ -60,7 +61,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Get the post to delete its media from R2
     const post = await repository.getPostById(id);
     if (!post) {
-      throw new NotFoundError("Post not found");
+      throw new NotFoundError(serverMessage("Post not found"));
     }
 
     await assertNoUnresolvedQuotes(session.user.id, id);

@@ -493,6 +493,7 @@ export const RedirectUrlResponseSchema = z
 
 export const TelegramConnectRequestSchema = z
   .object({
+    handoffToken: z.string().optional(),
     botToken: z.string(),
     chatId: z.string(),
     channelName: z.string().optional(),
@@ -511,7 +512,7 @@ export const TelegramConnectResponseSchema = z
   })
   .meta({ id: "TelegramConnectResponse" });
 export const ForemConnectRequestSchema = z
-  .object({ instanceUrl: z.url(), apiKey: z.string() })
+  .object({ instanceUrl: z.url(), apiKey: z.string(), handoffToken: z.string().optional() })
   .meta({ id: "ForemConnectRequest" });
 export const ForemConnectResponseSchema = z.object({ success: z.boolean() }).meta({ id: "ForemConnectResponse" });
 

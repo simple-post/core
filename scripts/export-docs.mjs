@@ -54,7 +54,7 @@ try {
   });
   const { scheduler, server, facts } = require(compiled);
   const mcpSource = await readFile(path.join(core, "scheduler/lib/mcp/server.ts"), "utf8");
-  facts.mcpTools = [...mcpSource.matchAll(/registerAppTool\(\s*server,\s*"([a-z_]+)"/g)].map((match) => match[1]);
+  facts.mcpTools = [...mcpSource.matchAll(/registerMeasuredTool\(\s*context,\s*server,\s*"([a-z_]+)"/g)].map((match) => match[1]);
   if (facts.mcpTools.length === 0)
     throw new Error("No MCP tools found; update the exporter for the current registration API.");
   const files = Object.keys(result.metafile.inputs)

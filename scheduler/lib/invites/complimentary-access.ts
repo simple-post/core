@@ -1,4 +1,5 @@
 import { ACTIVE_SUBSCRIPTION_STATUSES, getPlanByKey } from "@/lib/billing/plans";
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, ConflictError, GoneError, NotFoundError } from "@/lib/utils/errors";
 
@@ -37,7 +38,7 @@ export async function redeemComplimentaryInvite(
 ): Promise<RedeemedComplimentaryInvite> {
   const normalizedCode = code.trim();
   if (!normalizedCode || normalizedCode.length > 200) {
-    throw new BadRequestError("Enter a valid invitation code");
+    throw new BadRequestError(serverMessage("Enter a valid invitation code"));
   }
 
   const redeem = () =>
@@ -48,17 +49,17 @@ export async function redeemComplimentaryInvite(
         });
 
         if (!invite) {
-          throw new NotFoundError("This complimentary access invitation is not valid");
+          throw new NotFoundError(serverMessage("This complimentary access invitation is not valid"));
         }
 
         if (invite.redeemedAt) {
           if (invite.redeemedByUserId !== userId) {
-            throw new ConflictError("This complimentary access invitation has already been used");
+            throw new ConflictError(serverMessage("This complimentary access invitation has already been used"));
           }
 
           const existingAccess = await tx.complimentaryAccess.findUnique({ where: { userId } });
           if (!existingAccess || existingAccess.inviteId !== invite.id) {
-            throw new ConflictError("This invitation has already been redeemed");
+            throw new ConflictError(serverMessage("This invitation has already been redeemed"));
           }
 
           return {
@@ -70,13 +71,13 @@ export async function redeemComplimentaryInvite(
         }
 
         if (invite.expiresAt && invite.expiresAt.getTime() <= now.getTime()) {
-          throw new GoneError("This complimentary access invitation has expired");
+          throw new GoneError(serverMessage("This complimentary access invitation has expired"));
         }
         if (!getPlanByKey(invite.planKey)) {
-          throw new BadRequestError("This invitation is configured with an unknown plan");
+          throw new BadRequestError(serverMessage("This invitation is configured with an unknown plan"));
         }
         if (!Number.isInteger(invite.accessDurationDays) || invite.accessDurationDays <= 0) {
-          throw new BadRequestError("This invitation has an invalid access duration");
+          throw new BadRequestError(serverMessage("This invitation has an invalid access duration"));
         }
 
         const user = await tx.user.findUnique({
@@ -87,13 +88,13 @@ export async function redeemComplimentaryInvite(
           },
         });
         if (!user) {
-          throw new NotFoundError("User not found");
+          throw new NotFoundError(serverMessage("User not found"));
         }
         if (hasActivePaidSubscription(user.subscription, now)) {
-          throw new ConflictError("Your account already has an active paid subscription");
+          throw new ConflictError(serverMessage("Your account already has an active paid subscription"));
         }
         if (user.complimentaryAccess && user.complimentaryAccess.expiresAt.getTime() > now.getTime()) {
-          throw new ConflictError("Your account already has active complimentary access");
+          throw new ConflictError(serverMessage("Your account already has active complimentary access"));
         }
 
         const claim = await tx.complimentaryAccessInvite.updateMany({
@@ -101,7 +102,7 @@ export async function redeemComplimentaryInvite(
           data: { redeemedAt: now, redeemedByUserId: userId },
         });
         if (claim.count !== 1) {
-          throw new ConflictError("This complimentary access invitation has already been used");
+          throw new ConflictError(serverMessage("This complimentary access invitation has already been used"));
         }
 
         const expiresAt = calculateComplimentaryAccessEnd(now, invite.accessDurationDays);
@@ -149,5 +150,5 @@ export async function redeemComplimentaryInvite(
     }
   }
 
-  throw new ConflictError("This complimentary access invitation could not be redeemed");
+  throw new ConflictError(serverMessage("This complimentary access invitation could not be redeemed"));
 }

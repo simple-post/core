@@ -1,9 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useUiTranslation } from "@/lib/i18n/client";
 import { WEEKDAYS, type PostingSlotConfig } from "@/lib/posting-slots/occurrences";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +46,23 @@ export function PostingSlotsSection({
   onChange: (slots: PostingSlotRow[]) => void;
   disabled: boolean;
 }) {
+  const { locale, t } = useUiTranslation();
+  const weekdays = useMemo(() => {
+    const short = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
+    const long = new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" });
+    return WEEKDAYS.map(({ day }) => {
+      const date = new Date(Date.UTC(2026, 0, 4 + day)); // January 4, 2026 was a Sunday.
+      return { day, short: short.format(date), long: long.format(date) };
+    });
+  }, [locale]);
+  const timeFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }),
+    [locale],
+  );
+  const formatTime = (time: string) => {
+    const date = new Date(`2026-01-04T${time}:00Z`);
+    return Number.isNaN(date.getTime()) ? time : timeFormatter.format(date);
+  };
   const activeSlotCount = slots.reduce((count, slot) => count + slot.weekdays.length, 0);
 
   const updateSlot = (clientId: string, updates: Partial<PostingSlotConfig>) => {
@@ -73,25 +93,24 @@ export function PostingSlotsSection({
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold text-foreground">Posting slots</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("postingSlots")}</h2>
         </div>
-        {activeSlotCount > 0 ? <span className="text-xs text-muted-foreground">{activeSlotCount} per week</span> : null}
+        {activeSlotCount > 0 ? (
+          <span className="text-xs text-muted-foreground">{t("slotsPerWeek", { count: activeSlotCount })}</span>
+        ) : null}
       </div>
 
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        Plan your week with default posting times. Check the days each time applies — new posts can then be scheduled
-        into the next free slot with one click.
-      </p>
+      <p className="mt-1.5 text-xs text-muted-foreground">{t("postingSlotsDescription")}</p>
 
       {slots.length > 0 ? (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[28rem] border-separate border-spacing-y-1">
             <thead>
               <tr>
-                <th className="w-32 pb-1 text-left text-xs font-medium text-muted-foreground">Time</th>
-                {WEEKDAYS.map(({ day, label }) => (
+                <th className="w-32 pb-1 text-start text-xs font-medium text-muted-foreground">{t("time")}</th>
+                {weekdays.map(({ day, short }) => (
                   <th key={day} className="pb-1 text-center text-xs font-medium text-muted-foreground">
-                    {label}
+                    {short}
                   </th>
                 ))}
                 <th className="w-9" aria-hidden="true" />
@@ -100,10 +119,11 @@ export function PostingSlotsSection({
             <tbody>
               {slots.map((slot, index) => (
                 <tr key={slot.clientId} className={cn(slot.weekdays.length === 0 && "opacity-60")}>
-                  <td className="pr-2">
+                  <td className="pe-2">
                     <input
                       type="time"
-                      aria-label={`Slot ${index + 1} time`}
+                      dir="ltr"
+                      aria-label={t("slotTime", { index: index + 1 })}
                       value={slot.time}
                       disabled={disabled}
                       onChange={(event) => {
@@ -112,22 +132,22 @@ export function PostingSlotsSection({
                       className="h-8 w-28 rounded-md border border-border bg-input/60 px-2 text-sm font-medium tabular-nums text-foreground outline-none transition-colors focus:border-primary/40 focus:ring-[3px] focus:ring-primary/20 disabled:opacity-50 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
                     />
                   </td>
-                  {WEEKDAYS.map(({ day, label }) => (
+                  {weekdays.map(({ day, long }) => (
                     <td key={day} className="text-center">
                       <Checkbox
-                        aria-label={`${label} at ${slot.time}`}
+                        aria-label={t("slotDayAtTime", { day: long, time: formatTime(slot.time) })}
                         checked={slot.weekdays.includes(day)}
                         disabled={disabled}
                         onCheckedChange={(checked) => toggleWeekday(slot.clientId, day, checked === true)}
                       />
                     </td>
                   ))}
-                  <td className="text-right">
+                  <td className="text-end">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      aria-label={`Remove ${slot.time} slot`}
+                      aria-label={t("removeSlotAtTime", { time: formatTime(slot.time) })}
                       disabled={disabled}
                       className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                       onClick={() => removeSlot(slot.clientId)}>
@@ -140,9 +160,7 @@ export function PostingSlotsSection({
           </table>
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">
-          No posting slots yet. Add a time to start planning your week.
-        </p>
+        <p className="mt-4 text-sm text-muted-foreground">{t("noPostingSlots")}</p>
       )}
 
       <Button
@@ -153,7 +171,7 @@ export function PostingSlotsSection({
         className="mt-3 gap-2 text-muted-foreground"
         onClick={addSlot}>
         <Plus className="h-3.5 w-3.5" />
-        Add time slot
+        {t("addTimeSlot")}
       </Button>
     </section>
   );

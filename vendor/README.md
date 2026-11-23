@@ -1,0 +1,1 @@
+The preview archives are built from [simple-post/preview at 38df6ca](https://github.com/simple-post/preview/commit/38df6cadfea2247c8a2b9625eee4a34b466e331b), which adds video playback to the localized previews. After a compatible npm release, replace the file dependencies with registry dependencies and remove the archives.

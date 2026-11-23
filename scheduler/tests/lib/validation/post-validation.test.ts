@@ -159,6 +159,40 @@ describe("post validation", () => {
         .summary.errors,
     ).toEqual([expect.objectContaining({ code: "too_many_cashtags", field: "text", meta: { accountId: account.id } })]);
   });
+
+  it("allows 20 mixed X attachments in roots, thread replies and overrides", () => {
+    const account = { ...blueskyAccount, id: "x-account", platform: "x" };
+    const media = Array.from({ length: 20 }, (_, index) =>
+      index % 2 === 0 ? image(1024, String(index)) : { ...video, id: String(index) },
+    );
+    const input = { message: "Root", media, accounts: [account], thread: [{ message: "Reply", media }] };
+    const result = validatePostForResolvedAccounts(input);
+    expect(result.summary.isValid).toBe(true);
+    expect(result.results[0].rules.media).toMatchObject({ maxCount: 20, maxVideos: 20, allowsMixed: true });
+    expect(
+      validatePostForResolvedAccounts({
+        ...input,
+        accountOverrides: { [account.id]: { media, thread: [{ message: "Override reply", media }] } },
+      }).summary.isValid,
+    ).toBe(true);
+
+    const excessive = [...media, image(1024, "extra")];
+    for (const [changes, field] of [
+      [{ media: excessive }, "text.media"],
+      [{ thread: [{ message: "Reply", media: excessive }] }, "thread[0].media"],
+      [{ accountOverrides: { [account.id]: { media: excessive } } }, "text.media"],
+      [
+        { accountOverrides: { [account.id]: { thread: [{ message: "Override reply", media: excessive }] } } },
+        "thread[0].media",
+      ],
+    ] satisfies [Partial<Parameters<typeof validatePostForResolvedAccounts>[0]>, string][]) {
+      const invalid = validatePostForResolvedAccounts({ ...input, ...changes });
+      expect(invalid.summary.isValid).toBe(false);
+      expect(invalid.summary.errors).toContainEqual(
+        expect.objectContaining({ code: "too_many_media", field, limit: 20, actual: 21 }),
+      );
+    }
+  });
   it("rejects an oversized Bluesky image using uploaded media metadata", () => {
     const result = validatePostForResolvedAccounts({
       message: "Oversized image",

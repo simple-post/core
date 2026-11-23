@@ -59,6 +59,34 @@ describe("ensureTrialStarted", () => {
     });
   });
 
+  it("creates a 30-day trial for a new account with the preview offer", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      freeTrial: null,
+      subscription: null,
+      complimentaryAccess: null,
+      acquisition: JSON.stringify({ trialOffer: "preview_30d_v1" }),
+    });
+    mockPrisma.freeTrial.create.mockResolvedValue(trialRow());
+    await ensureTrialStarted("user-1", NOW);
+    expect(mockPrisma.freeTrial.create).toHaveBeenCalledWith({
+      data: { userId: "user-1", startsAt: NOW, expiresAt: new Date("2026-08-24T12:00:00.000Z") },
+    });
+  });
+
+  it("falls back to the standard trial for malformed attribution", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      freeTrial: null,
+      subscription: null,
+      complimentaryAccess: null,
+      acquisition: "{invalid",
+    });
+    mockPrisma.freeTrial.create.mockResolvedValue(trialRow());
+    await ensureTrialStarted("user-1", NOW);
+    expect(mockPrisma.freeTrial.create).toHaveBeenCalledWith({
+      data: { userId: "user-1", startsAt: NOW, expiresAt: calculateTrialEnd(NOW) },
+    });
+  });
+
   it("never restarts a trial that has already expired", async () => {
     const expired = trialRow({
       startsAt: new Date("2026-01-01T00:00:00.000Z"),

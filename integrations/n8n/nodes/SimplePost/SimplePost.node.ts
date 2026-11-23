@@ -10,7 +10,7 @@ import type {
 	JsonObject,
 } from 'n8n-workflow';
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import {
 	filenameFromUrl,
@@ -511,6 +511,7 @@ async function createPost(this: IExecuteFunctions, itemIndex: number): Promise<I
 		body.scheduledFor = normalizeScheduledFor(
 			this.getNodeParameter('scheduledFor', itemIndex) as string,
 			node,
+			this.getTimezone(),
 		);
 	}
 
@@ -550,15 +551,33 @@ async function createPost(this: IExecuteFunctions, itemIndex: number): Promise<I
 	if (thread?.length) body.thread = thread;
 
 	if (additionalFields.repostEnabled === true) {
-		body.repost = {
-			enabled: true,
-			delayHours: (additionalFields.repostDelayHours as number | undefined) ?? 12,
-		};
+		const delayHours = Number(additionalFields.repostDelayHours ?? 12);
+		if (!Number.isInteger(delayHours) || delayHours < 1 || delayHours > 720) {
+			throw new NodeOperationError(node, 'Repost Delay must be a whole number from 1 to 720 hours');
+		}
+		body.repost = { enabled: true, delayHours };
 	}
 
 	if (additionalFields.imageFit) body.imageFit = additionalFields.imageFit;
 	if (additionalFields.quotePostId) body.quotePostId = additionalFields.quotePostId;
-	if (additionalFields.idempotencyKey) body.idempotencyKey = additionalFields.idempotencyKey;
+	const explicitKey = String(additionalFields.idempotencyKey ?? '').trim();
+	// The inputs stay stable across a retry, while media IDs are generated on each attempt.
+	const requestKey = createHash('sha256')
+		.update(
+			JSON.stringify([
+				this.getExecutionId(),
+				node.id,
+				itemIndex,
+				body.accountIds,
+				body.message,
+				postingMode,
+				body.scheduledFor,
+				mediaCollection,
+				additionalFields,
+			]),
+		)
+		.digest('hex');
+	body.idempotencyKey = explicitKey || `n8n:${requestKey}`;
 
 	return await simplePostApiRequest.call(this, 'POST', '/api/v1/posts', body);
 }
@@ -573,7 +592,7 @@ async function getManyPosts(this: IExecuteFunctions, itemIndex: number): Promise
 		const response = await simplePostApiRequest.call(this, 'GET', '/api/v1/posts', undefined, {
 			type: status,
 			page,
-			limit: 100,
+			limit: Math.min(limit, 100),
 		});
 		posts.push(...((response.posts as IDataObject[] | undefined) ?? []));
 		const pagination = response.pagination as IDataObject | undefined;
@@ -587,7 +606,8 @@ async function uploadMedia(this: IExecuteFunctions, itemIndex: number): Promise<
 	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
 	const binaryData = this.helpers.assertBinaryData(itemIndex, binaryPropertyName);
 	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, binaryPropertyName);
-	const contentType = binaryData.mimeType;
+	const mimeType = binaryData.mimeType.split(';')[0].trim().toLowerCase();
+	const contentType = mimeType === 'image/jpg' ? 'image/jpeg' : mimeType;
 	const filename =
 		binaryData.fileName ||
 		`simplepost-upload${binaryData.fileExtension ? `.${binaryData.fileExtension}` : ''}`;

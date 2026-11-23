@@ -1,3 +1,6 @@
+import { displayMessage, getDisplayMessage, withDisplayMessage } from "../validation/display-message";
+import { copyDisplayMessage } from "../validation/display-message";
+import { describeDisplayMessage } from "../validation/display-message";
 import { mediaFormatFailure } from "./media-format-validation";
 import { inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 
@@ -134,44 +137,58 @@ export async function hydrateRemoteMediaSizesForAccounts(
                   ...validateInspectedMedia(usage.platform, inspection, {
                     mediaCount: usage.mediaCount ?? 1,
                     thumbnail: !usage.media,
-                  }).map((issue) => ({ ...issue, field: usage.field, meta: { accountId: usage.accountId } })),
+                  }).map((issue) =>
+                    copyDisplayMessage(issue, { ...issue, field: usage.field, meta: { accountId: usage.accountId } }),
+                  ),
                 );
                 const formatFailure = mediaFormatFailure(inspection, usage.platform, usage.media?.type ?? "image");
                 if (formatFailure)
-                  oversized.push({
-                    ...formatFailure,
-                    platform: usage.platform,
-                    severity: "error",
-                    field: usage.field,
-                    meta: { accountId: usage.accountId },
-                  });
+                  oversized.push(
+                    copyDisplayMessage(formatFailure, {
+                      ...formatFailure,
+                      platform: usage.platform,
+                      severity: "error",
+                      field: usage.field,
+                      meta: { accountId: usage.accountId },
+                    }),
+                  );
                 if (usage.maxSizeBytes !== undefined && measuredSize > usage.maxSizeBytes) {
-                  oversized.push({
-                    platform: usage.platform,
-                    severity: "error",
-                    code: "thumbnail_too_large",
-                    message: `${usage.platform} cover image exceeds the ${usage.maxSizeBytes / (1024 * 1024)} MB limit.`,
-                    field: usage.field,
-                    limit: usage.maxSizeBytes,
-                    actual: measuredSize,
-                    meta: { accountId: usage.accountId },
-                  });
+                  oversized.push(
+                    describeDisplayMessage(
+                      {
+                        platform: usage.platform,
+                        severity: "error",
+                        code: "thumbnail_too_large",
+                        message: `${usage.platform} cover image exceeds the ${usage.maxSizeBytes / (1024 * 1024)} MB limit.`,
+                        field: usage.field,
+                        limit: usage.maxSizeBytes,
+                        actual: measuredSize,
+                        meta: { accountId: usage.accountId },
+                      },
+                      "{{value1}} cover image exceeds the {{value2}} MB limit.",
+                      { value1: String(usage.platform), value2: String(usage.maxSizeBytes / (1024 * 1024)) },
+                    ),
+                  );
                 }
               }
               return oversized;
             } catch (error) {
               return matchingUsages.map(
-                ({ accountId, platform, field }): ValidationIssue => ({
-                  platform,
-                  severity: "error",
-                  code: error instanceof MediaInspectionError ? error.code : "media_unavailable",
-                  message:
+                ({ accountId, platform, field }): ValidationIssue =>
+                  withDisplayMessage(
+                    {
+                      platform,
+                      severity: "error",
+                      code: error instanceof MediaInspectionError ? error.code : "media_unavailable",
+                      field,
+                      meta: { accountId },
+                    },
                     error instanceof MediaInspectionError
-                      ? error.message
-                      : "SimplePost couldn't inspect this media. Upload the file directly or use a publicly accessible URL.",
-                  field,
-                  meta: { accountId },
-                }),
+                      ? (getDisplayMessage(error) ?? error.message)
+                      : displayMessage(
+                          "SimplePost couldn't inspect this media. Upload the file directly or use a publicly accessible URL.",
+                        ),
+                  ),
               );
             }
           })(),

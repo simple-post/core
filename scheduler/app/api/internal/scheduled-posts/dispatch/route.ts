@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { relayOpenAiMilestones } from "@/lib/analytics/openai-ads";
 import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
@@ -34,6 +35,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await dispatchDueScheduledPosts();
+    // Measurement runs after publishing and cannot turn a successful dispatch into a failure.
+    try {
+      const measurement = await relayOpenAiMilestones();
+      if (measurement.failed)
+        log.warn({ errorCode: measurement.error }, "OpenAI measurement delivery did not accept all events");
+    } catch {
+      log.warn(
+        { errorCode: "measurement_database_failure" },
+        "OpenAI measurement relay failed; publishing results are preserved",
+      );
+    }
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     log.error({ err: serializeError(error) }, "Scheduled dispatch failed");

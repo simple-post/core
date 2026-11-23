@@ -16,6 +16,9 @@ import { mergeAccountOptions } from "@/features/platform-options/merge-account-o
 import { useAccounts } from "@/hooks/use-accounts";
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
 import { getPlatformById, getAccountDisplayName } from "@/lib/config";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { privacyLabel } from "@/lib/i18n/tiktok-display";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { TIKTOK_PRIVACY_LABELS } from "@/lib/tiktok/creator-info";
 import type { TikTokCreatorInfo, TikTokPrivacyLevel } from "@/lib/tiktok/creator-info";
 import type { AccountOptionsMap, ConnectedAccount, MediaFile } from "@/types";
@@ -84,9 +87,12 @@ function shouldSkipRemoteOptions(account: ConnectedAccount) {
   return isPreviewOnlyAccount(account) || accountNeedsReconnect(account);
 }
 
-function getCredentialNotice(account: ConnectedAccount, fallback: string) {
+function getCredentialNotice(account: ConnectedAccount, fallback: string, copy: SourceCopy) {
   if (account.credentialStatus?.lastRefreshError) {
-    return `${account.credentialStatus.message} Last refresh failed: ${account.credentialStatus.lastRefreshError}`;
+    return copy("{{message}} Last refresh failed: {{error}}", {
+      message: account.credentialStatus.message,
+      error: account.credentialStatus.lastRefreshError,
+    });
   }
 
   return account.credentialStatus?.message || fallback;
@@ -106,6 +112,7 @@ async function getPresignedThumbnailUrl(
   filename: string,
   contentType: string,
   size: number,
+  copy: SourceCopy,
 ): Promise<{
   uploadUrl: string;
   publicUrl: string;
@@ -118,13 +125,13 @@ async function getPresignedThumbnailUrl(
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error((data as { error?: string; message?: string }).error || "Failed to get upload URL");
+    throw new Error((data as { error?: string; message?: string }).error || copy("Failed to get upload URL"));
   }
 
   return response.json();
 }
 
-async function uploadToStorage(uploadUrl: string, file: File, contentType: string): Promise<void> {
+async function uploadToStorage(uploadUrl: string, file: File, contentType: string, copy: SourceCopy): Promise<void> {
   const response = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": contentType },
@@ -133,11 +140,16 @@ async function uploadToStorage(uploadUrl: string, file: File, contentType: strin
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`Upload failed (${response.status}): ${text || response.statusText}`);
+    throw new Error(
+      copy("Upload failed ({{status, number}}): {{error}}", {
+        status: response.status,
+        error: text || response.statusText,
+      }),
+    );
   }
 }
 
-async function uploadThumbnailViaServer(file: File): Promise<string> {
+async function uploadThumbnailViaServer(file: File, copy: SourceCopy): Promise<string> {
   const formData = new FormData();
   formData.append("file", file, file.name);
 
@@ -148,29 +160,29 @@ async function uploadThumbnailViaServer(file: File): Promise<string> {
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error((data as { error?: string; message?: string }).error || "Failed to upload thumbnail");
+    throw new Error((data as { error?: string; message?: string }).error || copy("Failed to upload thumbnail"));
   }
 
   const result = (await response.json()) as { url: string };
   return result.url;
 }
 
-async function uploadYouTubeThumbnail(file: File): Promise<string> {
+async function uploadYouTubeThumbnail(file: File, copy: SourceCopy): Promise<string> {
   if (file.size > MAX_YOUTUBE_THUMBNAIL_SIZE) {
-    throw new Error("YouTube thumbnails must be 2MB or smaller.");
+    throw new Error(copy("YouTube thumbnails must be 2MB or smaller."));
   }
 
   const contentType = normalizeImageContentType(file);
   if (!YOUTUBE_THUMBNAIL_TYPES.has(contentType)) {
-    throw new Error("YouTube thumbnails must be JPG or PNG images.");
+    throw new Error(copy("YouTube thumbnails must be JPG or PNG images."));
   }
 
   try {
-    const { uploadUrl, publicUrl } = await getPresignedThumbnailUrl(file.name, contentType, file.size);
-    await uploadToStorage(uploadUrl, file, contentType);
+    const { uploadUrl, publicUrl } = await getPresignedThumbnailUrl(file.name, contentType, file.size, copy);
+    await uploadToStorage(uploadUrl, file, contentType, copy);
     return publicUrl;
   } catch {
-    return uploadThumbnailViaServer(file);
+    return uploadThumbnailViaServer(file, copy);
   }
 }
 
@@ -181,6 +193,7 @@ export function AccountOptionsComponent({
   media = [],
   onBlockingChange,
 }: AccountOptionsProps) {
+  const { copy, locale } = useUiCopy();
   const { data: accounts = [], isLoading: loading } = useAccounts();
   const thumbnailInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const optionsRef = useRef(options);
@@ -215,27 +228,30 @@ export function AccountOptionsComponent({
   );
 
   // Fetch Pinterest boards for selected Pinterest accounts
-  const fetchBoards = useCallback(async (accountId: string) => {
-    setBoardsLoading((prev) => ({ ...prev, [accountId]: true }));
-    setBoardsError((prev) => ({ ...prev, [accountId]: null }));
+  const fetchBoards = useCallback(
+    async (accountId: string) => {
+      setBoardsLoading((prev) => ({ ...prev, [accountId]: true }));
+      setBoardsError((prev) => ({ ...prev, [accountId]: null }));
 
-    try {
-      const response = await fetch(`/api/v1/accounts/${accountId}/boards`);
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error((error as { error?: string }).error || "Failed to fetch boards");
+      try {
+        const response = await fetch(`/api/v1/accounts/${accountId}/boards`);
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error((error as { error?: string }).error || copy("Failed to fetch boards"));
+        }
+        const data = (await response.json()) as { boards: PinterestBoard[] };
+        setPinterestBoards((prev) => ({ ...prev, [accountId]: data.boards }));
+      } catch (error) {
+        setBoardsError((prev) => ({
+          ...prev,
+          [accountId]: error instanceof Error ? error.message : copy("Failed to fetch boards"),
+        }));
+      } finally {
+        setBoardsLoading((prev) => ({ ...prev, [accountId]: false }));
       }
-      const data = (await response.json()) as { boards: PinterestBoard[] };
-      setPinterestBoards((prev) => ({ ...prev, [accountId]: data.boards }));
-    } catch (error) {
-      setBoardsError((prev) => ({
-        ...prev,
-        [accountId]: error instanceof Error ? error.message : "Failed to fetch boards",
-      }));
-    } finally {
-      setBoardsLoading((prev) => ({ ...prev, [accountId]: false }));
-    }
-  }, []);
+    },
+    [copy],
+  );
 
   useEffect(() => {
     const pinterestAccountIds = accounts
@@ -291,7 +307,7 @@ export function AccountOptionsComponent({
             error?: string;
           };
           if (!response.ok || !data.creatorInfo) {
-            throw new Error(data.error || "Failed to fetch TikTok creator info");
+            throw new Error(data.error || copy("Failed to fetch TikTok creator info"));
           }
           setTikTokCreatorInfo((prev) => ({ ...prev, [accountId]: data.creatorInfo! }));
         })
@@ -301,7 +317,7 @@ export function AccountOptionsComponent({
           }
           setTikTokInfoErrors((prev) => ({
             ...prev,
-            [accountId]: error instanceof Error ? error.message : "Failed to fetch TikTok creator info",
+            [accountId]: error instanceof Error ? error.message : copy("Failed to fetch TikTok creator info"),
           }));
         })
         .finally(() => {
@@ -316,7 +332,7 @@ export function AccountOptionsComponent({
         controller.abort();
       }
     };
-  }, [accounts, selectedAccountIds]);
+  }, [accounts, selectedAccountIds, copy]);
 
   const selectedAccounts = useMemo(
     () => accounts.filter((acc: { id: string }) => selectedAccountIds.includes(acc.id)),
@@ -367,29 +383,31 @@ export function AccountOptionsComponent({
     const discloseBrandedContent = asBoolean(accountOptions.discloseBrandedContent, false);
 
     if (accountNeedsReconnect(account)) {
-      reasons.push(getCredentialNotice(account, "Reconnect this TikTok account to load publishing options."));
+      reasons.push(
+        getCredentialNotice(account, copy("Reconnect this TikTok account to load publishing options."), copy),
+      );
       return reasons;
     }
 
     if (tiktokInfoLoading[account.id] || (!creatorInfo && !tiktokInfoErrors[account.id])) {
-      reasons.push("Checking latest TikTok creator info.");
+      reasons.push(copy("Checking latest TikTok creator info."));
     }
     if (tiktokInfoErrors[account.id]) {
       reasons.push(tiktokInfoErrors[account.id]!);
     }
     if (creatorInfo?.canPost === false) {
-      reasons.push(creatorInfo.blockReason || "TikTok says this account cannot post right now.");
+      reasons.push(creatorInfo.blockReason || copy("TikTok says this account cannot post right now."));
     }
     if (!privacyLevel) {
-      reasons.push("Select a TikTok privacy status.");
+      reasons.push(copy("Select a TikTok privacy status."));
     } else if (creatorInfo && !creatorInfo.privacyLevelOptions.includes(privacyLevel)) {
-      reasons.push("Select one of the privacy statuses currently available for this TikTok account.");
+      reasons.push(copy("Select one of the privacy statuses currently available for this TikTok account."));
     }
     if (commercialDisclosure && !discloseYourBrand && !discloseBrandedContent) {
-      reasons.push("You need to indicate if your content promotes yourself, a third party, or both.");
+      reasons.push(copy("You need to indicate if your content promotes yourself, a third party, or both."));
     }
     if (discloseBrandedContent && privacyLevel === "SELF_ONLY") {
-      reasons.push("Branded content visibility cannot be set to private.");
+      reasons.push(copy("Branded content visibility cannot be set to private."));
     }
     if (
       hasTikTokVideo &&
@@ -397,16 +415,22 @@ export function AccountOptionsComponent({
       maxSelectedVideoDurationSec &&
       maxSelectedVideoDurationSec > creatorInfo.maxVideoPostDurationSec
     ) {
-      reasons.push(`This video exceeds this creator's ${creatorInfo.maxVideoPostDurationSec}s TikTok limit.`);
+      reasons.push(
+        copy("This video exceeds this creator’s TikTok limit of {{duration}}.", {
+          duration: new Intl.NumberFormat(locale, { style: "unit", unit: "second" }).format(
+            creatorInfo.maxVideoPostDurationSec,
+          ),
+        }),
+      );
     }
     if (creatorInfo?.commentDisabled && asBoolean(accountOptions.allowComment, false)) {
-      reasons.push("Comments are disabled by this TikTok account's settings.");
+      reasons.push(copy("Comments are disabled by this TikTok account's settings."));
     }
     if (hasTikTokVideo && creatorInfo?.duetDisabled && asBoolean(accountOptions.allowDuet, false)) {
-      reasons.push("Duet is disabled by this TikTok account's settings.");
+      reasons.push(copy("Duet is disabled by this TikTok account's settings."));
     }
     if (hasTikTokVideo && creatorInfo?.stitchDisabled && asBoolean(accountOptions.allowStitch, false)) {
-      reasons.push("Stitch is disabled by this TikTok account's settings.");
+      reasons.push(copy("Stitch is disabled by this TikTok account's settings."));
     }
 
     return reasons;
@@ -472,12 +496,12 @@ export function AccountOptionsComponent({
     setThumbnailErrors((prev) => ({ ...prev, [accountId]: null }));
 
     try {
-      const thumbnailUrl = await uploadYouTubeThumbnail(file);
+      const thumbnailUrl = await uploadYouTubeThumbnail(file, copy);
       updateOption(accountId, "thumbnailUrl", thumbnailUrl);
     } catch (error) {
       setThumbnailErrors((prev) => ({
         ...prev,
-        [accountId]: error instanceof Error ? error.message : "Failed to upload thumbnail",
+        [accountId]: error instanceof Error ? error.message : copy("Failed to upload thumbnail"),
       }));
     } finally {
       setThumbnailUploads((prev) => ({ ...prev, [accountId]: false }));
@@ -489,9 +513,11 @@ export function AccountOptionsComponent({
       <div>
         <div className="section-kicker">
           <span className="section-kicker-dot" />
-          <span className="section-kicker-label">Platform options</span>
+          <span className="section-kicker-label">{copy("Platform options")}</span>
         </div>
-        <p className="text-xs text-muted-foreground">Configure platform-specific settings for selected accounts.</p>
+        <p className="text-xs text-muted-foreground">
+          {copy("Configure platform-specific settings for selected accounts.")}
+        </p>
       </div>
 
       {selectedAccounts.map((account: ConnectedAccount) => {
@@ -504,7 +530,11 @@ export function AccountOptionsComponent({
         const thumbnailUploading = thumbnailUploads[account.id] === true;
         const thumbnailError = thumbnailErrors[account.id];
         const tiktokInfo = tiktokCreatorInfo[account.id];
-        const reconnectNotice = getCredentialNotice(account, `Reconnect this ${platformConfig.name} account.`);
+        const reconnectNotice = getCredentialNotice(
+          account,
+          copy("Reconnect this {{platform}} account.", { platform: platformConfig.name }),
+          copy,
+        );
         const remoteOptionsUnavailable = accountNeedsReconnect(account);
         const tiktokPrivacyLevel = getTikTokPrivacyLevel(accountOptions);
         const tiktokBlockingReasons =
@@ -529,17 +559,17 @@ export function AccountOptionsComponent({
             {account.platform === "x" && (
               <div>
                 <Label htmlFor={`${account.id}-replyToId`} className="text-sm text-muted-foreground">
-                  Reply To ID (optional)
+                  {copy("Reply To ID (optional)")}{" "}
                 </Label>
                 <Input
                   id={`${account.id}-replyToId`}
-                  placeholder="Tweet ID to reply to"
+                  placeholder={copy("Tweet ID to reply to")}
                   value={asString(accountOptions.replyToId)}
                   onChange={(e) => updateOption(account.id, "replyToId", e.target.value || undefined)}
                   className="mt-1 border-border"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Create a reply or thread by providing a tweet ID to reply to
+                  {copy("Create a reply or thread by providing a tweet ID to reply to")}{" "}
                 </p>
               </div>
             )}
@@ -549,7 +579,7 @@ export function AccountOptionsComponent({
               <>
                 <div>
                   <Label htmlFor={`${account.id}-privacyStatus`} className="text-sm text-muted-foreground">
-                    Privacy Status
+                    {copy("Privacy Status")}{" "}
                   </Label>
                   <Select
                     value={asString(accountOptions.privacyStatus) || "private"}
@@ -557,58 +587,63 @@ export function AccountOptionsComponent({
                       updateOption(account.id, "privacyStatus", value as "public" | "private" | "unlisted")
                     }>
                     <SelectTrigger id={`${account.id}-privacyStatus`} className="mt-1 border-border">
-                      <SelectValue placeholder="Select privacy status" />
+                      <SelectValue placeholder={copy("Select privacy status")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="private">Private</SelectItem>
-                      <SelectItem value="unlisted">Unlisted</SelectItem>
-                      <SelectItem value="public">Public</SelectItem>
+                      <SelectItem value="private">{copy("Private")}</SelectItem>
+                      <SelectItem value="unlisted">{copy("Unlisted")}</SelectItem>
+                      <SelectItem value="public">{copy("Public")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-youtube-title`} className="text-sm text-muted-foreground">
-                    Video title
+                    {copy("Video title")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-youtube-title`}
-                    placeholder="YouTube video title"
+                    placeholder={copy("YouTube video title")}
                     value={asString(accountOptions.title)}
                     maxLength={YOUTUBE_TITLE_MAX_LENGTH}
                     onChange={(e) => updateOption(account.id, "title", e.target.value || undefined)}
                     className="mt-1 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {asString(accountOptions.title).length}/{YOUTUBE_TITLE_MAX_LENGTH}. If empty, the message is used.
+                    {copy("{{used, number}}/{{limit, number}}. If empty, the message is used.", {
+                      used: asString(accountOptions.title).length,
+                      limit: YOUTUBE_TITLE_MAX_LENGTH,
+                    })}
                   </p>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-youtube-description`} className="text-sm text-muted-foreground">
-                    Video description
+                    {copy("Video description")}{" "}
                   </Label>
                   <Textarea
                     id={`${account.id}-youtube-description`}
-                    placeholder="YouTube video description"
+                    placeholder={copy("YouTube video description")}
                     value={asString(accountOptions.description)}
                     maxLength={YOUTUBE_DESCRIPTION_MAX_LENGTH}
                     onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
                     className="mt-1 min-h-24 border-border"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {asString(accountOptions.description).length}/{YOUTUBE_DESCRIPTION_MAX_LENGTH}. If empty, the
-                    message is used.
+                    {copy("{{used, number}}/{{limit, number}}. If empty, the message is used.", {
+                      used: asString(accountOptions.description).length,
+                      limit: YOUTUBE_DESCRIPTION_MAX_LENGTH,
+                    })}
                   </p>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-tags`} className="text-sm text-muted-foreground">
-                    Tags (optional)
+                    {copy("Tags (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-tags`}
-                    placeholder="education, tutorial, howto (comma separated)"
+                    placeholder={copy("education, tutorial, howto (comma separated)")}
                     value={asStringArray(accountOptions.tags).join(", ")}
                     onChange={(e) =>
                       updateOption(
@@ -622,12 +657,12 @@ export function AccountOptionsComponent({
                     }
                     className="mt-1 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Separate tags with commas</p>
+                  <p className="text-xs text-muted-foreground mt-1">{copy("Separate tags with commas")}</p>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-categoryId`} className="text-sm text-muted-foreground">
-                    Category ID (optional)
+                    {copy("Category ID (optional)")}{" "}
                   </Label>
                   <Select
                     value={asString(accountOptions.categoryId) || undefined}
@@ -635,41 +670,42 @@ export function AccountOptionsComponent({
                       updateOption(account.id, "categoryId", value === "none" ? undefined : value)
                     }>
                     <SelectTrigger id={`${account.id}-categoryId`} className="mt-1 border-border">
-                      <SelectValue placeholder="Select category (optional)" />
+                      <SelectValue placeholder={copy("Select category (optional)")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="1">Film & Animation</SelectItem>
-                      <SelectItem value="2">Autos & Vehicles</SelectItem>
-                      <SelectItem value="10">Music</SelectItem>
-                      <SelectItem value="15">Pets & Animals</SelectItem>
-                      <SelectItem value="17">Sports</SelectItem>
-                      <SelectItem value="19">Travel & Events</SelectItem>
-                      <SelectItem value="20">Gaming</SelectItem>
-                      <SelectItem value="22">People & Blogs</SelectItem>
-                      <SelectItem value="23">Comedy</SelectItem>
-                      <SelectItem value="24">Entertainment</SelectItem>
-                      <SelectItem value="25">News & Politics</SelectItem>
-                      <SelectItem value="26">Howto & Style</SelectItem>
-                      <SelectItem value="27">Education</SelectItem>
-                      <SelectItem value="28">Science & Technology</SelectItem>
+                      <SelectItem value="none">{copy("None")}</SelectItem>
+                      <SelectItem value="1">{copy("Film & Animation")}</SelectItem>
+                      <SelectItem value="2">{copy("Autos & Vehicles")}</SelectItem>
+                      <SelectItem value="10">{copy("Music")}</SelectItem>
+                      <SelectItem value="15">{copy("Pets & Animals")}</SelectItem>
+                      <SelectItem value="17">{copy("Sports")}</SelectItem>
+                      <SelectItem value="19">{copy("Travel & Events")}</SelectItem>
+                      <SelectItem value="20">{copy("Gaming")}</SelectItem>
+                      <SelectItem value="22">{copy("People & Blogs")}</SelectItem>
+                      <SelectItem value="23">{copy("Comedy")}</SelectItem>
+                      <SelectItem value="24">{copy("Entertainment")}</SelectItem>
+                      <SelectItem value="25">{copy("News & Politics")}</SelectItem>
+                      <SelectItem value="26">{copy("Howto & Style")}</SelectItem>
+                      <SelectItem value="27">{copy("Education")}</SelectItem>
+                      <SelectItem value="28">{copy("Science & Technology")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="text-sm text-muted-foreground">
                   <p>
-                    Playlist assignment is temporarily unavailable. Add your video to a playlist in YouTube Studio after
-                    publishing.
+                    {copy(
+                      "Playlist assignment is temporarily unavailable. Add your video to a playlist in YouTube Studio after publishing.",
+                    )}{" "}
                   </p>
                   {Boolean(accountOptions.playlistId) && (
                     <div className="mt-2 space-y-2">
-                      <p role="alert">Remove the saved playlist option before publishing this post.</p>
+                      <p role="alert">{copy("Remove the saved playlist option before publishing this post.")}</p>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => updateOption(account.id, "playlistId", undefined)}>
-                        Remove playlist
+                        {copy("Remove playlist")}{" "}
                       </Button>
                     </div>
                   )}
@@ -677,7 +713,7 @@ export function AccountOptionsComponent({
 
                 <div>
                   <Label htmlFor={`${account.id}-thumbnail`} className="text-sm text-muted-foreground">
-                    Custom thumbnail (optional)
+                    {copy("Custom thumbnail (optional)")}{" "}
                   </Label>
                   <input
                     id={`${account.id}-thumbnail`}
@@ -695,7 +731,11 @@ export function AccountOptionsComponent({
                   {thumbnailUrl ? (
                     <div className="mt-2 flex items-center gap-3 rounded-lg border border-border bg-secondary/40 p-2">
                       <div className="h-16 w-28 overflow-hidden rounded-md bg-muted">
-                        <img src={thumbnailUrl} alt="YouTube custom thumbnail" className="h-full w-full object-cover" />
+                        <img
+                          src={thumbnailUrl}
+                          alt={copy("YouTube custom thumbnail")}
+                          className="h-full w-full object-cover"
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs text-muted-foreground">{thumbnailUrl}</p>
@@ -722,10 +762,16 @@ export function AccountOptionsComponent({
                     ) : (
                       <ImageIcon className="h-4 w-4" />
                     )}
-                    {thumbnailUploading ? "Uploading..." : thumbnailUrl ? "Replace thumbnail" : "Upload thumbnail"}
+                    {thumbnailUploading
+                      ? copy("Uploading...")
+                      : thumbnailUrl
+                        ? copy("Replace thumbnail")
+                        : copy("Upload thumbnail")}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload a JPG or PNG image, up to 2MB. This overrides the generated video preview for YouTube.
+                    {copy(
+                      "Upload a JPG or PNG image, up to 2MB. This overrides the generated video preview for YouTube.",
+                    )}{" "}
                   </p>
                   {thumbnailError ? <p className="text-xs text-destructive mt-1">{thumbnailError}</p> : null}
                 </div>
@@ -738,15 +784,17 @@ export function AccountOptionsComponent({
                   />
                   <div>
                     <Label htmlFor={`${account.id}-madeForKids`} className="text-sm cursor-pointer">
-                      Made for kids
+                      {copy("Made for kids")}{" "}
                     </Label>
-                    <p className="text-xs text-muted-foreground">Declare if this video is made for children</p>
+                    <p className="text-xs text-muted-foreground">
+                      {copy("Declare if this video is made for children")}
+                    </p>
                   </div>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-publishAt`} className="text-sm text-muted-foreground">
-                    Schedule Publication (optional)
+                    {copy("Schedule Publication (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-publishAt`}
@@ -765,7 +813,9 @@ export function AccountOptionsComponent({
                     }
                     className="mt-1 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Schedule video for future publication on YouTube</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {copy("Schedule video for future publication on YouTube")}
+                  </p>
                 </div>
               </>
             )}
@@ -792,14 +842,18 @@ export function AccountOptionsComponent({
                         {tiktokInfo?.creatorUsername
                           ? `@${tiktokInfo.creatorUsername.replace(/^@/, "")}`
                           : remoteOptionsUnavailable
-                            ? "Reconnect required"
-                            : "Checking TikTok account"}
+                            ? copy("Reconnect required")
+                            : copy("Checking TikTok account")}
                       </p>
                     </div>
                   </div>
                   {tiktokInfo?.maxVideoPostDurationSec ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Video limit for this creator: {tiktokInfo.maxVideoPostDurationSec}s
+                      {copy("Video limit for this creator: {{duration}}", {
+                        duration: new Intl.NumberFormat(locale, { style: "unit", unit: "second" }).format(
+                          tiktokInfo.maxVideoPostDurationSec ?? 0,
+                        ),
+                      })}
                     </p>
                   ) : null}
                 </div>
@@ -814,7 +868,7 @@ export function AccountOptionsComponent({
 
                 <div>
                   <Label htmlFor={`${account.id}-publishMode`} className="text-sm text-muted-foreground">
-                    Publish Mode
+                    {copy("Publish Mode")}{" "}
                   </Label>
                   <Select
                     value={asString(accountOptions.publishMode) || "public"}
@@ -825,73 +879,79 @@ export function AccountOptionsComponent({
                       })
                     }>
                     <SelectTrigger id={`${account.id}-publishMode`} className="mt-1 border-border">
-                      <SelectValue placeholder="Select publish mode" />
+                      <SelectValue placeholder={copy("Select publish mode")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="public">Publish Immediately</SelectItem>
-                      <SelectItem value="draft">Upload to TikTok inbox</SelectItem>
+                      <SelectItem value="public">{copy("Publish Immediately")}</SelectItem>
+                      <SelectItem value="draft">{copy("Upload to TikTok inbox")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload to TikTok inbox to add music and edit in TikTok before publishing manually. This is separate
-                    from saving a SimplePost draft.
+                    {copy(
+                      "Upload to TikTok inbox to add music and edit in TikTok before publishing manually. This is separate from saving a SimplePost draft.",
+                    )}{" "}
                   </p>
                 </div>
 
                 <div>
                   <Label htmlFor={`${account.id}-tiktok-title`}>
-                    Title {hasTikTokPhotoOnly ? "(optional, 90 characters)" : "(optional)"}
+                    {hasTikTokPhotoOnly ? copy("Title (optional, 90 characters)") : copy("Title (optional)")}
                   </Label>
                   <Input
                     id={`${account.id}-tiktok-title`}
                     value={asString(accountOptions.title)}
                     onChange={(e) => updateOption(account.id, "title", e.target.value)}
                     maxLength={hasTikTokPhotoOnly ? 90 : 2200}
-                    placeholder="Enter a TikTok title"
+                    placeholder={copy("Enter a TikTok title")}
                   />
                 </div>
                 {hasTikTokPhotoOnly && (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Up to 35 JPEG or WebP photos, in attachment order. The post text becomes the photo description (up
-                      to 4,000 characters).
+                      {copy(
+                        "Up to 35 JPEG or WebP photos, in attachment order. The post text becomes the photo description (up to 4,000 characters).",
+                      )}{" "}
                     </p>
                     <div>
-                      <Label htmlFor={`${account.id}-tiktok-description`}>Photo description (optional override)</Label>
+                      <Label htmlFor={`${account.id}-tiktok-description`}>
+                        {copy("Photo description (optional override)")}
+                      </Label>
                       <Textarea
                         id={`${account.id}-tiktok-description`}
                         value={asString(accountOptions.description)}
                         onChange={(e) => updateOption(account.id, "description", e.target.value)}
                         maxLength={4000}
-                        placeholder={accountOptions.description === undefined ? "Use the post text" : "No description"}
+                        placeholder={
+                          accountOptions.description === undefined ? copy("Use the post text") : copy("No description")
+                        }
                       />
                       <div className="mt-1 flex gap-3 text-xs">
                         <button
                           type="button"
                           className="text-muted-foreground underline"
                           onClick={() => updateOption(account.id, "description", undefined)}>
-                          Use post text
+                          {copy("Use post text")}{" "}
                         </button>
                         <button
                           type="button"
                           className="text-muted-foreground underline"
                           onClick={() => updateOption(account.id, "description", "")}>
-                          No description
+                          {copy("No description")}{" "}
                         </button>
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor={`${account.id}-tiktok-cover`}>Cover photo</Label>
+                      <Label htmlFor={`${account.id}-tiktok-cover`}>{copy("Cover photo")}</Label>
                       <Select
                         value={String(accountOptions.photoCoverIndex ?? 0)}
                         onValueChange={(value) => updateOption(account.id, "photoCoverIndex", Number(value))}>
                         <SelectTrigger id={`${account.id}-tiktok-cover`}>
-                          <SelectValue placeholder="Choose cover photo" />
+                          <SelectValue placeholder={copy("Choose cover photo")} />
                         </SelectTrigger>
                         <SelectContent>
                           {media.map((file, index) => (
                             <SelectItem key={file.id} value={String(index)}>
-                              Photo {index + 1}
+                              {copy("Photo {{index, number}}", { index: index + 1 })}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -905,10 +965,12 @@ export function AccountOptionsComponent({
                             checked={asBoolean(accountOptions.autoAddMusic, false)}
                             onCheckedChange={(checked) => updateOption(account.id, "autoAddMusic", checked)}
                           />
-                          <Label htmlFor={`${account.id}-autoAddMusic`}>Automatically add music</Label>
+                          <Label htmlFor={`${account.id}-autoAddMusic`}>{copy("Automatically add music")}</Label>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          TikTok chooses recommended music. To choose music yourself, upload to TikTok inbox instead.
+                          {copy(
+                            "TikTok chooses recommended music. To choose music yourself, upload to TikTok inbox instead.",
+                          )}{" "}
                         </p>
                       </div>
                     )}
@@ -919,7 +981,7 @@ export function AccountOptionsComponent({
                   <>
                     <div>
                       <Label htmlFor={`${account.id}-visibility`} className="text-sm text-muted-foreground">
-                        Privacy Status
+                        {copy("Privacy Status")}{" "}
                       </Label>
                       <Select
                         value={tiktokPrivacyLevel}
@@ -931,7 +993,7 @@ export function AccountOptionsComponent({
                           });
                         }}>
                         <SelectTrigger id={`${account.id}-visibility`} className="mt-1 border-border">
-                          <SelectValue placeholder="Select privacy status" />
+                          <SelectValue placeholder={copy("Select privacy status")} />
                         </SelectTrigger>
                         <SelectContent>
                           {(tiktokInfo?.privacyLevelOptions ?? []).map((privacyLevel) => (
@@ -941,27 +1003,30 @@ export function AccountOptionsComponent({
                               disabled={tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"}
                               title={
                                 tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"
-                                  ? "Branded content visibility cannot be set to private."
+                                  ? copy("Branded content visibility cannot be set to private.")
                                   : undefined
                               }>
-                              {TIKTOK_PRIVACY_LABELS[privacyLevel]}
                               {tiktokDiscloseBrandedContent && privacyLevel === "SELF_ONLY"
-                                ? " - not available for branded content"
-                                : ""}
+                                ? copy("{{privacy}} — not available for branded content", {
+                                    privacy: privacyLabel(privacyLevel, copy),
+                                  })
+                                : privacyLabel(privacyLevel, copy)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Options are loaded from TikTok creator info and must be selected manually.
+                        {copy("Options are loaded from TikTok creator info and must be selected manually.")}{" "}
                       </p>
                     </div>
 
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-2">Interaction Ability</p>
+                        <p className="text-sm text-muted-foreground mb-2">{copy("Interaction Ability")}</p>
                         <p className="text-xs text-muted-foreground">
-                          Turn on each interaction you want to allow. Disabled items are unavailable in TikTok settings.
+                          {copy(
+                            "Turn on each interaction you want to allow. Disabled items are unavailable in TikTok settings.",
+                          )}{" "}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -974,7 +1039,7 @@ export function AccountOptionsComponent({
                         <Label
                           htmlFor={`${account.id}-allowComment`}
                           className={`text-sm ${tiktokInfo?.commentDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
-                          Allow Comments
+                          {copy("Allow Comments")}{" "}
                         </Label>
                       </div>
 
@@ -989,7 +1054,7 @@ export function AccountOptionsComponent({
                           <Label
                             htmlFor={`${account.id}-allowDuet`}
                             className={`text-sm ${tiktokInfo?.duetDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
-                            Allow Duets
+                            {copy("Allow Duets")}{" "}
                           </Label>
                         </div>
                       )}
@@ -1005,7 +1070,7 @@ export function AccountOptionsComponent({
                           <Label
                             htmlFor={`${account.id}-allowStitch`}
                             className={`text-sm ${tiktokInfo?.stitchDisabled ? "text-muted-foreground" : "cursor-pointer"}`}>
-                            Allow Stitch
+                            {copy("Allow Stitch")}{" "}
                           </Label>
                         </div>
                       )}
@@ -1015,10 +1080,10 @@ export function AccountOptionsComponent({
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <Label htmlFor={`${account.id}-commercialContentDisclosure`} className="text-sm">
-                            Content Disclosure Setting
+                            {copy("Content Disclosure Setting")}{" "}
                           </Label>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Indicate whether this content promotes yourself, a brand, product or service.
+                            {copy("Indicate whether this content promotes yourself, a brand, product or service.")}{" "}
                           </p>
                         </div>
                         <Switch
@@ -1045,12 +1110,12 @@ export function AccountOptionsComponent({
                               }
                             />
                             <Label htmlFor={`${account.id}-discloseYourBrand`} className="text-sm cursor-pointer">
-                              Your brand
+                              {copy("Your brand")}{" "}
                             </Label>
                           </div>
                           {tiktokDiscloseYourBrand && (
                             <p className="text-xs text-muted-foreground">
-                              Your photo/video will be labeled as 'Promotional content'
+                              {copy("Your photo/video will be labeled as 'Promotional content'")}{" "}
                             </p>
                           )}
 
@@ -1068,19 +1133,23 @@ export function AccountOptionsComponent({
                               }}
                             />
                             <Label htmlFor={`${account.id}-discloseBrandedContent`} className="text-sm cursor-pointer">
-                              Branded content
+                              {copy("Branded content")}{" "}
                             </Label>
                           </div>
                           {tiktokDiscloseBrandedContent && (
                             <p className="text-xs text-muted-foreground">
-                              Your photo/video will be labeled as 'Paid partnership'
+                              {copy("Your photo/video will be labeled as 'Paid partnership'")}{" "}
                             </p>
                           )}
                           {!tiktokDiscloseYourBrand && !tiktokDiscloseBrandedContent && (
                             <p
                               className="text-xs text-destructive"
-                              title="You need to indicate if your content promotes yourself, a third party, or both.">
-                              You need to indicate if your content promotes yourself, a third party, or both.
+                              title={copy(
+                                "You need to indicate if your content promotes yourself, a third party, or both.",
+                              )}>
+                              {copy(
+                                "You need to indicate if your content promotes yourself, a third party, or both.",
+                              )}{" "}
                             </p>
                           )}
                         </div>
@@ -1095,7 +1164,7 @@ export function AccountOptionsComponent({
             {account.platform === "facebook" && (
               <div>
                 <Label htmlFor={`${account.id}-publishAt`} className="text-sm text-muted-foreground">
-                  Schedule Publication (optional)
+                  {copy("Schedule Publication (optional)")}{" "}
                 </Label>
                 <Input
                   id={`${account.id}-publishAt`}
@@ -1114,44 +1183,50 @@ export function AccountOptionsComponent({
                   }
                   className="mt-1 border-border"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Schedule post for future publication on Facebook</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {copy("Schedule post for future publication on Facebook")}
+                </p>
               </div>
             )}
 
             {/* Instagram - No additional options needed */}
             {account.platform === "instagram" && (
               <p className="text-xs text-muted-foreground">
-                No additional options required. Media and captions will be posted as configured above.
+                {copy("No additional options required. Media and captions will be posted as configured above.")}{" "}
               </p>
             )}
 
             {/* Bluesky - No additional options needed */}
             {account.platform === "bluesky" && (
               <p className="text-xs text-muted-foreground">
-                Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes). Images and video cannot be mixed.
+                {copy(
+                  "Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes). Images and video cannot be mixed.",
+                )}{" "}
               </p>
             )}
 
             {/* Threads - No additional options needed */}
             {account.platform === "threads" && (
-              <p className="text-xs text-muted-foreground">No additional options required for Threads posts.</p>
+              <p className="text-xs text-muted-foreground">
+                {copy("No additional options required for Threads posts.")}
+              </p>
             )}
 
             {/* LinkedIn Options */}
             {account.platform === "linkedin" && (
               <div>
                 <Label htmlFor={`${account.id}-linkedin-visibility`} className="text-sm text-muted-foreground">
-                  Visibility
+                  {copy("Visibility")}{" "}
                 </Label>
                 <Select
                   value={asString(accountOptions.visibility) || "PUBLIC"}
                   onValueChange={(value) => updateOption(account.id, "visibility", value as "PUBLIC" | "CONNECTIONS")}>
                   <SelectTrigger id={`${account.id}-linkedin-visibility`} className="mt-1 border-border">
-                    <SelectValue placeholder="Select visibility" />
+                    <SelectValue placeholder={copy("Select visibility")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PUBLIC">Public</SelectItem>
-                    <SelectItem value="CONNECTIONS">Connections Only</SelectItem>
+                    <SelectItem value="PUBLIC">{copy("Public")}</SelectItem>
+                    <SelectItem value="CONNECTIONS">{copy("Connections Only")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1162,20 +1237,20 @@ export function AccountOptionsComponent({
               <div className="space-y-3">
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-boardId`} className="text-sm text-muted-foreground">
-                    Board
+                    {copy("Board")}{" "}
                   </Label>
                   {remoteOptionsUnavailable ? (
                     <div className="mt-1 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-muted-foreground">
                       {reconnectNotice}
                     </div>
                   ) : boardsLoading[account.id] ? (
-                    <div className="mt-1 text-sm text-muted-foreground">Loading boards...</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{copy("Loading boards...")}</div>
                   ) : boardsError[account.id] ? (
                     <div className="mt-1 space-y-2">
                       <p className="text-sm text-destructive">{boardsError[account.id]}</p>
                       <Input
                         id={`${account.id}-pinterest-boardId`}
-                        placeholder="Enter board ID manually"
+                        placeholder={copy("Enter board ID manually")}
                         value={asString(accountOptions.boardId)}
                         onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
                         className="border-border"
@@ -1186,12 +1261,12 @@ export function AccountOptionsComponent({
                       value={asString(accountOptions.boardId) || undefined}
                       onValueChange={(value) => updateOption(account.id, "boardId", value)}>
                       <SelectTrigger id={`${account.id}-pinterest-boardId`} className="mt-1 border-border">
-                        <SelectValue placeholder="Select a board" />
+                        <SelectValue placeholder={copy("Select a board")} />
                       </SelectTrigger>
                       <SelectContent>
                         {pinterestBoards[account.id].map((board) => (
                           <SelectItem key={board.id} value={board.id}>
-                            {board.name} {board.pinCount > 0 && `(${board.pinCount} pins)`}
+                            {board.name} {board.pinCount > 0 && copy("({{count}} pins)", { count: board.pinCount })}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1199,11 +1274,11 @@ export function AccountOptionsComponent({
                   ) : (
                     <div className="mt-1 space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        No boards found. Create a board on Pinterest first.
+                        {copy("No boards found. Create a board on Pinterest first.")}{" "}
                       </p>
                       <Input
                         id={`${account.id}-pinterest-boardId`}
-                        placeholder="Or enter board ID manually"
+                        placeholder={copy("Or enter board ID manually")}
                         value={asString(accountOptions.boardId)}
                         onChange={(e) => updateOption(account.id, "boardId", e.target.value)}
                         className="border-border"
@@ -1213,11 +1288,11 @@ export function AccountOptionsComponent({
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-title`} className="text-sm text-muted-foreground">
-                    Title (optional)
+                    {copy("Title (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-pinterest-title`}
-                    placeholder="Pin title"
+                    placeholder={copy("Pin title")}
                     value={asString(accountOptions.title)}
                     onChange={(e) => updateOption(account.id, "title", e.target.value || undefined)}
                     className="mt-1 border-border"
@@ -1225,11 +1300,11 @@ export function AccountOptionsComponent({
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-description`} className="text-sm text-muted-foreground">
-                    Description (optional)
+                    {copy("Description (optional)")}{" "}
                   </Label>
                   <Textarea
                     id={`${account.id}-pinterest-description`}
-                    placeholder="Describe your pin"
+                    placeholder={copy("Describe your pin")}
                     value={asString(accountOptions.description)}
                     onChange={(e) => updateOption(account.id, "description", e.target.value || undefined)}
                     className="mt-1 border-border"
@@ -1237,7 +1312,7 @@ export function AccountOptionsComponent({
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-link`} className="text-sm text-muted-foreground">
-                    Destination Link (optional)
+                    {copy("Destination Link (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-pinterest-link`}
@@ -1249,11 +1324,11 @@ export function AccountOptionsComponent({
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-pinterest-altText`} className="text-sm text-muted-foreground">
-                    Alt Text (optional)
+                    {copy("Alt Text (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-pinterest-altText`}
-                    placeholder="Describe the image for accessibility"
+                    placeholder={copy("Describe the image for accessibility")}
                     value={asString(accountOptions.altText)}
                     onChange={(e) => updateOption(account.id, "altText", e.target.value || undefined)}
                     className="mt-1 border-border"
@@ -1266,7 +1341,7 @@ export function AccountOptionsComponent({
             {account.platform === "telegram" && (
               <div>
                 <Label htmlFor={`${account.id}-parseMode`} className="text-sm text-muted-foreground">
-                  Parse Mode
+                  {copy("Parse Mode")}{" "}
                 </Label>
                 <Select
                   value={asString(accountOptions.parseMode) || "default"}
@@ -1274,16 +1349,18 @@ export function AccountOptionsComponent({
                     updateOption(account.id, "parseMode", value === "default" ? undefined : value)
                   }>
                   <SelectTrigger id={`${account.id}-parseMode`} className="mt-1 border-border">
-                    <SelectValue placeholder="Select parse mode" />
+                    <SelectValue placeholder={copy("Select parse mode")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">Default</SelectItem>
+                    <SelectItem value="default">{copy("Default")}</SelectItem>
                     <SelectItem value="HTML">HTML</SelectItem>
                     <SelectItem value="Markdown">Markdown</SelectItem>
                     <SelectItem value="MarkdownV2">MarkdownV2</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Choose how Telegram should parse your message</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {copy("Choose how Telegram should parse your message")}
+                </p>
               </div>
             )}
 
@@ -1292,24 +1369,26 @@ export function AccountOptionsComponent({
               <div className="space-y-3">
                 <div>
                   <Label htmlFor={`${account.id}-forem-title`} className="text-sm text-muted-foreground">
-                    Article title (optional)
+                    {copy("Article title (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-forem-title`}
-                    placeholder="My article title"
+                    placeholder={copy("My article title")}
                     value={asString(accountOptions.title)}
                     onChange={(event) => updateOption(account.id, "title", event.target.value || undefined)}
                     className="mt-1 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Defaults to the first Markdown heading or line</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {copy("Defaults to the first Markdown heading or line")}
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-forem-tags`} className="text-sm text-muted-foreground">
-                    Tags (optional)
+                    {copy("Tags (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-forem-tags`}
-                    placeholder="typescript, opensource (comma separated, max 4)"
+                    placeholder={copy("typescript, opensource (comma separated, max 4)")}
                     value={asStringArray(accountOptions.tags).join(", ")}
                     onChange={(event) => {
                       const tags = event.target.value
@@ -1320,11 +1399,13 @@ export function AccountOptionsComponent({
                     }}
                     className="mt-1 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Forem allows up to four tags per article</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {copy("Forem allows up to four tags per article")}
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor={`${account.id}-forem-canonicalUrl`} className="text-sm text-muted-foreground">
-                    Canonical URL (optional)
+                    {copy("Canonical URL (optional)")}{" "}
                   </Label>
                   <Input
                     id={`${account.id}-forem-canonicalUrl`}
@@ -1333,7 +1414,9 @@ export function AccountOptionsComponent({
                     onChange={(event) => updateOption(account.id, "canonicalUrl", event.target.value || undefined)}
                     className="mt-1 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">Point at the original when cross-posting</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {copy("Point at the original when cross-posting")}
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -1345,9 +1428,9 @@ export function AccountOptionsComponent({
                   />
                   <div>
                     <Label htmlFor={`${account.id}-forem-published`} className="text-sm cursor-pointer">
-                      Publish immediately
+                      {copy("Publish immediately")}{" "}
                     </Label>
-                    <p className="text-xs text-muted-foreground">Uncheck to save the article as a draft</p>
+                    <p className="text-xs text-muted-foreground">{copy("Uncheck to save the article as a draft")}</p>
                   </div>
                 </div>
               </div>

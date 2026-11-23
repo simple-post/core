@@ -5,6 +5,7 @@ import { v7 as uuidv7 } from "uuid";
 
 import { downloadToTempFile } from "./media";
 import { getPlatformRequirements } from "./platform-requirements";
+import { rememberDownloadedSource } from "./resolved-media-source";
 import { getKeyFromUrl, S3MediaUploader } from "./s3";
 
 import type { Media, Platform, Video } from "../types/post";
@@ -142,6 +143,7 @@ export class MediaResolver {
           // the upload MIME type from the local filename.
           resolvedItem.path = await this.downloadUrl(item.url);
           resolvedItem.url = item.url;
+          if (platforms.includes("facebook")) rememberDownloadedSource(resolvedItem);
         } else if (item.path) {
           resolvedItem.path = item.path;
         } else if (item.url) {

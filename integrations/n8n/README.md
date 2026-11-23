@@ -32,7 +32,7 @@ The SimplePost node can also be used as a tool by n8n AI agents.
 Add the **SimplePost** node, choose **Post > Create**, pick one or more connected accounts, enter the message, and choose a posting mode:
 
 - **Publish Now** publishes immediately. If any account rejects the post, the node fails the item with the reason. With **Continue On Fail**, the output contains the error and the full SimplePost response.
-- **Schedule** publishes at a future date and time. Offset and zone-less dates are converted to UTC.
+- **Schedule** publishes at a future date and time. Dates without an offset use the workflow timezone.
 - **Save as Draft** keeps the post in SimplePost for review.
 
 ### Media
@@ -79,7 +79,7 @@ Thread example:
 [{ "message": "Part two" }, { "message": "Part three" }]
 ```
 
-Use `{{ $execution.id }}` or another stable value as the idempotency key when a workflow may be retried.
+The node automatically uses a per-item idempotency key for retries within the same execution. To deduplicate across workflow executions, supply a stable ID from the source item, such as an RSS GUID. Thread and account-override media in JSON use full media objects, such as the output of **Media > Upload**.
 
 ## Trigger
 
@@ -97,7 +97,7 @@ SimplePost only delivers webhooks to public URLs and allows up to 10 webhooks pe
 
 ## Compatibility
 
-Tested with n8n 2.x. The node uses the SimplePost Scheduler API (`/api/v1`) and requires a SimplePost API key; self-hosted Scheduler apps must run a version that includes the posts, upload presign, and webhooks endpoints.
+Built and tested with n8n Node CLI 0.57.3 and n8n Workflow 2.48.2. The node uses the SimplePost Scheduler API (`/api/v1`) and requires a SimplePost API key; self-hosted Scheduler apps must run a version that includes the posts, upload presign, and webhooks endpoints.
 
 ## Development
 

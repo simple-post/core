@@ -62,6 +62,13 @@ test('normalizeScheduledFor converts offset timestamps to UTC', () => {
 	assert.equal(normalizeScheduledFor('2026-08-01T07:30:00Z', node), '2026-08-01T07:30:00.000Z');
 });
 
+test('normalizeScheduledFor uses the workflow timezone when the input has no offset', () => {
+	assert.equal(
+		normalizeScheduledFor('2030-07-01T09:30:00', node, 'Europe/Berlin'),
+		'2030-07-01T07:30:00.000Z',
+	);
+});
+
 test('normalizeScheduledFor rejects invalid values', () => {
 	assert.throws(() => normalizeScheduledFor('', node), /not a valid date and time/);
 	assert.throws(() => normalizeScheduledFor('not-a-date', node), /not a valid date and time/);

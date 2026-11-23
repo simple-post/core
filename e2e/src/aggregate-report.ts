@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { atomicText } from "./files.js";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { aggregateJournal, type AggregateAttempt } from "./aggregate.js";
@@ -139,7 +140,7 @@ export function reportHtml(
   const statuses = [...new Set(rows.map((r) => r.status))].sort();
   const runLink = (a: AggregateAttempt) => {
     const run = encodeURIComponent(a.run);
-    return `${reportExists(a.run) ? `<a href="${run}/html/index.html" target="_blank" rel="noopener">Run report</a> · ` : ""}<a href="${run}/${digest(a.key)}.json" target="_blank" rel="noopener">Journal</a>`;
+    return `${reportExists(a.run) ? `<a href="${run}/html/index.html" target="_blank" rel="noopener">Run report</a> · ` : ""}${a.timings ? `<a href="${run}/timing-summary.json" target="_blank" rel="noopener">Timings</a> · ` : ""}<a href="${run}/${digest(a.key)}.json" target="_blank" rel="noopener">Journal</a>`;
   };
   const platformRows = platformNames
     .map((p) => {
@@ -179,11 +180,10 @@ export async function writeAggregateReport(config: LiveConfig) {
   await mkdir(config.runDir, { recursive: true, mode: 0o700 });
   const aggregate = await aggregateJournal(config);
   const rows = reportRows(config, aggregate.attempts);
-  await writeFile(
+  await atomicText(
     path.join(config.runDir, "index.html"),
     reportHtml(rows, aggregate.generatedAt, (run) => existsSync(path.join(config.runDir, run, "html", "index.html"))),
-    { mode: 0o600 },
   );
-  await writeFile(path.join(config.runDir, "aggregate.csv"), reportCsv(rows), { mode: 0o600 });
+  await atomicText(path.join(config.runDir, "aggregate.csv"), reportCsv(rows));
   return config.runDir;
 }

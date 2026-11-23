@@ -107,6 +107,53 @@ test("guest X DOM uses the scoped dir-auto caption selector and exact permalink"
   );
 });
 
+test("current guest X markup keeps exact permalink scoping and excludes avatar and recommendations", async ({
+  page,
+}) => {
+  const pathname = "/testuser/status/current-789";
+  const bytes = Buffer.from(imageSources.image.split(",")[1], "base64");
+  await page.route("https://pbs.twimg.com/media/**", (route) =>
+    route.fulfill({ contentType: "image/jpeg", body: bytes }),
+  );
+  const current = guestPost(pathname)
+    .replace("data-timezone", 'aria-current="page"')
+    .replace(
+      `<a aria-label="Image" href="${pathname}/photo/1"><img alt="post photo" src="${imageSources.image}"></a>`,
+      `<div><img alt="" src="https://pbs.twimg.com/media/fixture.jpg"><a aria-label="View media" href="${pathname}/photo/1"></a></div>`,
+    );
+  const originalFetch = globalThis.fetch;
+  let downloads = 0;
+  globalThis.fetch = async (input) => {
+    downloads++;
+    expect(String(input)).toBe("https://pbs.twimg.com/media/fixture.jpg");
+    return new Response(bytes, { headers: { "content-type": "image/jpeg" } });
+  };
+  try {
+    await verifyDocument(
+      page,
+      pathname,
+      guestPost("/testuser/status/other", { author: "otheruser", image: "image2" }) + current,
+    );
+    expect(downloads).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("current X permalink DOM does not require the retired data-timezone attribute", async ({ page }) => {
+  const pathname = "/testuser/status/current-guest-456";
+  await verifyDocument(
+    page,
+    pathname,
+    `<article class="flex flex-col gap-1">
+      <a href="${pathname}">9:58 · 22 Sept 2026</a>
+      <a href="https://x.com/testuser"><img alt="@testuser" src="${imageSources.image}"></a>
+      <div dir="auto">${smoke.expectedText}</div>
+      <a aria-label="Image" href="${pathname}/photo/1"><img alt="post photo" src="${imageSources.image}"></a>
+    </article>`,
+  );
+});
+
 test("captionless guest X post selects the exact article among media-only cards", async ({ page }) => {
   const pathname = "/testuser/status/captionless-789";
   await verifyDocument(

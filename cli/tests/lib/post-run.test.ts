@@ -73,6 +73,53 @@ describe("runPostWorkflow", () => {
     delete (globalThis as any).fetch;
   });
 
+  it("reports a TikTok reconnect and still publishes to the other selected account", async () => {
+    const home = await makeTempHome();
+    const paths = getExpectedCliPaths(home);
+    const prompt = { interactive: false, log: jest.fn() } as any;
+    const config = createEmptyCliConfig();
+    config.storage = { backend: "file-plain" };
+    for (const platform of ["tiktok", "telegram"] as const) {
+      config[platform].accounts.push({
+        alias: "main",
+        connectedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        secretRef: platform,
+        userId: "creator",
+      });
+    }
+    await saveCliConfig(paths, config);
+    const store = createSecretStore(paths, config.storage, prompt);
+    await store.write("tiktok", {
+      accessToken: "old",
+      refreshToken: "expired",
+      expiresAt: 1,
+      refreshTokenExpiresAt: 1,
+    });
+    await store.write("telegram", { accessToken: "telegram-token" });
+    sdk.post.mockResolvedValueOnce(new Map([["telegram", { error: "NO_ERROR", id: "123" }]]));
+    const video = path.join(home, "video.mp4");
+    await writeFile(video, "video fixture");
+    const writeOutput = jest.fn();
+
+    await expect(
+      runPostWorkflow({
+        config: { configDir: paths.configDir } as any,
+        flags: {
+          account: ["tiktok:main", "telegram:main"],
+          video: [video],
+          text: "Demo",
+          "tiktok-publish-mode": "draft",
+        },
+        prompt,
+        writeOutput,
+      }),
+    ).rejects.toThrow("Posting failed for: TikTok");
+    expect(writeOutput).toHaveBeenCalledWith(expect.stringContaining("simplepost account add tiktok --alias main"));
+    expect(sdk.post).toHaveBeenCalledTimes(1);
+    expect(sdk.post).toHaveBeenCalledWith(expect.objectContaining({ platforms: ["telegram"] }));
+  });
+
   it("posts to multiple stored X accounts, prints a summary, and persists refreshed credentials", async () => {
     const home = await makeTempHome();
     const paths = getExpectedCliPaths(home);

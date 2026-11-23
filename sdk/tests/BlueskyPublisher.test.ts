@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import axios from "axios";
 
 import { BlueskyPublisher } from "../src/publishers/bluesky";
+import { prepareBlueskyCard } from "../src/publishers/bluesky/link-card";
 import { BLUESKY_MAX_IMAGE_SIZE_BYTES, BLUESKY_MAX_VIDEO_SIZE_BYTES } from "../src/publishers/bluesky/validation";
 import { PostError, PostErrorType } from "../src/types";
 import * as mediaUtils from "../src/utils/media";
@@ -12,6 +13,7 @@ import * as mediaUtils from "../src/utils/media";
 import type { Content } from "../src/types/post";
 
 jest.mock("axios");
+jest.mock("../src/publishers/bluesky/link-card");
 jest.mock("fs", () => ({
   ...jest.requireActual("fs"),
   existsSync: jest.fn(),
@@ -166,6 +168,69 @@ describe("BlueskyPublisher", () => {
   });
 
   describe("postContent", () => {
+    it("adds clickable links to replies and falls back when card metadata is unavailable", async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { uri: "at://post", cid: "cid" } });
+      const reply = { root: { uri: "at://root", cid: "root-cid" }, parent: { uri: "at://parent", cid: "parent-cid" } };
+      await publisher.postContent(
+        { text: "✨ https://example.com/path. #release" },
+        {
+          bluesky: {
+            replyTo: reply,
+            credentials: { accessToken: "test_access_token", did: "did:plc:123", pdsUrl: "https://bsky.social" },
+          },
+        },
+      );
+      const record = mockAxiosInstance.post.mock.calls[0][1].record;
+      expect(record.reply).toEqual(reply);
+      expect(record.facets[0].features[0]).toMatchObject({ uri: "https://example.com/path" });
+      expect(record.embed).toBeUndefined();
+    });
+
+    it("creates a text link card without leaking thumbnail bytes into the post record", async () => {
+      (prepareBlueskyCard as jest.Mock).mockResolvedValue({
+        uri: "https://example.com",
+        title: "Example",
+        description: "Description",
+      });
+      mockAxiosInstance.post.mockResolvedValue({ data: { uri: "at://post", cid: "cid" } });
+      await publisher.postContent({ text: "https://example.com" });
+      expect(mockAxiosInstance.post.mock.calls[0][1].record.embed).toEqual({
+        $type: "app.bsky.embed.external",
+        external: { uri: "https://example.com", title: "Example", description: "Description" },
+      });
+    });
+
+    it("preserves a quote instead of fetching an automatic link card", async () => {
+      mockAxiosInstance.post.mockResolvedValue({ data: { uri: "at://post", cid: "cid" } });
+      await publisher.postContent({ text: "https://example.com" }, undefined, {
+        postId: "quoted",
+        uri: "at://quoted",
+        cid: "quote-cid",
+      });
+      expect(prepareBlueskyCard).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post.mock.calls[0][1].record.embed.$type).toBe("app.bsky.embed.record");
+      expect(mockAxiosInstance.post.mock.calls[0][1].record.facets).toHaveLength(1);
+    });
+
+    it("publishes a text-only card when thumbnail uploading fails", async () => {
+      (prepareBlueskyCard as jest.Mock).mockResolvedValue({
+        uri: "https://example.com",
+        title: "Example",
+        description: "Description",
+        thumbnail: Buffer.from("image"),
+      });
+      mockAxiosInstance.post
+        .mockRejectedValueOnce(new Error("Thumbnail unavailable"))
+        .mockResolvedValueOnce({ data: { uri: "at://post", cid: "cid" } });
+      const result = await publisher.postContent({ text: "https://example.com" });
+      expect(result.error).toBe(PostErrorType.NO_ERROR);
+      expect(mockAxiosInstance.post.mock.calls[1][1].record.embed.external).toEqual({
+        uri: "https://example.com",
+        title: "Example",
+        description: "Description",
+      });
+    });
+
     it("should post text and image successfully", async () => {
       mockAxiosInstance.post
         .mockResolvedValueOnce({
@@ -183,7 +248,7 @@ describe("BlueskyPublisher", () => {
         });
 
       const content: Content = {
-        text: "Hello Bluesky!",
+        text: "Hello Bluesky! https://example.com",
         media: [{ type: "image", path: "./test.jpg" }],
       };
 
@@ -192,6 +257,9 @@ describe("BlueskyPublisher", () => {
       expect(result.error).toBe(PostErrorType.NO_ERROR);
       expect(result.id).toBe("at://did:plc:123/app.bsky.feed.post/abc");
       expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+      expect(prepareBlueskyCard).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post.mock.calls[1][1].record.embed.$type).toBe("app.bsky.embed.images");
+      expect(mockAxiosInstance.post.mock.calls[1][1].record.facets).toHaveLength(1);
     });
 
     it("should reject an oversized resolved image before uploading it", async () => {

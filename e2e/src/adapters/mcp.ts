@@ -5,6 +5,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { mcpToken, type LiveConfig, type Account } from "../config.js";
 import type { Materialized, MediaFile, Receipt } from "../types.js";
 import { receiptFrom, SchedulerApi } from "../http.js";
+import { timed } from "../timing.js";
+import { redact } from "../redact.js";
 export class McpClient {
   readonly client = new Client({ name: "simplepost-live-acceptance", version: "1.0.0" });
   constructor(readonly config: LiveConfig) {}
@@ -13,8 +15,9 @@ export class McpClient {
       new StreamableHTTPClientTransport(new URL("/mcp", this.config.baseUrl), {
         requestInit: { headers: { Authorization: `Bearer ${mcpToken(this.config)}` }, redirect: "error" },
       }),
+      { timeout: this.config.readTimeoutMs },
     );
-    const tools = await this.client.listTools();
+    const tools = await this.client.listTools(undefined, { timeout: this.config.readTimeoutMs });
     for (const name of [
       "list_accounts",
       "create_post",
@@ -28,7 +31,9 @@ export class McpClient {
   }
   async call<T = Record<string, unknown>>(name: string, args: Record<string, unknown>): Promise<T> {
     const result = await this.client.callTool({ name, arguments: args }, undefined, {
-      timeout: this.config.publishTimeoutMs,
+      timeout: ["list_accounts", "inspect_posts"].includes(name)
+        ? this.config.readTimeoutMs
+        : this.config.publishTimeoutMs,
     });
     if (result.isError) throw new Error(`MCP ${name} tool error: ${JSON.stringify(result.content).slice(0, 1600)}`);
     if (result.structuredContent) return result.structuredContent as T;
@@ -54,6 +59,7 @@ export async function mcpCreate(
   idempotencyKey: string,
   onReceipt: (r: Receipt) => Promise<void>,
   prepareSchedule?: () => Promise<void>,
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   const files: Array<{ type: string; url: string; filename: string; size: number }> = [];
   for (const file of media) {
@@ -66,16 +72,15 @@ export async function mcpCreate(
         ...(file.thumbnailUrl ? { thumbnailUrl: file.thumbnailUrl } : {}),
       });
     else {
-      const uploaded = await client.call<{ url: string; type: string; filename: string; size: number }>(
-        "upload_media",
-        {
+      const uploaded = await timed("upload", () =>
+        client.call<{ url: string; type: string; filename: string; size: number }>("upload_media", {
           file: {
             download_url: file.url,
             file_id: `${s.token}-${files.length}`,
             file_name: file.filename,
             size: file.size,
           },
-        },
+        }),
       );
       if (uploaded.size !== file.size || uploaded.type !== file.type)
         throw new Error("MCP upload changed file metadata unexpectedly");
@@ -118,7 +123,9 @@ export async function mcpCreate(
               Object.entries(s.expectedIssue!).every(([key, value]) => issue[key] === value),
           )
         )
-          throw new Error("MCP did not return the expected structured validation error for the target account");
+          throw new Error(
+            `MCP did not return the expected structured validation error for the target account: ${redact(JSON.stringify({ expected: s.expectedIssue, received: target }))}`,
+          );
       }
       if (!new RegExp(s.expectedError, "i").test(JSON.stringify(result)))
         throw new Error("MCP rejected invalid content for an unexpected reason");
@@ -141,7 +148,9 @@ export async function mcpCreate(
     expect(review.isValid, "Fitted content must pass real MCP validation").toBe(true);
     await verifyFittedMedia(client.config, s, review.fittedMedia);
     const previewPosts = (
-      await new SchedulerApi(client.config).request<{ posts: Array<{ message: string }> }>("/api/v1/posts?type=all")
+      await SchedulerApi.scoped(client.config, (api) =>
+        api.request<{ posts: Array<{ message: string }> }>("/api/v1/posts?type=all"),
+      )
     ).posts.filter((post) => post.message === s.message);
     expect(previewPosts, "MCP validation/preview must not save or publish a post").toHaveLength(0);
     input.media = review.fittedMedia;
@@ -149,6 +158,7 @@ export async function mcpCreate(
     delete input.imageFit;
     reviewedMediaUrls = review.fittedMedia.map((m) => m.url);
   }
+  await assertCanSubmit?.();
   const result = receiptFrom(await client.call("create_post", input), account.id);
   if (reviewedMediaUrls) result.reviewedMediaUrls = reviewedMediaUrls;
   await onReceipt(result);

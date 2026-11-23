@@ -35,7 +35,79 @@ beforeEach(() => {
   wait.mockImplementation(async () => {});
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
+
+describe("bounded preparation recovery", () => {
+  beforeEach(() => jest.useFakeTimers());
+
+  it("retries a transient upload with a fresh stream and reuses one service token", async () => {
+    const second = Readable.from([Buffer.from("video")]);
+    files.createReadStream.mockReturnValueOnce(stream as fs.ReadStream).mockReturnValueOnce(second as fs.ReadStream);
+    http.post
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockResolvedValueOnce({ data: { ...pending, blob } });
+    const result = uploadBlueskyVideo("video.mp4", "did:plc:user", token);
+    await jest.runAllTimersAsync();
+    await expect(result).resolves.toEqual(blob);
+    expect(http.post).toHaveBeenCalledTimes(2);
+    expect(http.post.mock.calls[1][1]).toBe(second);
+    expect(stream.destroyed).toBe(true);
+    expect(second.destroyed).toBe(true);
+    expect(token).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after the bounded upload attempts without leaking the transport message", async () => {
+    http.post.mockRejectedValue({
+      code: "ECONNRESET",
+      message: "socket hang up Bearer SECRET",
+      response: { status: 503, data: { message: "Bearer SECRET https://signed.example/token" } },
+    });
+    const result = uploadBlueskyVideo("video.mp4", "did:plc:user", token).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({ errorType: PostErrorType.API_ERROR });
+    expect(((await result) as Error).message).not.toContain("SECRET");
+    expect(http.post).toHaveBeenCalledTimes(3);
+    expect(http.get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { response: { status: 429, data: { error: "DailyUploadLimitExceeded" } } },
+    { response: { status: 401, data: { error: "AuthenticationRequired" } } },
+    { response: { status: 400, data: { error: "unsupported_codec", message: "Unsupported codec" } } },
+  ])("does not retry conclusive rejections (%j)", async (rejection) => {
+    http.post.mockRejectedValue(rejection);
+    const result = uploadBlueskyVideo("video.mp4", "did:plc:user", token).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({ errorType: PostErrorType.API_ERROR });
+    expect(http.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a transient status read for the same job within the processing deadline", async () => {
+    http.post.mockResolvedValue({ data: pending });
+    http.get
+      .mockRejectedValueOnce({ code: "ETIMEDOUT" })
+      .mockResolvedValueOnce({ data: { jobStatus: { ...pending, state: "JOB_STATE_COMPLETED", blob } } });
+    const result = uploadBlueskyVideo("video.mp4", "did:plc:user", token);
+    await jest.runAllTimersAsync();
+    await expect(result).resolves.toEqual(blob);
+    expect(http.post).toHaveBeenCalledTimes(1);
+    expect(http.get).toHaveBeenCalledTimes(2);
+    for (const call of http.get.mock.calls) expect(call[1]).toMatchObject({ params: { jobId: "job-1" } });
+  });
+
+  it("keeps an unconfirmed job retryable after bounded status reads", async () => {
+    http.post.mockResolvedValue({ data: pending });
+    http.get.mockRejectedValue({ response: { status: 502 } });
+    const result = uploadBlueskyVideo("video.mp4", "did:plc:user", token).catch((error: unknown) => error);
+    await jest.runAllTimersAsync();
+    expect(await result).toMatchObject({ errorType: PostErrorType.API_ERROR });
+    expect(http.get).toHaveBeenCalledTimes(3);
+    expect(http.post).toHaveBeenCalledTimes(1);
+  });
+});
 
 it("waits through processing states, streams the upload and releases the stream", async () => {
   http.post.mockResolvedValue({ data: pending });

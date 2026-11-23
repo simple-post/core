@@ -1,6 +1,6 @@
 import type { LiveConfig } from "./config.js";
 import type { Options, PostingResult, Receipt } from "./types.js";
-import { request as playwrightRequest } from "@playwright/test";
+import { type APIRequestContext, type APIResponse, request as playwrightRequest } from "@playwright/test";
 import { cliSession } from "./cli-session.js";
 import { readFile } from "node:fs/promises";
 import type { MediaFile } from "./types.js";
@@ -23,7 +23,32 @@ export type PostRecord = {
   thread?: { message: string }[];
 };
 export class SchedulerApi {
+  private sharedContext?: Promise<APIRequestContext>;
+  private disposal?: Promise<void>;
+  private disposed = false;
   constructor(readonly config: LiveConfig) {}
+  static async scoped<T>(config: LiveConfig, fn: (api: SchedulerApi) => Promise<T>): Promise<T> {
+    const api = new SchedulerApi(config);
+    try {
+      return await fn(api);
+    } finally {
+      await api.dispose();
+    }
+  }
+  private requestContext(): Promise<APIRequestContext> {
+    if (this.disposed) return Promise.reject(new Error("SchedulerApi has been disposed"));
+    // Keep the promise so concurrent first requests share authentication and setup.
+    return (this.sharedContext ??= this.context());
+  }
+  /** Close the internally owned context, including setup still in progress. */
+  dispose(): Promise<void> {
+    this.disposed = true;
+    return (this.disposal ??= (async () => {
+      const context = await this.sharedContext?.catch(() => undefined);
+      await context?.dispose();
+    })());
+  }
+  /** Fresh context for external callers; the caller owns its disposal. */
   async context() {
     let token = process.env[this.config.apiTokenEnv];
     if (!token && (this.config.apiAuth === "cli" || !this.config.schedulerStorageState) && this.config.cliConfigDir)
@@ -38,17 +63,19 @@ export class SchedulerApi {
   }
   async request<T>(route: string, init: RequestInit = {}): Promise<T> {
     if (!route.startsWith("/api/")) throw new Error("Only scheduler API routes are allowed");
-    const context = await this.context();
+    const context = await this.requestContext();
+    let response: APIResponse | undefined;
     try {
       const method = (init.method ?? "GET").toUpperCase();
       const read = () =>
         context.fetch(this.config.baseUrl + route, {
-          method: init.method ?? "GET",
+          method,
+          timeout: method === "GET" ? this.config.readTimeoutMs : this.config.publishTimeoutMs,
           maxRedirects: 0,
           headers: Object.fromEntries(new Headers(init.headers).entries()),
           data: init.body === undefined ? undefined : String(init.body),
         });
-      let response = await read();
+      response = await read();
       // Only idempotent reads can be replayed. Never retry an uncertain submit,
       // mutation, transport exception, or any other HTTP failure.
       for (let retry = 0; method === "GET" && [502, 503, 504].includes(response.status()) && retry < 2; retry++) {
@@ -64,19 +91,21 @@ export class SchedulerApi {
     } catch (error) {
       throw new Error(redact((error as Error).message.split("\nCall log:")[0]));
     } finally {
-      await context.dispose();
+      await response?.dispose();
     }
   }
   async upload(file: MediaFile): Promise<{ url: string; size: number }> {
-    const context = await this.context();
+    const context = await this.requestContext();
+    let response: APIResponse | undefined;
     try {
       const mimeType = file.filename.endsWith(".mp4")
         ? "video/mp4"
         : file.filename.endsWith(".webp")
           ? "image/webp"
           : "image/jpeg";
-      const response = await context.post(this.config.baseUrl + "/api/v1/upload", {
+      response = await context.post(this.config.baseUrl + "/api/v1/upload", {
         maxRedirects: 0,
+        timeout: this.config.publishTimeoutMs,
         multipart: { file: { name: file.filename, mimeType, buffer: await readFile(file.path) } },
       });
       if (!response.ok()) throw new Error(`Fixture upload failed (${response.status()})`);
@@ -84,7 +113,7 @@ export class SchedulerApi {
     } catch (error) {
       throw new Error(redact((error as Error).message.split("\nCall log:")[0]));
     } finally {
-      await context.dispose();
+      await response?.dispose();
     }
   }
   /**

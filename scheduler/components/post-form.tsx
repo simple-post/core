@@ -22,15 +22,19 @@ import { useFeatures } from "@/hooks/use-features";
 import { useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { getAccountDisplayName } from "@/lib/config";
+import { scheduledTimeMessage } from "@/lib/i18n/scheduled-time-display";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { getMainFieldCharCounterState, getMaxTextLength } from "@/lib/message-length-ui";
 import {
   failPendingPostingResults,
+  postingOutcomeUncertain,
   mergePostingProgressResult,
   mergePostingProgressResults,
 } from "@/lib/posting/progress-client";
 import type { PostingProgressResult } from "@/lib/posting/progress-client";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { isScheduledTimeError } from "@/lib/utils/api-response-error";
 import { hasImageContent } from "@/lib/validation/image-content";
 import { validatePostForResolvedAccounts } from "@/lib/validation/post-validation";
 import type { ValidationResultByPlatform } from "@/lib/validation/post-validation";
@@ -85,6 +89,7 @@ export function PostForm({ mode, existingPost }: PostFormProps) {
  * it and navigating there and back keeps every change.
  */
 function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: ExistingPostMode }) {
+  const { copy } = useUiCopy();
   const isRetry = mode === "retry";
   const isDuplicate = mode === "duplicate";
   const isCreating = isDuplicate;
@@ -115,8 +120,13 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     removeThreadSegment,
     updateThreadSegmentMessage,
     updateThreadSegmentMedia,
+    saveRecoveryDraft,
+    clearRecoveryDraft,
+    resetDraft,
   } = usePostDraft();
   const [showPostLinksModal, setShowPostLinksModal] = useState(false);
+  const [outcomeUncertain, setOutcomeUncertain] = useState(false);
+  const [submittedPostId, setSubmittedPostId] = useState<string | undefined>();
   const [postingResults, setPostingResults] = useState<PostingProgressResult[]>([]);
   const [postingSucceeded, setPostingSucceeded] = useState(false);
   const [serverValidation, setServerValidation] = useState<ValidationResponse | null>(null);
@@ -226,7 +236,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Validation failed");
+          throw new Error(data.error || copy("Validation failed"));
         }
 
         const data = (await response.json()) as ValidationResponse;
@@ -237,14 +247,14 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         if (signal?.aborted) {
           return null;
         }
-        setValidationError(error instanceof Error ? error.message : "Validation failed");
+        setValidationError(error instanceof Error ? error.message : copy("Validation failed"));
         setServerValidation(null);
         return null;
       } finally {
         setValidationLoading(false);
       }
     },
-    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread],
+    [accountOptions, enabledOverrides, media, message, selectedAccountIds, thread, copy],
   );
 
   useEffect(() => {
@@ -306,6 +316,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmittedPostId(undefined);
+    setOutcomeUncertain(false);
 
     // Validate based on posting mode
     if (selectedAccountIds.length === 0) {
@@ -319,8 +331,8 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     if (postingMode === "schedule") {
       const nextScheduleError = getLocalScheduledDateTimeError(scheduledDate, scheduledTime);
       if (nextScheduleError) {
-        setScheduleError(nextScheduleError);
-        toast.error(nextScheduleError);
+        setScheduleError(scheduledTimeMessage(nextScheduleError, copy));
+        toast.error(scheduledTimeMessage(nextScheduleError, copy));
         return;
       }
     }
@@ -380,7 +392,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       if (postingMode === "schedule") {
         const scheduledFor = parseLocalScheduledDateTime(scheduledDate, scheduledTime);
         if (!scheduledFor) {
-          setScheduleError("Choose a valid date and time before scheduling this post.");
+          setScheduleError(copy("Choose a valid date and time before scheduling this post."));
           return;
         }
         body.scheduledFor = scheduledFor.toISOString();
@@ -430,7 +442,16 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       });
 
       // If posting now and we have posting results, show the modal
-      if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
+      setSubmittedPostId(data.post?.id);
+      if (data.post?.id) {
+        clearRecoveryDraft();
+        if (isDuplicate) resetDraft();
+      }
+
+      if (postingMode === "now" && data.post?.status === "scheduled") {
+        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."));
+        router.push("/?tab=scheduled");
+      } else if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         const completedResults = data.postingResults;
         setPostingResults((current) => mergePostingProgressResults(current, completedResults));
 
@@ -445,13 +466,23 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         router.push(postingMode === "draft" ? "/?tab=drafts" : "/?tab=scheduled");
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : `Failed to ${isRetry ? "retry" : mode} post.`;
-      if (postingMode === "schedule" && errorMessage.toLowerCase().includes("scheduled")) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : isRetry
+            ? copy("Failed to retry post.")
+            : mode === "edit"
+              ? copy("Failed to edit post.")
+              : copy("Failed to duplicate post.");
+      if (postingMode === "schedule" && isScheduledTimeError(error)) {
         setScheduleError(errorMessage);
       }
       if (postingMode === "now") {
+        setOutcomeUncertain(postingOutcomeUncertain(error));
         setPostingSucceeded(false);
-        setPostingResults((current) => failPendingPostingResults(current, errorMessage));
+        setPostingResults((current) =>
+          failPendingPostingResults(current, errorMessage, postingOutcomeUncertain(error)),
+        );
       }
       logClientError(error, `Failed to ${isRetry ? "retry" : mode} post`, {
         postId: existingPost.id,
@@ -503,7 +534,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         <AccountSelector
           selectedAccountIds={selectedAccountIds}
           onSelectionChange={setSelectedAccountIds}
-          title="Post to"
+          title={copy("Post to")}
           showAdvancedButton
           getAdvancedHref={(accountId) =>
             `/posts/${existingPost.id}/${isDuplicate ? "duplicate" : "edit"}/advanced/${accountId}`
@@ -554,7 +585,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           {validationError && (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>Validation failed</AlertTitle>
+              <AlertTitle>{copy("Validation failed")}</AlertTitle>
               <AlertDescription>
                 <p>{validationError}</p>
               </AlertDescription>
@@ -563,11 +594,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           {validation?.summary.errors.length ? (
             <Alert variant="destructive">
               <AlertCircle />
-              <AlertTitle>Before you can post</AlertTitle>
+              <AlertTitle>{copy("Before you can post")}</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
-                    Fit images…
+                    {copy("Fit images…")}{" "}
                   </Button>
                 )}
                 <ValidationIssueList issues={validation.summary.errors} accounts={validation.accounts} />
@@ -577,11 +608,11 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
           {validation?.summary.warnings.length ? (
             <Alert>
               <Info />
-              <AlertTitle>Tips</AlertTitle>
+              <AlertTitle>{copy("Tips")}</AlertTitle>
               <AlertDescription>
                 {canOfferImageFitting && validation.summary.errors.length === 0 && (
                   <Button type="button" variant="outline" size="sm" onClick={() => setShowImageFit(true)}>
-                    Fit images…
+                    {copy("Fit images…")}{" "}
                   </Button>
                 )}
                 <ValidationIssueList issues={validation.summary.warnings} accounts={validation.accounts} />
@@ -592,25 +623,25 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">When to Post</Label>
+            <Label className="text-sm font-medium">{copy("When to Post")}</Label>
           </div>
           <RadioGroup value={postingMode} onValueChange={(value) => setPostingMode(value as PostingMode)}>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="now" id="post-now" />
               <Label htmlFor="post-now" className="font-normal cursor-pointer">
-                Post Now
+                {copy("Post Now")}{" "}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="schedule" id="post-schedule" />
               <Label htmlFor="post-schedule" className="font-normal cursor-pointer">
-                Schedule for Later
+                {copy("Schedule for Later")}{" "}
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="draft" id="post-draft" />
               <Label htmlFor="post-draft" className="font-normal cursor-pointer">
-                Save as Draft
+                {copy("Save as Draft")}{" "}
               </Label>
             </div>
           </RadioGroup>
@@ -618,7 +649,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
 
         {postingMode === "schedule" && (
           <div className="space-y-2">
-            <HelpLink path="/scheduling#timezones">Scheduling and timezone help</HelpLink>
+            <HelpLink path="/scheduling#timezones">{copy("Scheduling and timezone help")}</HelpLink>
             <SchedulePicker
               scheduledDate={scheduledDate}
               scheduledTime={scheduledTime}
@@ -659,30 +690,30 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
               router.push(`/posts/${existingPost.id}`);
             }}
             className="flex-1">
-            Cancel
+            {copy("Cancel")}{" "}
           </Button>
           <Button type="submit" disabled={!isFormValid || submitPostMutation.isPending} className="flex-1">
             {submitPostMutation.isPending
               ? postingMode === "now"
-                ? "Posting..."
+                ? copy("Posting...")
                 : postingMode === "draft"
-                  ? "Saving..."
+                  ? copy("Saving...")
                   : isRetry
-                    ? "Scheduling..."
+                    ? copy("Scheduling...")
                     : mode === "edit"
-                      ? "Updating..."
-                      : "Scheduling..."
+                      ? copy("Updating...")
+                      : copy("Scheduling...")
               : postingMode === "draft"
-                ? "Save Draft"
+                ? copy("Save Draft")
                 : validationLoading
-                  ? "Validating..."
+                  ? copy("Validating...")
                   : postingMode === "now"
-                    ? "Post Now"
+                    ? copy("Post Now")
                     : isRetry
-                      ? "Schedule Post"
+                      ? copy("Schedule Post")
                       : mode === "edit"
-                        ? "Update Post"
-                        : "Schedule Post"}
+                        ? copy("Update Post")
+                        : copy("Schedule Post")}
           </Button>
         </div>
       </form>
@@ -702,14 +733,18 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       <PostLinksModal
         open={showPostLinksModal}
         posting={submitPostMutation.isPending}
+        outcomeUncertain={outcomeUncertain}
         onOpenChange={(open) => {
           setShowPostLinksModal(open);
           // Navigate when modal is closed
           if (!open && postingSucceeded) {
             router.push("/?tab=past");
-          }
-          // If posting failed, stay on the page to let user retry
+          } else if (!open && isDuplicate && submittedPostId) router.push(`/posts/${submittedPostId}`);
+          // Existing post edits keep their current content for a deliberate retry.
         }}
+        postId={submittedPostId ?? (isDuplicate ? undefined : existingPost.id)}
+        onEditFailed={isDuplicate && submittedPostId ? undefined : setSelectedAccountIds}
+        onRecover={(returnTo, accountIds) => (submittedPostId ? true : saveRecoveryDraft(returnTo, accountIds))}
         results={postingResults}
       />
     </div>

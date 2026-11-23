@@ -14,6 +14,7 @@ import { isValidWebhookSignature, simplePostApiRequest } from './shared';
 type WebhookStaticData = {
 	webhookId?: string;
 	webhookSecret?: string;
+	webhookUrl?: string;
 };
 
 type RegisteredWebhook = {
@@ -88,26 +89,25 @@ export class SimplePostTrigger implements INodeType {
 		default: {
 			async checkExists(this: IHookFunctions): Promise<boolean> {
 				const webhookData = this.getWorkflowStaticData('node') as WebhookStaticData;
-				if (!webhookData.webhookId || !webhookData.webhookSecret) return false;
-
 				const webhookUrl = this.getNodeWebhookUrl('default');
 				const events = this.getNodeParameter('events') as string[];
 				const response = await simplePostApiRequest.call(this, 'GET', '/api/v1/webhooks');
-				const existing = ((response.webhooks as RegisteredWebhook[] | undefined) ?? []).find(
-					(webhook) => webhook.id === webhookData.webhookId,
+				const matching = ((response.webhooks as RegisteredWebhook[] | undefined) ?? []).filter(
+					(webhook) => webhook.url === webhookUrl,
 				);
+				const existing = matching.find(
+					(webhook) => webhook.id === webhookData.webhookId && sameEvents(webhook.events, events),
+				);
+				if (existing && webhookData.webhookSecret) return true;
 
-				if (existing && existing.url === webhookUrl && sameEvents(existing.events, events)) {
-					return true;
-				}
-
-				// The stored endpoint is gone or no longer matches this node, so it
-				// is replaced rather than left behind with stale events.
-				if (existing) {
-					await simplePostApiRequest.call(this, 'DELETE', `/api/v1/webhooks/${existing.id}`);
+				// SimplePost returns a signing secret only at creation. Replace stale
+				// registrations for this callback URL, including after lost static data.
+				for (const webhook of matching) {
+					await simplePostApiRequest.call(this, 'DELETE', `/api/v1/webhooks/${webhook.id}`);
 				}
 				delete webhookData.webhookId;
 				delete webhookData.webhookSecret;
+				delete webhookData.webhookUrl;
 				return false;
 			},
 
@@ -127,12 +127,16 @@ export class SimplePostTrigger implements INodeType {
 
 				webhookData.webhookId = webhook.id as string;
 				webhookData.webhookSecret = webhook.secret as string;
+				webhookData.webhookUrl = this.getNodeWebhookUrl('default');
 				return true;
 			},
 
 			async delete(this: IHookFunctions): Promise<boolean> {
 				const webhookData = this.getWorkflowStaticData('node') as WebhookStaticData;
-				if (webhookData.webhookId) {
+				if (
+					webhookData.webhookId &&
+					(!webhookData.webhookUrl || webhookData.webhookUrl === this.getNodeWebhookUrl('default'))
+				) {
 					try {
 						await simplePostApiRequest.call(
 							this,
@@ -147,6 +151,7 @@ export class SimplePostTrigger implements INodeType {
 
 				delete webhookData.webhookId;
 				delete webhookData.webhookSecret;
+				delete webhookData.webhookUrl;
 				return true;
 			},
 		},

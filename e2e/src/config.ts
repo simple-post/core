@@ -51,6 +51,7 @@ export const configSchema = z
     cliCommand: z.string().optional(),
     appRoot: z.string().optional(),
     deploymentRevision: z.string().min(1),
+    browserChannel: z.enum(["chromium", "chrome"]).optional(),
     defaultInterfaces: z.array(z.enum(interfaces)).min(1).optional(),
     mediaBaseUrl: z.url().default("https://fixtures.invalid/"),
     mediaManifestFile: z.string().optional(),
@@ -60,6 +61,8 @@ export const configSchema = z
     maxPosts: z.union([z.literal("auto"), z.number().int().positive()]).default("auto"),
     perPlatformBudget: z.record(z.string(), z.number().int().positive()).default({ tiktok: 8 }),
     publishTimeoutMs: z.number().int().positive().default(600_000),
+    readTimeoutMs: z.number().int().positive().default(30_000),
+    platformFailureLimit: z.number().int().positive().default(3),
     verifyTimeoutMs: z.number().int().positive().default(180_000),
     scheduleDelayMinutes: z.number().int().min(1).max(30).default(1),
     dispatchAllowanceMs: z.number().int().positive().default(300_000),
@@ -141,15 +144,19 @@ export function selection(config?: LiveConfig, env: NodeJS.ProcessEnv = process.
   const profile = env.E2E_PROFILE ?? "smoke";
   const file = env.E2E_CONFIG ?? "config.local.json";
   config ??= existsSync(file) ? loadConfig(file) : undefined;
-  if (!["smoke", "full", "regression", "lifecycle", "negative", "validation"].includes(profile))
+  if (!["smoke", "full", "regression", "lifecycle", "negative", "validation", "uploads"].includes(profile))
     throw new Error(`Unknown E2E_PROFILE: ${profile}`);
+  // The uploads profile exercises the hosted browser upload path by default;
+  // an explicit E2E_INTERFACES / --interface selection still overrides it.
+  const defaultInterfaces: readonly (typeof interfaces)[number][] =
+    profile === "uploads" ? ["ui"] : (config?.defaultInterfaces ?? ["mcp", "cli-app", "ui"]);
   return {
     platforms: parse(
       env.E2E_PLATFORMS,
       platforms,
       config ? (Object.keys(config.accounts) as (typeof platforms)[number][]) : platforms,
     ),
-    interfaces: parse(env.E2E_INTERFACES, interfaces, config?.defaultInterfaces ?? ["mcp", "cli-app", "ui"]),
+    interfaces: parse(env.E2E_INTERFACES, interfaces, defaultInterfaces),
     profile,
     filter: env.E2E_SCENARIO,
   };

@@ -7,6 +7,8 @@ import { toast } from "sonner";
 
 import { TrialExpiryScheduleWarningNotice } from "@/components/billing/trial-post-allowance";
 import { useSubmitPost } from "@/hooks/use-mutations";
+import { scheduledTimeMessage } from "@/lib/i18n/scheduled-time-display";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { getLocalScheduledDateTimeError, parseLocalScheduledDateTime } from "@/lib/validations/scheduled-time";
 import type { SocialPost } from "@/types";
@@ -23,6 +25,7 @@ interface SchedulePostDialogProps {
 }
 
 export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: SchedulePostDialogProps) {
+  const { copy } = useUiCopy();
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const submitPostMutation = useSubmitPost();
@@ -42,13 +45,13 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
   const handleSchedule = async () => {
     const scheduleError = getLocalScheduledDateTimeError(scheduledDate, scheduledTime);
     if (scheduleError) {
-      toast.error(scheduleError);
+      toast.error(scheduledTimeMessage(scheduleError, copy));
       return;
     }
 
     const scheduledFor = parseLocalScheduledDateTime(scheduledDate, scheduledTime);
     if (!scheduledFor) {
-      toast.error("Choose a valid date and time before scheduling this post.");
+      toast.error(copy("Choose a valid date and time before scheduling this post."));
       return;
     }
 
@@ -76,12 +79,12 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
       if (result.warnings?.length) {
         for (const warning of result.warnings) toast.warning(warning.message);
       } else {
-        toast.success(isRescheduling ? "Post rescheduled." : "Draft scheduled.");
+        toast.success(isRescheduling ? copy("Post rescheduled.") : copy("Draft scheduled."));
       }
       onOpenChange(false);
       onScheduled?.();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to schedule post.";
+      const message = error instanceof Error ? error.message : copy("Failed to schedule post.");
       logClientError(error, "Failed to schedule post", { postId: post.id });
       toast.error(message);
     }
@@ -96,11 +99,11 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
       }}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isRescheduling ? "Reschedule post" : "Schedule draft"}</DialogTitle>
+          <DialogTitle>{isRescheduling ? copy("Reschedule post") : copy("Schedule draft")}</DialogTitle>
           <DialogDescription>
             {isRescheduling
-              ? "Choose a new date and time for this post."
-              : "Choose when this draft should be published."}
+              ? copy("Choose a new date and time for this post.")
+              : copy("Choose when this draft should be published.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -119,16 +122,16 @@ export function SchedulePostDialog({ post, open, onOpenChange, onScheduled }: Sc
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={submitPostMutation.isPending}>
-            Cancel
+            {copy("Cancel")}{" "}
           </Button>
           <Button type="button" onClick={handleSchedule} disabled={submitPostMutation.isPending}>
             {submitPostMutation.isPending
               ? isRescheduling
-                ? "Rescheduling..."
-                : "Scheduling..."
+                ? copy("Rescheduling...")
+                : copy("Scheduling...")
               : isRescheduling
-                ? "Reschedule"
-                : "Schedule"}
+                ? copy("Reschedule")
+                : copy("Schedule")}
           </Button>
         </DialogFooter>
       </DialogContent>

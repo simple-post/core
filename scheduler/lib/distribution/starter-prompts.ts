@@ -1,10 +1,17 @@
+import { sourceCopy, type SourceCopy } from "@/lib/i18n/source-copy";
+
+export function getFirstDraftPrompt(copy: SourceCopy = sourceCopy): string {
+  return copy(
+    "Help me write my first post with SimplePost. Ask what I want to share, then save a draft for me to review.",
+  );
+}
+
 /** Reviewed prompts for the in-app selector and directory/demo assets. No live writes without approval. */
 export const STARTER_PROMPTS = [
   {
     id: "first-draft",
     title: "Prepare my first post",
-    prompt:
-      "List my connected SimplePost accounts. Help me turn an idea into a post for one account, ask for any missing details, save it as a draft, and show the preview. Wait for my confirmation before scheduling or publishing.",
+    prompt: getFirstDraftPrompt(),
   },
   {
     id: "platform-versions",

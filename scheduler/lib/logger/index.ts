@@ -1,9 +1,10 @@
 import { context as otelContext, isSpanContextValid, trace } from "@opentelemetry/api";
+import { suppressTracing } from "@opentelemetry/core";
 import pino, { type Logger } from "pino";
 
+import { buildErrorReport, sendErrorReport } from "@/lib/error-reporting";
 import { flatErrorFields } from "@/lib/logger/error-fields";
 import { SENSITIVE_KEYS } from "@/lib/logger/sensitive-keys";
-import { isTelegramNotificationEnabled, sendTelegramLogNotification } from "@/lib/logger/telegram";
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 const ERROR_LEVEL = pino.levels.values.error;
@@ -26,26 +27,6 @@ type LogLevelLabel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
 function levelLabel(level: number): LogLevelLabel {
   return (LEVEL_LABELS.get(level) || "error") as LogLevelLabel;
-}
-
-function queueTelegramNotification(
-  label: LogLevelLabel,
-  message: string,
-  context: Record<string, unknown>,
-  error?: unknown,
-): void {
-  const activeSpanContext = trace.getSpan(otelContext.active())?.spanContext();
-  const traceContext =
-    activeSpanContext && isSpanContextValid(activeSpanContext)
-      ? { traceId: activeSpanContext.traceId, spanId: activeSpanContext.spanId }
-      : {};
-  void sendTelegramLogNotification({
-    level: label,
-    message,
-    timestamp: new Date().toISOString(),
-    context: redact({ ...context, ...traceContext }),
-    error: error ? redact({ error }).error : undefined,
-  });
 }
 
 function extractLogMessage(inputArgs: unknown[]): string {
@@ -103,17 +84,29 @@ const baseLogger = pino({
       } else if (isPlainObject(first)) {
         inputArgs[0] = { ...first, ...flatErrorFields(first.err ?? first.error) };
       }
-      // Fan error/fatal logs out to Telegram, but only do the (non-trivial)
-      // context extraction + redaction work when Telegram is actually enabled
-      // for this level — otherwise it runs on every error log for nothing.
       if (level >= ERROR_LEVEL) {
-        const label = levelLabel(level);
-        if (isTelegramNotificationEnabled(label)) {
-          const logger = this as Logger;
-          const bindings = typeof logger.bindings === "function" ? logger.bindings() : {};
-          const context = extractLogContext(inputArgs, bindings);
-          queueTelegramNotification(label, extractLogMessage(inputArgs), context, extractLogError(inputArgs, context));
+        const bindings = (this as Logger).bindings();
+        const details = extractLogContext(inputArgs, bindings);
+        const span = trace.getSpan(otelContext.active())?.spanContext();
+        let originalError = extractLogError(inputArgs, details);
+        if ((!originalError || typeof originalError === "string") && typeof details.message === "string") {
+          originalError = {
+            message: details.message,
+            name: typeof originalError === "string" ? originalError : "Error",
+          };
         }
+        const report = buildErrorReport("Simple Post", originalError || extractLogMessage(inputArgs), {
+          ...details,
+          message: extractLogMessage(inputArgs),
+          severity: levelLabel(level),
+          ...(span && isSpanContextValid(span) ? { traceId: span.traceId, spanId: span.spanId } : {}),
+        });
+        inputArgs = [{ ...report.attributes }, report.summary];
+        void sendErrorReport(report, {
+          service: "simplepost-scheduler",
+          emit: () => {}, // Pino below exports this exact report.
+          withoutTracing: (work) => otelContext.with(suppressTracing(otelContext.active()), work),
+        });
       }
 
       (method as (...args: unknown[]) => void).apply(this, inputArgs);

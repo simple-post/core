@@ -6,6 +6,7 @@ const { SimplePostTrigger } = require('../dist/nodes/SimplePost/SimplePostTrigge
 const { signWebhookBody } = require('../dist/nodes/SimplePost/shared.js');
 
 const node = {
+	id: 'node_1',
 	name: 'SimplePost',
 	type: 'simplePost',
 	typeVersion: 1,
@@ -26,6 +27,8 @@ function createContext({ params, responses = [], binary, continueOnFail = false 
 			throw new Error(`Missing parameter ${name}`);
 		},
 		getNode: () => node,
+		getExecutionId: () => 'execution_1',
+		getTimezone: () => 'Europe/Berlin',
 		continueOnFail: () => continueOnFail,
 		getCredentials: async () => ({
 			apiKey: 'sp_api_test',
@@ -125,6 +128,23 @@ test('create fails the item when publishing failed', async () => {
 	assert.equal(output[0].json.post.id, 'post_2');
 });
 
+test('publish now returns the original post when Scheduler queues a retry', async () => {
+	const post = { id: 'post_3', status: 'scheduled', scheduledFor: '2030-01-01T10:00:00.000Z' };
+	const { context } = createContext({
+		params: {
+			resource: 'post',
+			operation: 'create',
+			accountIds: ['acc_x'],
+			message: 'Hello',
+			postingMode: 'now',
+		},
+		responses: [{ post }],
+	});
+
+	const [output] = await new SimplePost().execute.call(context);
+	assert.deepEqual(output[0].json.post, post);
+});
+
 test('get many pages through results up to the limit', async () => {
 	const page = (ids, hasNextPage) => ({
 		posts: ids.map((id) => ({ id })),
@@ -162,11 +182,11 @@ test('media upload presigns, uploads the bytes, and returns a post media object'
 	const buffer = Buffer.from('fake-png');
 	const { context, requests } = createContext({
 		params: { resource: 'media', operation: 'upload', binaryPropertyName: 'data' },
-		binary: { meta: { mimeType: 'image/png', fileName: 'cover.png' }, buffer },
+		binary: { meta: { mimeType: 'Image/JPG; charset=binary', fileName: 'cover.jpg' }, buffer },
 		responses: [
 			{
 				uploadUrl: 'https://storage.example.com/put',
-				publicUrl: 'https://media.example.com/cover.png',
+				publicUrl: 'https://media.example.com/cover.jpg',
 			},
 		],
 	});
@@ -175,15 +195,15 @@ test('media upload presigns, uploads the bytes, and returns a post media object'
 
 	assert.equal(requests[0].url, '/api/v1/upload/presign');
 	assert.deepEqual(requests[0].body, {
-		filename: 'cover.png',
-		contentType: 'image/png',
+		filename: 'cover.jpg',
+		contentType: 'image/jpeg',
 		size: buffer.length,
 	});
 	assert.equal(requests[1].credentialType, null);
 	assert.equal(requests[1].method, 'PUT');
 	assert.equal(requests[1].url, 'https://storage.example.com/put');
 	assert.equal(requests[1].body, buffer);
-	assert.equal(output[0].json.url, 'https://media.example.com/cover.png');
+	assert.equal(output[0].json.url, 'https://media.example.com/cover.jpg');
 	assert.equal(output[0].json.type, 'image');
 	assert.equal(output[0].json.size, buffer.length);
 });

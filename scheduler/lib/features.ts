@@ -1,5 +1,6 @@
 import { Feature } from "@prisma/client";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/utils/errors";
 
@@ -45,6 +46,6 @@ export async function getUserFeatures(userId: string): Promise<Feature[]> {
 
 export async function requireImageFitting(userId: string): Promise<void> {
   if (!(await hasFeature(userId, Feature.IMAGE_FITTING))) {
-    throw new ForbiddenError("Image fitting is not enabled for this account.");
+    throw new ForbiddenError(serverMessage("Image fitting is not enabled for this account."));
   }
 }

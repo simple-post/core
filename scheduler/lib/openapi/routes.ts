@@ -4,6 +4,7 @@ import cliTokenRoutes from "@/app/api/cli/token/openapi";
 import connectPlatformRoutes from "@/app/api/connect/[platform]/openapi";
 import connectCallbackRoutes from "@/app/api/connect/callback/[platform]/openapi";
 import connectForemRoutes from "@/app/api/connect/forem/openapi";
+import connectHandoffRoutes from "@/app/api/connect/handoff/openapi";
 import connectPendingRoutes from "@/app/api/connect/pending/[id]/openapi";
 import connectTelegramRoutes from "@/app/api/connect/telegram/openapi";
 import internalDispatchRoutes from "@/app/api/internal/scheduled-posts/dispatch/openapi";
@@ -28,6 +29,7 @@ import postingSlotsRoutes from "@/app/api/v1/posting-slots/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
 import reconcilePostRoutes from "@/app/api/v1/posts/[id]/reconcile/openapi";
 import repostPostRoutes from "@/app/api/v1/posts/[id]/repost/openapi";
+import retryPostRoutes from "@/app/api/v1/posts/[id]/retry/openapi";
 import postsCalendarRoutes from "@/app/api/v1/posts/calendar/openapi";
 import postsRoutes from "@/app/api/v1/posts/openapi";
 import repostSettingsRoutes from "@/app/api/v1/repost-settings/openapi";
@@ -50,6 +52,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   connectCallbackRoutes,
   connectPendingRoutes,
   connectForemRoutes,
+  connectHandoffRoutes,
   connectTelegramRoutes,
   internalDispatchRoutes,
   oauthAuthorizeRoutes,
@@ -72,6 +75,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   postsCalendarRoutes,
   repostPostRoutes,
   reconcilePostRoutes,
+  retryPostRoutes,
   repostSettingsRoutes,
   postingSlotsRoutes,
   uploadRoutes,

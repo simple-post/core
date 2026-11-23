@@ -1,0 +1,20 @@
+{
+	"url": "/api/v1/posts",
+	"method": "GET",
+	"qs": {
+		"type": "{{parameters.status}}",
+		"page": 1,
+		"limit": 100
+	},
+	"response": {
+		"iterate": "{{body.posts}}",
+		"output": "{{item}}",
+		"limit": "{{parameters.limit}}"
+	},
+	"pagination": {
+		"qs": {
+			"page": "{{pagination.page}}"
+		},
+		"condition": "{{body.pagination.hasNextPage}}"
+	}
+}

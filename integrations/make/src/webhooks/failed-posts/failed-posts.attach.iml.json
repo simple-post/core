@@ -1,0 +1,15 @@
+{
+	"url": "/api/v1/webhooks",
+	"method": "POST",
+	"body": {
+		"url": "{{webhook.url}}",
+		"events": [
+			"post.failed"
+		]
+	},
+	"response": {
+		"data": {
+			"externalHookId": "{{body.webhook.id}}"
+		}
+	}
+}

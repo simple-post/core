@@ -1,0 +1,254 @@
+[
+	{
+		"name": "summary",
+		"type": "collection",
+		"label": "Summary",
+		"spec": [
+			{
+				"name": "isValid",
+				"type": "boolean",
+				"label": "Is valid"
+			},
+			{
+				"name": "errors",
+				"type": "array",
+				"label": "Errors",
+				"spec": {
+					"type": "collection",
+					"spec": [
+						{
+							"name": "platform",
+							"type": "text",
+							"label": "Platform"
+						},
+						{
+							"name": "severity",
+							"type": "text",
+							"label": "Severity"
+						},
+						{
+							"name": "code",
+							"type": "text",
+							"label": "Code"
+						},
+						{
+							"name": "message",
+							"type": "text",
+							"label": "Message"
+						},
+						{
+							"name": "field",
+							"type": "text",
+							"label": "Field"
+						},
+						{
+							"name": "limit",
+							"type": "any",
+							"label": "Limit"
+						},
+						{
+							"name": "actual",
+							"type": "any",
+							"label": "Actual value"
+						}
+					]
+				}
+			},
+			{
+				"name": "warnings",
+				"type": "array",
+				"label": "Warnings",
+				"spec": {
+					"type": "collection",
+					"spec": [
+						{
+							"name": "platform",
+							"type": "text",
+							"label": "Platform"
+						},
+						{
+							"name": "severity",
+							"type": "text",
+							"label": "Severity"
+						},
+						{
+							"name": "code",
+							"type": "text",
+							"label": "Code"
+						},
+						{
+							"name": "message",
+							"type": "text",
+							"label": "Message"
+						},
+						{
+							"name": "field",
+							"type": "text",
+							"label": "Field"
+						},
+						{
+							"name": "limit",
+							"type": "any",
+							"label": "Limit"
+						},
+						{
+							"name": "actual",
+							"type": "any",
+							"label": "Actual value"
+						}
+					]
+				}
+			}
+		]
+	},
+	{
+		"name": "results",
+		"type": "array",
+		"label": "Results per account",
+		"spec": {
+			"type": "collection",
+			"spec": [
+				{
+					"name": "accountId",
+					"type": "text",
+					"label": "Account ID"
+				},
+				{
+					"name": "platform",
+					"type": "text",
+					"label": "Platform"
+				},
+				{
+					"name": "isValid",
+					"type": "boolean",
+					"label": "Is valid"
+				},
+				{
+					"name": "usesCommonContent",
+					"type": "boolean",
+					"label": "Uses common content"
+				},
+				{
+					"name": "errors",
+					"type": "array",
+					"label": "Errors",
+					"spec": {
+						"type": "collection",
+						"spec": [
+							{
+								"name": "platform",
+								"type": "text",
+								"label": "Platform"
+							},
+							{
+								"name": "severity",
+								"type": "text",
+								"label": "Severity"
+							},
+							{
+								"name": "code",
+								"type": "text",
+								"label": "Code"
+							},
+							{
+								"name": "message",
+								"type": "text",
+								"label": "Message"
+							},
+							{
+								"name": "field",
+								"type": "text",
+								"label": "Field"
+							},
+							{
+								"name": "limit",
+								"type": "any",
+								"label": "Limit"
+							},
+							{
+								"name": "actual",
+								"type": "any",
+								"label": "Actual value"
+							}
+						]
+					}
+				},
+				{
+					"name": "warnings",
+					"type": "array",
+					"label": "Warnings",
+					"spec": {
+						"type": "collection",
+						"spec": [
+							{
+								"name": "platform",
+								"type": "text",
+								"label": "Platform"
+							},
+							{
+								"name": "severity",
+								"type": "text",
+								"label": "Severity"
+							},
+							{
+								"name": "code",
+								"type": "text",
+								"label": "Code"
+							},
+							{
+								"name": "message",
+								"type": "text",
+								"label": "Message"
+							},
+							{
+								"name": "field",
+								"type": "text",
+								"label": "Field"
+							},
+							{
+								"name": "limit",
+								"type": "any",
+								"label": "Limit"
+							},
+							{
+								"name": "actual",
+								"type": "any",
+								"label": "Actual value"
+							}
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "accounts",
+		"type": "array",
+		"label": "Accounts",
+		"spec": {
+			"type": "collection",
+			"spec": [
+				{
+					"name": "id",
+					"type": "text",
+					"label": "Account ID"
+				},
+				{
+					"name": "platform",
+					"type": "text",
+					"label": "Platform"
+				},
+				{
+					"name": "displayName",
+					"type": "text",
+					"label": "Display name"
+				},
+				{
+					"name": "username",
+					"type": "text",
+					"label": "Username"
+				}
+			]
+		}
+	}
+]

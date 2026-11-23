@@ -1,0 +1,18 @@
+{
+	"event": "post.published",
+	"createdAt": "2026-10-05T09:00:04.000Z",
+	"post": {
+		"id": "cmabc123post",
+		"status": "published",
+		"message": "We just shipped scheduled reposts. Try them today!",
+		"publishedAt": "2026-10-05T09:00:03.000Z",
+		"accountResults": {
+			"cmabc123account": {
+				"platform": "linkedin",
+				"success": true,
+				"postId": "urn:li:share:7000000000000000000",
+				"postUrl": "https://www.linkedin.com/feed/update/urn:li:share:7000000000000000000"
+			}
+		}
+	}
+}

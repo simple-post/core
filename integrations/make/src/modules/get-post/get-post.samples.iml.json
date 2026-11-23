@@ -1,0 +1,27 @@
+{
+	"id": "cmabc123post",
+	"message": "We just shipped scheduled reposts. Try them today!",
+	"accountIds": [
+		"cmabc123account"
+	],
+	"status": "scheduled",
+	"scheduledFor": "2026-10-05T09:00:00.000Z",
+	"publishedAt": null,
+	"createdAt": "2026-10-04T12:00:00.000Z",
+	"errorMessage": null,
+	"media": [
+		{
+			"id": "user_123/1759579200000-launch.png",
+			"url": "https://media.simplepost.social/user_123/1759579200000-launch.png",
+			"type": "image",
+			"contentType": "image/png",
+			"filename": "launch.png",
+			"size": 482113
+		}
+	],
+	"thread": [],
+	"repostEnabled": false,
+	"repostDelayHours": 12,
+	"repostStatus": "not_applicable",
+	"quotePostId": null
+}

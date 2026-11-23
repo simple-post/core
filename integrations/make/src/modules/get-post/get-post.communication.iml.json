@@ -1,0 +1,7 @@
+{
+	"url": "/api/v1/posts/{{encodeURL(parameters.postId)}}",
+	"method": "GET",
+	"response": {
+		"output": "{{body.post}}"
+	}
+}

@@ -1,0 +1,4 @@
+{
+	"condition": "{{body.event = 'post.failed'}}",
+	"output": "{{body}}"
+}

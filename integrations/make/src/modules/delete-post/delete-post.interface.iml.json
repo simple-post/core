@@ -1,0 +1,7 @@
+[
+	{
+		"name": "postId",
+		"type": "text",
+		"label": "Post ID"
+	}
+]

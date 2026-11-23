@@ -119,6 +119,9 @@ export async function handleThreadsCallback(ctx: CallbackContext): Promise<NextR
   const displayName = profile.name || profile.username || null;
   const profilePicture = profile.threads_profile_picture_url || null;
 
+  if (ctx.inboxIdentity && ctx.inboxIdentity !== platformAccountId) {
+    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+  }
   await upsertConnectedAccount({
     userId: ctx.userId,
     platform: "threads",

@@ -27,3 +27,22 @@ it.each([undefined, false, true])("advertises image fitting only with a grant (%
   expect(SERVER_INSTRUCTIONS).not.toContain("imageFit");
   expect(IMAGE_FITTING_INSTRUCTIONS).toContain("imageFit");
 });
+
+it.each([
+  { enabled: false, scope: "posts:read posts:write", expected: [] },
+  { enabled: true, scope: "posts:read", expected: ["list_inbox_items"] },
+  {
+    enabled: true,
+    scope: "posts:read posts:write",
+    expected: ["list_inbox_items", "refresh_inbox", "reply_to_inbox_item", "like_inbox_item"],
+  },
+])("advertises inbox tools according to access and scope ($enabled, $scope)", ({ enabled, scope, expected }) => {
+  jest.mocked(registerAppTool).mockClear();
+  const server = new McpServer({ name: "test", version: "1" });
+  registerTools(server, { userId: "user", socialInboxEnabled: enabled, scope });
+  const inboxTools = jest
+    .mocked(registerAppTool)
+    .mock.calls.map((call) => call[1])
+    .filter((name) => name.includes("inbox"));
+  expect(inboxTools).toEqual(expected);
+});

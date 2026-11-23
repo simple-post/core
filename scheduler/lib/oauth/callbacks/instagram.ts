@@ -75,6 +75,9 @@ export async function handleInstagramCallback(ctx: CallbackContext): Promise<Nex
   if (!platformAccountId)
     throw new OAuthCallbackError("profile_fetch_failed", "Instagram did not return an account ID");
 
+  if (ctx.inboxIdentity && ctx.inboxIdentity !== String(platformAccountId)) {
+    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+  }
   await upsertConnectedAccount({
     userId: ctx.userId,
     platform: "instagram",

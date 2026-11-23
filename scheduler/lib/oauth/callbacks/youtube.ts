@@ -36,6 +36,9 @@ async function findVerifiedLegacyIdentity(userId: string, channelId: string) {
 
 export async function handleYouTubeCallback(ctx: CallbackContext): Promise<NextResponse> {
   const channel = await fetchYouTubeChannel(ctx.accessToken);
+  if (ctx.inboxIdentity && ctx.inboxIdentity !== channel.platformAccountId) {
+    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+  }
   const previousIdentity = await findVerifiedLegacyIdentity(ctx.userId, channel.platformAccountId);
 
   await upsertConnectedAccount({

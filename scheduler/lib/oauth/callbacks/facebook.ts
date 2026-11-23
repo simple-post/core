@@ -31,7 +31,8 @@ async function fetchFacebookPages(accessToken: string) {
 }
 
 export async function handleFacebookCallback(ctx: CallbackContext): Promise<NextResponse> {
-  const accounts = await fetchFacebookPages(ctx.accessToken);
+  const pages = await fetchFacebookPages(ctx.accessToken);
+  const accounts = ctx.inboxIdentity ? pages.filter((page: { id: string }) => page.id === ctx.inboxIdentity) : pages;
 
   if (accounts.length === 0) {
     return NextResponse.redirect(`${ctx.baseURL}/accounts?error=${encodeURIComponent(FACEBOOK_NO_PAGES_MESSAGE)}`);

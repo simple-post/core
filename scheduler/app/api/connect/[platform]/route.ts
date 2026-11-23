@@ -4,11 +4,13 @@ import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
-import { hasFeature } from "@/lib/features";
+import { hasFeature, requireSocialInbox } from "@/lib/features";
 import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
+import { prisma } from "@/lib/prisma";
+import { approvedInboxScopes } from "@/lib/social/permissions";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
@@ -38,13 +40,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const baseURL = env.NEXT_PUBLIC_APP_URL;
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
-    const state = createOAuthState(session.user.id, platform, source);
+    const inboxAccountId = request.nextUrl.searchParams.get("inboxAccountId");
+    let scope = config.scope;
+    if (inboxAccountId) {
+      await requireSocialInbox(session.user.id);
+      const account = await prisma.connectedAccount.findFirst({
+        where: { id: inboxAccountId, userId: session.user.id, platform },
+        select: { id: true },
+      });
+      const extra = approvedInboxScopes(platform);
+      if (!account || extra.length === 0)
+        throw new BadRequestError("Inbox permissions are unavailable for this connection.");
+      const separator = platform === "facebook" || platform === "instagram" || platform === "threads" ? "," : " ";
+      scope = [...new Set([...config.scope.split(/[\s,]+/u), ...extra])].join(separator);
+    }
+    const state = createOAuthState(session.user.id, platform, source, inboxAccountId ?? undefined);
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
     authUrl.searchParams.set("client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
-    authUrl.searchParams.set("scope", config.scope);
+    authUrl.searchParams.set("scope", scope);
+    if (inboxAccountId && platform === "facebook") authUrl.searchParams.set("auth_type", "rerequest");
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("response_type", config.responseType);
 

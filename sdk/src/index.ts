@@ -7,6 +7,16 @@ import { MediaResolver } from "./utils/media-resolver";
 import { validatePostMedia, type MediaInspectionCache } from "./utils/post-media-validation";
 
 import type { AccountAnalyticsResponse, AnalyticsTarget, PostAnalyticsResponse } from "./analytics";
+export {
+  getSocialActivityCapabilities,
+  getSocialActivityProvider,
+  listSocialPostComments,
+  listSocialPostQuotes,
+  likeSocialItem,
+  replyToSocialComment,
+} from "./social";
+export type * from "./types/social";
+
 import type { PostResult, QuoteResult, RepostResult } from "./types";
 import type { PostOptions, Content, Platform, Post, Quote, Repost } from "./types/post";
 import type { ValidationIssue } from "./types/validation";
@@ -378,6 +388,7 @@ export { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES } from "./publishers/youtube/validatio
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
+export { createDpopProof } from "./utils/dpop";
 export {
   S3MediaUploader,
   uploadFromBuffer,

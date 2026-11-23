@@ -146,7 +146,7 @@ it("keeps JSON responses and the complete tool surface for MCP 2025-11-25 client
 it.each([modernRequest, legacyRequest])(
   "adds extensions without removing legacy tools or resource URIs",
   async (request) => {
-    jest.mocked(hasFeature).mockResolvedValue(true);
+    jest.mocked(hasFeature).mockImplementation(async (_user, feature) => feature !== Feature.SOCIAL_INBOX);
     const toolResponse = await POST(request("tools/list"));
     const toolBody = await toolResponse.json();
     const tools = toolBody.result.tools;

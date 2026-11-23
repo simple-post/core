@@ -152,6 +152,32 @@ describe("social activity adapters", () => {
     expect(new URL(String(fetchMock.mock.calls[1][0])).pathname).toBe("/v25.0/111/replies");
   });
 
+  it("recognizes a Threads quote reply when it quotes the tracked post", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        data: [
+          { id: "101", text: "A reply" },
+          { id: "102", text: "Quoting your post", is_quote_post: true, quoted_post: { id: "100" } },
+          { id: "103", text: "Quoting another post", is_quote_post: true, quoted_post: "99" },
+        ],
+      }),
+    );
+    const result = await listSocialPostComments(account("threads"), post("100"));
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("fields")).toContain(
+      "is_quote_post,quoted_post",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        data: [
+          { nativeId: "101", kind: "reply" },
+          { nativeId: "102", kind: "quote", nativePostId: "100" },
+          { nativeId: "103", kind: "reply" },
+        ],
+      },
+    });
+  });
+
   it("gets YouTube nested replies through comments.list and sends replies to the top-level comment", async () => {
     fetchMock
       .mockResolvedValueOnce(

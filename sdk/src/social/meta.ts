@@ -139,7 +139,7 @@ export class MetaProvider implements SocialActivityProvider {
     } else if (this.kind === "instagram") {
       fields = "id,text,timestamp,username,like_count,replies.limit(50){id,text,timestamp,username,like_count}";
     } else {
-      fields = "id,text,timestamp,username,permalink";
+      fields = "id,text,timestamp,username,permalink,is_quote_post,quoted_post";
     }
     const path = this.kind === "threads" ? `${post.nativePostId}/conversation` : `${post.nativePostId}/comments`;
     const response = await requestJson(
@@ -153,30 +153,31 @@ export class MetaProvider implements SocialActivityProvider {
       { headers: bearer(account.accessToken) },
     );
     if (!response.result.ok) return response.result;
-    const mapped = this.metaPage(response.result.data, (value) =>
-      comment(
-        value,
+    const mapped = this.metaPage<SocialComment>(response.result.data, (value) => {
+      const row = record(value);
+      const item = comment(
+        row,
         post.nativePostId,
         true,
         undefined,
         this.kind === "instagram" ? (id) => instagramCommentUrl(post.nativeUrl, id) : undefined,
-      ),
-    );
-    if (!mapped) return invalidResponse(this.platform);
-    if (this.kind === "facebook") {
-      const rows = response.result.data.data as unknown[];
-      const byId = new Map(rows.map((row) => [string(record(row).id), record(row)]));
-      mapped.data = mapped.data.map((item) => {
-        const row = byId.get(item.nativeId);
+      );
+      if (!item) return null;
+      if (this.kind === "facebook") {
         return {
           ...item,
-          kind: record(row?.parent).id ? "reply" : "comment",
+          kind: record(row.parent).id ? "reply" : "comment",
           canLike: true,
-          liked: typeof row?.user_likes === "boolean" ? row.user_likes : undefined,
+          liked: typeof row.user_likes === "boolean" ? row.user_likes : undefined,
         };
-      });
-    }
-    if (this.kind === "threads") mapped.data = mapped.data.map((item) => ({ ...item, kind: "reply" }));
+      }
+      if (this.kind === "threads") {
+        const quotedId = string(row.quoted_post) ?? string(record(row.quoted_post).id);
+        return { ...item, kind: row.is_quote_post === true && quotedId === post.nativePostId ? "quote" : "reply" };
+      }
+      return item;
+    });
+    if (!mapped) return invalidResponse(this.platform);
     if (this.kind !== "instagram")
       return {
         ok: true as const,

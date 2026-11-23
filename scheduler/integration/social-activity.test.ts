@@ -141,7 +141,10 @@ it("advances reply and quote cursors on successful destinations, excluding self 
         nextCursor: "next-page",
       },
     })
-    .mockResolvedValueOnce({ ok: true, data: { data: [makeItem("503", "999", "2026-11-01T00:00:00.000Z")] } });
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { data: [{ ...makeItem("503", "999", "2026-11-01T00:00:00.000Z"), kind: "quote" }] },
+    });
   jest.mocked(listSocialPostQuotes).mockResolvedValue({
     ok: true,
     data: { data: [makeItem("505", "999", "2026-11-02T00:00:00.000Z")] },
@@ -157,7 +160,7 @@ it("advances reply and quote cursors on successful destinations, excluding self 
   expect(first.items.map((item) => item.body)).toEqual(["Local cached comment", "505"]);
   expect(first.items[1]).toMatchObject({ kind: "quote" });
   const second = await getSocialInbox(userId, { platform: "x", cursor: first.nextCursor });
-  expect(second.items.map((item) => item.body)).toEqual(["503"]);
+  expect(second.items).toMatchObject([{ body: "503", kind: "quote" }]);
   const bluesky = await getSocialInbox(userId, { platform: "bluesky" });
   expect(bluesky.items).toEqual([]);
 });

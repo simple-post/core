@@ -312,7 +312,7 @@ async function saveItems(
     return;
   for (const item of items) {
     if (!isUsableNativeId(item.nativeId) || isSelf(account, target, item)) continue;
-    const kind = phase === "quotes" ? "quote" : item.kind === "reply" ? "reply" : "comment";
+    const kind = phase === "quotes" ? "quote" : (item.kind ?? "comment");
     const liked = item.liked === true;
     const data = {
       nativeUrl: safeNativeUrl(item.nativeUrl),
@@ -339,7 +339,7 @@ async function saveItems(
         createdAtNative: date(item.createdAt),
         eventAt: date(item.createdAt) ?? new Date(),
       },
-      update: data,
+      update: { ...data, ...(kind === "quote" ? { kind } : {}) },
     });
   }
 }

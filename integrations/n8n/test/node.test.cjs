@@ -16,7 +16,7 @@ const node = {
 
 // Minimal stand-in for n8n's execution context: records requests and replays
 // canned API responses in order.
-function createContext({ params, responses = [], binary, continueOnFail = false }) {
+function createContext({ params, responses = [], binary, continueOnFail = false, runIndex = 0 }) {
 	const requests = [];
 	const queue = [...responses];
 	const context = {
@@ -28,6 +28,7 @@ function createContext({ params, responses = [], binary, continueOnFail = false 
 		},
 		getNode: () => node,
 		getExecutionId: () => 'execution_1',
+		getWorkflowDataProxy: () => ({ $runIndex: runIndex }),
 		getTimezone: () => 'Europe/Berlin',
 		continueOnFail: () => continueOnFail,
 		getCredentials: async () => ({
@@ -143,6 +144,27 @@ test('publish now returns the original post when Scheduler queues a retry', asyn
 
 	const [output] = await new SimplePost().execute.call(context);
 	assert.deepEqual(output[0].json.post, post);
+});
+
+test('retry keys distinguish repeated node runs within the same workflow execution', async () => {
+	const execute = async (runIndex) => {
+		const { context, requests } = createContext({
+			params: {
+				resource: 'post',
+				operation: 'create',
+				accountIds: ['acc_x'],
+				message: 'Hello',
+				postingMode: 'now',
+			},
+			responses: [{ post: { id: 'post_1', status: 'published' } }],
+			runIndex,
+		});
+		await new SimplePost().execute.call(context);
+		return requests[0].body.idempotencyKey;
+	};
+	const key = await execute(0);
+	assert.equal(await execute(0), key);
+	assert.notEqual(await execute(1), key);
 });
 
 test('get many pages through results up to the limit', async () => {

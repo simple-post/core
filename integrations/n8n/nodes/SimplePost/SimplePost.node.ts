@@ -567,6 +567,7 @@ async function createPost(this: IExecuteFunctions, itemIndex: number): Promise<I
 			JSON.stringify([
 				this.getExecutionId(),
 				node.id,
+				this.getWorkflowDataProxy(itemIndex).$runIndex,
 				itemIndex,
 				body.accountIds,
 				body.message,

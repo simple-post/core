@@ -15,9 +15,10 @@ type WebhookPayload = {
   post: SimplePostPost;
 };
 
-type StoredWebhook = { id: string; secret: string };
+type StoredWebhook = { id: string; secret: string; url?: string };
 
 const STORE_KEY = 'simplepost_webhook';
+const SIGNATURE_TOLERANCE_MS = 5 * 60 * 1000;
 
 function header(headers: Record<string, string>, name: string): string | undefined {
   const match = Object.keys(headers).find((key) => key.toLowerCase() === name);
@@ -39,17 +40,20 @@ export function verifySimplePostSignature(params: {
   headers: Record<string, string>;
   rawBody: unknown;
   body: unknown;
+  now?: number;
 }): boolean {
   const signature = header(params.headers, 'x-simplepost-signature');
   const timestamp = header(params.headers, 'x-simplepost-timestamp');
-  if (!signature?.startsWith('sha256=') || !timestamp) return false;
+  if (!timestamp || !/^\d+$/.test(timestamp) ||
+    Math.abs((params.now ?? Date.now()) - Number(timestamp)) > SIGNATURE_TOLERANCE_MS ||
+    !signature || !/^sha256=[a-f0-9]{64}$/.test(signature)) {
+    return false;
+  }
 
   const expected = createHmac('sha256', params.secret)
     .update(`${timestamp}.${rawBodyText(params.rawBody, params.body)}`)
-    .digest('hex');
-  const received = signature.slice('sha256='.length);
-  if (received.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(received, 'utf8'), Buffer.from(expected, 'utf8'));
+    .digest();
+  return timingSafeEqual(Buffer.from(signature.slice('sha256='.length), 'hex'), expected);
 }
 
 export type PostEvent = FlatPost & {
@@ -101,15 +105,20 @@ export function createPostEventTrigger(params: {
     type: TriggerStrategy.WEBHOOK,
     sampleData: params.sampleData,
     outputSchema: {
-      fields: [{ key: 'event', label: 'Event' }, ...postOutputSchema.fields],
+      fields: [{ key: 'event', label: 'Event' }, { key: 'event_created_at', label: 'Event Time', format: 'datetime' }, ...postOutputSchema.fields],
     },
     async onEnable(context) {
+      const existing = await context.store.get<StoredWebhook>(STORE_KEY);
+      if (existing?.id && (!existing.url || existing.url === context.webhookUrl)) {
+        await deleteWebhook(context.auth, existing.id);
+        await context.store.delete(STORE_KEY);
+      }
       const webhook = await registerWebhook(context.auth, context.webhookUrl, params.event);
-      await context.store.put<StoredWebhook>(STORE_KEY, { id: webhook.id, secret: webhook.secret });
+      await context.store.put<StoredWebhook>(STORE_KEY, { ...webhook, url: context.webhookUrl });
     },
     async onDisable(context) {
       const webhook = await context.store.get<StoredWebhook>(STORE_KEY);
-      if (webhook?.id) {
+      if (webhook?.id && (!webhook.url || webhook.url === context.webhookUrl)) {
         await deleteWebhook(context.auth, webhook.id);
       }
       await context.store.delete(STORE_KEY);

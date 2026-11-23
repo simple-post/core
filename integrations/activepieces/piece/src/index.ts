@@ -29,9 +29,14 @@ export const simplepost = createPiece({
     createCustomApiCallAction({
       auth: simplepostAuth,
       baseUrl: (auth) => (auth ? `${getBaseUrl(auth)}/api/v1` : ''),
-      authMapping: async (auth) => ({
-        Authorization: `Bearer ${getCredentials(auth).api_key}`,
-      }),
+      authMapping: async (auth, props) => {
+        const base = new URL(getBaseUrl(auth));
+        const target = new URL(props['url']['url'], base);
+        if (target.origin !== base.origin) {
+          throw new Error('Custom API calls must use the configured SimplePost origin.');
+        }
+        return { Authorization: `Bearer ${getCredentials(auth).api_key}` };
+      },
     }),
   ],
   triggers: [postPublished, postFailed],

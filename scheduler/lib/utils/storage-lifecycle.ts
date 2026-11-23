@@ -1,6 +1,7 @@
 import { deleteFromStorage, getOwnedStorageKeyFromUrl } from "@simple-post/sdk";
 
 import { lockUserForQuota } from "@/lib/billing/subscriptions";
+import { serverMessage } from "@/lib/i18n/server";
 import { mediaLogger, serializeError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
@@ -35,7 +36,9 @@ export async function assertStorageAvailable(
     where: { key: { in: keys }, state: { in: ["deleting", "deleted"] } },
   });
   if (unavailable)
-    throw new ConflictError("Some media has expired or been deleted. Upload it again before saving this post.");
+    throw new ConflictError(
+      serverMessage("Some media has expired or been deleted. Upload it again before saving this post."),
+    );
 }
 
 export async function queueStorageDeletion(

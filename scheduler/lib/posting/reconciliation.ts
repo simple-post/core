@@ -3,6 +3,7 @@ import { mapPlatformName } from "@simple-post/sdk/platform-names";
 import { z } from "zod";
 
 import { lockUserForQuota } from "@/lib/billing/subscriptions";
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, ConflictError, NotFoundError, sanitizeForJson } from "@/lib/utils/errors";
 
@@ -30,11 +31,13 @@ export async function reconcilePublish(
       where: { id: postId, userId },
       select: { status: true, repostStatus: true },
     });
-    if (!post) throw new NotFoundError("Post not found");
+    if (!post) throw new NotFoundError(serverMessage("Post not found"));
     if (post.status === "pending" || post.repostStatus === "pending")
-      throw new ConflictError("Wait for publishing or stale-worker recovery to finish before reconciling.");
+      throw new ConflictError(
+        serverMessage("Wait for publishing or stale-worker recovery to finish before reconciling."),
+      );
     const account = await tx.connectedAccount.findFirst({ where: { id: input.accountId, userId } });
-    if (!account) throw new NotFoundError("Account not found");
+    if (!account) throw new NotFoundError(serverMessage("Account not found"));
     const where = {
       postId_accountId_operation_segment: {
         postId,
@@ -44,13 +47,15 @@ export async function reconcilePublish(
       },
     };
     const checkpoint = await tx.publishCheckpoint.findUnique({ where });
-    if (!checkpoint) throw new NotFoundError("Publishing record not found");
+    if (!checkpoint) throw new NotFoundError(serverMessage("Publishing record not found"));
     if (!["started", "unknown"].includes(checkpoint.state) || checkpoint.updatedAt.toISOString() !== input.updatedAt)
-      throw new ConflictError("The publishing record changed. Reload it before reconciling.");
+      throw new ConflictError(serverMessage("The publishing record changed. Reload it before reconciling."));
     if (input.outcome === "published" && !input.platformPostId)
-      throw new BadRequestError("The published platform post ID is required.");
+      throw new BadRequestError(serverMessage("The published platform post ID is required."));
     if (input.outcome === "published" && mapPlatformName(account.platform) === "bluesky" && !input.bluesky)
-      throw new BadRequestError("Bluesky reconciliation requires the post URI and CID to resume its reply chain.");
+      throw new BadRequestError(
+        serverMessage("Bluesky reconciliation requires the post URI and CID to resume its reply chain."),
+      );
     const result =
       input.outcome === "published"
         ? {
@@ -69,6 +74,7 @@ export async function reconcilePublish(
         result: result ? (sanitizeForJson(result) as Prisma.InputJsonValue) : Prisma.DbNull,
       },
     });
-    if (!changed.count) throw new ConflictError("Publishing completed while reconciling. Reload its result.");
+    if (!changed.count)
+      throw new ConflictError(serverMessage("Publishing completed while reconciling. Reload its result."));
   });
 }

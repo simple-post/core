@@ -115,3 +115,18 @@ describe("activation milestones", () => {
     expect(prisma.activationMilestone.updateMany).not.toHaveBeenCalled();
   });
 });
+
+it("never relays newly introduced first-use events for pre-v2 signups, including the migration/deploy gap", () => {
+  const historical = {
+    ...empty,
+    firstToolCalledAt: new Date(),
+    firstToolSucceededAt: new Date(),
+    firstPostAttemptedAt: new Date(),
+    secondPublishingDayAt: new Date(),
+  };
+  expect(
+    unreportedMilestones(historical, { source: "direct" }).some((event) =>
+      ["tool_called", "tool_succeeded", "post_attempted", "repeat_published"].includes(event.kind),
+    ),
+  ).toBe(false);
+});

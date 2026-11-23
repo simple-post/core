@@ -1,8 +1,17 @@
+import { assertHasConnectedAccounts } from "@/lib/mcp/connect-guidance";
 import { prisma } from "@/lib/prisma";
 
 import type { AccountOptionsMap } from "@simple-post/sdk";
 
-/** Apply MCP posting defaults only to the authenticated user's TikTok targets. */
+/**
+ * Apply MCP posting defaults only to the authenticated user's TikTok targets.
+ *
+ * This is the first account lookup on every validate, preview, create and
+ * update path, ahead of any media import. When nothing matches, it is also
+ * where a user with no destination at all is told so, before their media is
+ * downloaded for a post that cannot exist. Wrong IDs for a user who does have
+ * accounts fall through to the usual missing-account error later.
+ */
 export async function resolveMcpAccountOptions(
   userId: string,
   accountIds: string[],
@@ -13,6 +22,7 @@ export async function resolveMcpAccountOptions(
     where: { userId, id: { in: accountIds } },
     select: { id: true, platform: true },
   });
+  if (accounts.length === 0) await assertHasConnectedAccounts(userId);
   let resolved = accountOptions;
   for (const account of accounts) {
     if (account.platform.toLowerCase() !== "tiktok") continue;

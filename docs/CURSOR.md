@@ -20,3 +20,5 @@ Cursor should continue to expose the skill if MCP authentication is incomplete, 
 ## Marketplace submission
 
 Submit `https://github.com/simple-post/core` at [cursor.com/marketplace/publish](https://cursor.com/marketplace/publish). The canonical skill and shared Agent Plugin manifests are maintained together in this repository.
+
+For an existing application, ask `marketplace-publishing@cursor.com` to confirm receipt and identify requested changes before submitting a duplicate. Include the publisher name, contact email, and source repository. The publisher form accepts Publisher Terms when submitted; the owner must review and approve them before a new application is sent.

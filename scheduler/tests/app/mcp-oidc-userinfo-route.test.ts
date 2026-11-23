@@ -20,6 +20,7 @@ it("returns the verified email for a correctly scoped access token", async () =>
       name: "OpenAI Reviewer",
       email: "demo@simplepost.social",
       emailVerified: true,
+      uiLocale: null,
       image: null,
     },
     session: {
@@ -27,6 +28,7 @@ it("returns the verified email for a correctly scoped access token", async () =>
       token: "mcp",
       clientId: "test-client",
       scope: "openid email accounts:read",
+      enforceRestScopes: false,
       scopes: ["accounts:read"],
       resource: "https://app.simplepost.social/mcp",
       expiresAt: new Date(Date.now() + 60_000),
@@ -56,6 +58,7 @@ it("rejects a token that was issued without the OIDC scopes", async () => {
       name: "OpenAI Reviewer",
       email: "demo@simplepost.social",
       emailVerified: true,
+      uiLocale: null,
       image: null,
     },
     session: {
@@ -63,6 +66,7 @@ it("rejects a token that was issued without the OIDC scopes", async () => {
       token: "mcp",
       clientId: "test-client",
       scope: "accounts:read",
+      enforceRestScopes: false,
       scopes: ["accounts:read"],
       resource: "https://app.simplepost.social/mcp",
       expiresAt: new Date(Date.now() + 60_000),

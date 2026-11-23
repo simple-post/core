@@ -17,8 +17,15 @@ export function getCredentials(auth: SimplePostAuthValue): SimplePostCredentials
 }
 
 export function normalizeBaseUrl(baseUrl: string | undefined): string {
-  const trimmed = baseUrl?.trim();
-  return (trimmed || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  const url = new URL(baseUrl?.trim() || DEFAULT_BASE_URL);
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) {
+    throw new Error('The SimplePost URL must use HTTPS.');
+  }
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('The SimplePost URL cannot contain credentials, a query, or a fragment.');
+  }
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
 export function getBaseUrl(auth: SimplePostAuthValue): string {

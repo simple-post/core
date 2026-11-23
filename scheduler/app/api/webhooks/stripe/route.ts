@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 
+import { recordBillingWebhook } from "@/lib/analytics/billing-events";
 import { recordFirstPayment } from "@/lib/analytics/first-payment";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import {
@@ -11,6 +12,8 @@ import {
 } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
+import { dispatchBillingNotification } from "@/lib/notifications/billing-notifications";
+import { getStripeCancellation } from "@/lib/notifications/stripe-cancellation";
 import { prisma } from "@/lib/prisma";
 
 import type Stripe from "stripe";
@@ -108,9 +111,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Webhook event is already being processed" }, { status: 409 });
     }
 
+    let cancellationKey: string | undefined;
     switch (event.type) {
+      case "checkout.session.expired": {
+        const checkout = event.data.object as Stripe.Checkout.Session;
+        const userId = checkout.metadata?.userId || checkout.client_reference_id;
+        if (userId && typeof checkout.customer === "string") {
+          try {
+            const owner = await prisma.user.findFirst({
+              where: { id: userId, stripeCustomerId: checkout.customer },
+              select: { id: true },
+            });
+            await recordBillingWebhook(event, owner?.id);
+          } catch {
+            log.warn(
+              { errorCode: "funnel_capture_failed", kind: "checkout_expired" },
+              "Optional checkout observation failed",
+            );
+          }
+        }
+        break;
+      }
       case "checkout.session.completed": {
-        await syncCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        const synced = await syncCheckoutSession(event.data.object as Stripe.Checkout.Session);
+        await recordBillingWebhook(event, synced?.userId, synced?.status);
         break;
       }
       case "customer.subscription.created":
@@ -120,7 +144,16 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.pending_update_expired":
       case "customer.subscription.resumed":
       case "customer.subscription.updated": {
-        await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        const synced = await syncStripeSubscription(event.data.object as Stripe.Subscription);
+        const cancellation = event.livemode && synced ? getStripeCancellation(event) : null;
+        if (synced && cancellation) {
+          await prisma.billingNotification.createMany({
+            data: [{ ...cancellation, userId: synced.userId, nextAttemptAt: new Date() }],
+            skipDuplicates: true,
+          });
+          cancellationKey = cancellation.key;
+        }
+        await recordBillingWebhook(event, synced?.userId, synced?.status);
         break;
       }
       case "invoice.paid":
@@ -133,6 +166,7 @@ export async function POST(req: NextRequest) {
         if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
           await recordFirstPayment(invoice, subscription);
         }
+        await recordBillingWebhook(event, subscription?.userId, subscription?.status);
         break;
       }
     }
@@ -141,6 +175,8 @@ export async function POST(req: NextRequest) {
       where: { id: event.id },
       data: { status: "succeeded", processedAt: new Date(), lastError: null },
     });
+
+    if (cancellationKey) await dispatchBillingNotification(cancellationKey);
 
     return NextResponse.json({ received: true });
   } catch (error) {

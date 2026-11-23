@@ -69,10 +69,8 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://oauth2.googleapis.com/token",
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    scope:
-      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile",
+    scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
     responseType: "code",
-    userInfoUrl: "https://www.googleapis.com/oauth2/v2/userinfo",
     requiresPkce: false,
     requiresBasicAuth: false,
     requiresDpop: false,

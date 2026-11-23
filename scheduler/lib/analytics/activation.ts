@@ -8,10 +8,15 @@ import { acquisitionLabels } from "./report";
  * measured by the existing verified "Paid Subscription" browser event, so the
  * subscription milestone is stored for reporting but never relayed again.
  */
+export const NEW_MILESTONE_KINDS = new Set(["tool_called", "tool_succeeded", "post_attempted", "repeat_published"]);
 export const RELAYED_MILESTONES = [
   { kind: "signup_completed", event: "Signup Completed", field: "signupCompletedAt" },
   { kind: "ai_connected", event: "AI Integration Connected", field: "aiConnectedAt" },
   { kind: "social_connected", event: "Social Account Connected", field: "socialConnectedAt" },
+  { kind: "tool_called", event: "First Tool Called", field: "firstToolCalledAt" },
+  { kind: "tool_succeeded", event: "First Tool Succeeded", field: "firstToolSucceededAt" },
+  { kind: "post_attempted", event: "First Post Attempted", field: "firstPostAttemptedAt" },
+  { kind: "repeat_published", event: "Second Publishing Day", field: "secondPublishingDayAt" },
   { kind: "post_created", event: "First Post Created", field: "firstPostCreatedAt" },
   { kind: "post_scheduled", event: "First Post Scheduled", field: "firstPostScheduledAt" },
   { kind: "post_published", event: "First Post Published", field: "firstPostPublishedAt" },
@@ -29,6 +34,10 @@ export interface MilestoneRow {
   firstPostScheduledAt: Date | null;
   firstPostPublishedAt: Date | null;
   subscriptionStartedAt: Date | null;
+  firstToolCalledAt?: Date | null;
+  firstToolSucceededAt?: Date | null;
+  firstPostAttemptedAt?: Date | null;
+  secondPublishingDayAt?: Date | null;
   reportedKinds: string[];
 }
 
@@ -94,6 +103,14 @@ export function landingProps(acquisition: unknown): Record<string, string> {
 /** Milestones that have happened but have not been relayed to browser analytics yet. */
 export function unreportedMilestones(row: MilestoneRow, acquisition: unknown): MilestoneEvent[] {
   const reported = new Set(row.reportedKinds);
+  let version: unknown;
+  try {
+    const data = typeof acquisition === "string" ? JSON.parse(acquisition) : acquisition;
+    version = data?.measurementVersion;
+  } catch {
+    /* Unversioned history is unknown. */
+  }
+  if (version !== "funnel-v2") for (const kind of NEW_MILESTONE_KINDS) reported.add(kind);
   const landing = landingProps(acquisition);
   return RELAYED_MILESTONES.filter(({ kind, field }) => row[field] && !reported.has(kind)).map(({ kind, event }) => {
     const props: Record<string, string> = { ...landing };
@@ -112,9 +129,12 @@ export function unreportedMilestones(row: MilestoneRow, acquisition: unknown): M
 export async function claimMilestoneEvents(userId: string): Promise<MilestoneEvent[]> {
   const [row, user] = await Promise.all([
     prisma.activationMilestone.findUnique({ where: { userId } }),
-    prisma.user.findUnique({ where: { id: userId }, select: { acquisition: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { acquisition: true, isAdmin: true, analyticsExcluded: true },
+    }),
   ]);
-  if (!row || !user) return [];
+  if (!row || !user || user.isAdmin || user.analyticsExcluded) return [];
   const events = unreportedMilestones(row, user.acquisition);
   if (events.length === 0) return [];
   const claimed = await prisma.activationMilestone.updateMany({

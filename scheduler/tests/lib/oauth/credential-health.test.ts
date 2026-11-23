@@ -66,12 +66,16 @@ beforeEach(() => {
   prismaMock.connectedAccount.updateMany.mockResolvedValue({ count: 1 });
   process.env.LINKEDIN_CLIENT_ID = "linkedin-client";
   process.env.LINKEDIN_CLIENT_SECRET = "linkedin-secret";
+  process.env.TIKTOK_CLIENT_KEY = "tiktok-client";
+  process.env.TIKTOK_CLIENT_SECRET = "tiktok-secret";
 });
 
 afterEach(() => {
   jest.useRealTimers();
   delete process.env.LINKEDIN_CLIENT_ID;
   delete process.env.LINKEDIN_CLIENT_SECRET;
+  delete process.env.TIKTOK_CLIENT_KEY;
+  delete process.env.TIKTOK_CLIENT_SECRET;
 });
 
 it.each([false, true])(
@@ -143,6 +147,42 @@ it.each(["instagram", "threads"])(
 );
 
 describe("connected account credential health", () => {
+  it.each([
+    [400, { error: "invalid_grant" }],
+    [200, { error: "invalid_grant" }],
+    [200, { access_token: "new-access", expires_in: 7200 }],
+  ])("requires TikTok reauthorization after an unusable refresh response (%s, %j)", async (httpStatus, body) => {
+    const storedAccount = account({ platform: "tiktok", refreshToken: "old-refresh" });
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(storedAccount));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(body), { status: httpStatus }));
+
+    const result = await refreshConnectedAccountIfNeeded(storedAccount);
+
+    expect(result.refreshed).toBe(false);
+    expect(result.status.action).toBe("reconnect");
+    expect(result.error).toContain("Reconnect the TikTok account");
+    expect(result.account.accessToken).toBe("old-access");
+    expect(result.account.credentialRefreshBlockedAt).toEqual(now);
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(result.account));
+    await refreshConnectedAccountIfNeeded(result.account);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires TikTok reauthorization when the stored refresh lifetime has elapsed", async () => {
+    const storedAccount = account({
+      platform: "tiktok",
+      refreshToken: "expired-refresh",
+      tokenMetadata: { refreshTokenExpiresAt: now.toISOString() },
+    });
+    prismaMock.connectedAccount.findUnique.mockResolvedValue(encryptConnectedAccountSecrets(storedAccount));
+
+    const result = await refreshConnectedAccountIfNeeded(storedAccount);
+
+    expect(result.status.action).toBe("reconnect");
+    expect(result.error).toContain("TikTok refresh token has expired");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("warns when a valid expiring token has no refresh path", () => {
     const status = getConnectedAccountCredentialStatus(
       account({

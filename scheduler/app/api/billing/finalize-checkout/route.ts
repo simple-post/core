@@ -7,6 +7,7 @@ import { getBillingDisplayCurrencyFromHeaders } from "@/lib/billing/display-curr
 import { getStripe } from "@/lib/billing/stripe";
 import { getBillingStatus, syncCheckoutSession } from "@/lib/billing/subscriptions";
 import { env } from "@/lib/env";
+import { serverMessage } from "@/lib/i18n/server";
 import { requireBrowserSession } from "@/lib/middleware/auth";
 import { BadRequestError, ForbiddenError, NotFoundError, handleApiError } from "@/lib/utils/errors";
 
@@ -27,22 +28,22 @@ async function readJsonBody(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     if (env.SELF_HOSTED) {
-      throw new NotFoundError("Billing is disabled on this self-hosted instance");
+      throw new NotFoundError(serverMessage("Billing is disabled on this self-hosted instance"));
     }
 
     const browserSession = await requireBrowserSession(req);
     const parsed = finalizeCheckoutSchema.safeParse(await readJsonBody(req));
     if (!parsed.success) {
-      throw new BadRequestError("Missing Checkout Session");
+      throw new BadRequestError(serverMessage("Missing Checkout Session"));
     }
 
     const checkoutSession = await getStripe().checkout.sessions.retrieve(parsed.data.sessionId);
     const checkoutUserId = checkoutSession.metadata?.userId || checkoutSession.client_reference_id;
     if (checkoutUserId !== browserSession.user.id) {
-      throw new ForbiddenError("Checkout Session does not belong to this account");
+      throw new ForbiddenError(serverMessage("Checkout Session does not belong to this account"));
     }
     if (checkoutSession.mode !== "subscription") {
-      throw new BadRequestError("Checkout Session is not a subscription");
+      throw new BadRequestError(serverMessage("Checkout Session is not a subscription"));
     }
 
     await syncCheckoutSession(checkoutSession);

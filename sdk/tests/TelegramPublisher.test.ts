@@ -411,8 +411,9 @@ describe("TelegramPublisher", () => {
             },
             options,
           ),
+          // Nothing has been sent yet, so a failed download is a safe-to-retry preparation failure.
         ).rejects.toMatchObject({
-          errorType: failure === "download" ? PostErrorType.API_ERROR : PostErrorType.INVALID_CONTENT,
+          errorType: failure === "download" ? PostErrorType.PREPARATION_ERROR : PostErrorType.INVALID_CONTENT,
         });
         expect(cleanup).toHaveBeenCalledTimes(failure === "download" ? 1 : 2);
         expect(mockStream.destroy).toHaveBeenCalledTimes(1);
@@ -455,6 +456,213 @@ describe("TelegramPublisher", () => {
         parse_mode: "HTML",
       });
       expect(result).toEqual({ id: "161718", error: PostErrorType.NO_ERROR });
+    });
+  });
+
+  describe("flood control", () => {
+    const options: PostOptionsWithCredentials = {
+      telegram: { chatId: "test_chat_id", credentials: { botToken: "test_bot_token" } },
+    };
+    const video: Content = { text: "Clip", media: [{ type: "video", url: "https://cdn.example.com/clip.mp4" }] };
+    const flood = (retryAfter: number) => ({
+      message: "Request failed with status code 429",
+      response: {
+        status: 429,
+        headers: { "retry-after": String(retryAfter) },
+        data: {
+          ok: false,
+          error_code: 429,
+          description: `Too Many Requests: retry after ${retryAfter}`,
+          parameters: { retry_after: retryAfter },
+        },
+      },
+    });
+    const sent = { data: { result: { message_id: 7 } } };
+
+    // The URL-backed clip is resolved to a local path so no download is attempted;
+    // the top-level afterEach restores the spy. Tests may override the resolved value.
+    beforeEach(() => {
+      jest
+        .spyOn(mediaUtils, "resolveMediaPath")
+        .mockResolvedValue({ path: "/tmp/clip.mp4", cleanup: async () => {}, isTemp: true });
+    });
+
+    it("classifies wrapped media-download failures before sending and strips their diagnostics", async () => {
+      jest
+        .spyOn(mediaUtils, "resolveMediaPath")
+        .mockRejectedValueOnce(
+          new PostError(PostErrorType.API_ERROR, "download failed https://secret.example/token", { token: "secret" }),
+        );
+      await expect(publisher.postContent(video, options)).rejects.toMatchObject({
+        errorType: PostErrorType.PREPARATION_ERROR,
+        message: "Failed to prepare Telegram video. Nothing was sent.",
+        details: { stage: "prepare_media" },
+      });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it("retries only the explicit flood-control rejection, waiting exactly as instructed", async () => {
+      jest.useFakeTimers();
+      const cleanup = jest.fn(async () => {});
+      const resolve = jest
+        .spyOn(mediaUtils, "resolveMediaPath")
+        .mockResolvedValue({ path: "/tmp/clip.mp4", cleanup, isTemp: true });
+      mockAxiosInstance.post
+        .mockRejectedValueOnce(flood(5))
+        .mockRejectedValueOnce(flood(2))
+        .mockResolvedValueOnce(sent);
+      try {
+        const result = publisher.postContent(video, options);
+        await jest.advanceTimersByTimeAsync(4999);
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+        // The prepared file is kept for the retry and the first attempt's stream is already closed.
+        expect(cleanup).not.toHaveBeenCalled();
+        expect(mockStream.destroy).toHaveBeenCalledTimes(1);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+        // The 2-second hint is shorter than the second backoff step, so the utility waits 3 seconds.
+        await jest.advanceTimersByTimeAsync(2999);
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+        await jest.advanceTimersByTimeAsync(1);
+        expect(await result).toEqual({ id: "7", error: PostErrorType.NO_ERROR });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+        for (const [endpoint] of mockAxiosInstance.post.mock.calls) expect(endpoint).toBe("/sendVideo");
+        // Every attempt uploads a fresh multipart body from the same local file.
+        expect(resolve).toHaveBeenCalledTimes(1);
+        expect(mockedFs.createReadStream).toHaveBeenCalledTimes(3);
+        for (const call of mockedFs.createReadStream.mock.calls) expect(call[0]).toBe("/tmp/clip.mp4");
+        expect(mockStream.destroy).toHaveBeenCalledTimes(3);
+        const forms = mockAxiosInstance.post.mock.calls.map(([, form]: [string, any]) => form);
+        expect(new Set(forms).size).toBe(3);
+        for (const form of forms) {
+          expect(form.append).toHaveBeenCalledWith("video", mockStream, { filename: "clip.mp4" });
+          expect(form.append).toHaveBeenCalledWith("caption", "Clip");
+        }
+        expect(cleanup).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("stops after two flood-control retries and reports a rate limit", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.post.mockRejectedValue(flood(1));
+      try {
+        const started = Date.now();
+        const result = expect(publisher.postContent(video, options)).rejects.toMatchObject({
+          errorType: PostErrorType.RATE_LIMIT_ERROR,
+          message: expect.stringContaining("Nothing was sent"),
+          details: { httpStatus: 429, error_code: 429, method: "sendVideo", retryAfter: 1 },
+        });
+        await jest.runAllTimersAsync();
+        await result;
+        expect(Date.now() - started).toBe(4000);
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+        expect(mockStream.destroy).toHaveBeenCalledTimes(3);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("surfaces a long flood-control wait instead of shortening or waiting it out", async () => {
+      // Real timers: waiting out the 45-second hint would exceed the test timeout.
+      mockAxiosInstance.post.mockRejectedValue(flood(45));
+      const started = Date.now();
+      await expect(publisher.postContent(video, options)).rejects.toMatchObject({
+        errorType: PostErrorType.RATE_LIMIT_ERROR,
+        message: expect.stringContaining("wait 45 seconds"),
+        details: { retryAfter: 45, parameters: { retry_after: 45 } },
+      });
+      expect(Date.now() - started).toBeLessThan(1000);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("applies the same flood-control policy to text messages", async () => {
+      jest.useFakeTimers();
+      mockAxiosInstance.post.mockRejectedValueOnce(flood(1)).mockResolvedValueOnce(sent);
+      try {
+        const result = publisher.postContent({ text: "Hello" }, options);
+        await jest.runAllTimersAsync();
+        expect(await result).toEqual({ id: "7", error: PostErrorType.NO_ERROR });
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+        for (const [endpoint] of mockAxiosInstance.post.mock.calls) expect(endpoint).toBe("/sendMessage");
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each([
+      [{ message: "timeout of 120000ms exceeded", code: "ECONNABORTED" }, PostErrorType.API_ERROR],
+      [{ message: "socket hang up", code: "ECONNRESET" }, PostErrorType.API_ERROR],
+      [
+        { response: { status: 500, data: { ok: false, error_code: 500, description: "Internal Server Error" } } },
+        PostErrorType.API_ERROR,
+      ],
+      [{ response: { status: 502, data: "<html>Bad Gateway</html>" } }, PostErrorType.API_ERROR],
+      // A 429 without Telegram's envelope (proxy/HTML page) is not the bot's flood-control rejection.
+      [
+        { response: { status: 429, headers: { "retry-after": "1" }, data: "<html>Too Many Requests</html>" } },
+        PostErrorType.API_ERROR,
+      ],
+      [
+        { response: { status: 429, data: { ok: false, error_code: 400, parameters: { retry_after: 1 } } } },
+        PostErrorType.API_ERROR,
+      ],
+      // Telegram's own 429 without a retry hint is conclusive but is not retried automatically.
+      [
+        { response: { status: 429, data: { ok: false, error_code: 429, description: "Too Many Requests" } } },
+        PostErrorType.RATE_LIMIT_ERROR,
+      ],
+    ])("never resends a video after %j", async (error, errorType) => {
+      mockAxiosInstance.post.mockRejectedValue(error);
+      const result = await publisher.post(video, options);
+      expect(result.error).toBe(errorType);
+      expect(result.message).toMatch(/^Failed to send video: /);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockStream.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      [401, "Unauthorized", PostErrorType.CREDENTIALS_ERROR],
+      [403, "Forbidden: bot was blocked by the user", PostErrorType.PUBLISH_REJECTED],
+      [400, "Bad Request: chat not found", PostErrorType.PUBLISH_REJECTED],
+    ])("fails fast on an explicit %i rejection", async (status, description, errorType) => {
+      mockAxiosInstance.post.mockRejectedValue({
+        response: { status, data: { ok: false, error_code: status, description } },
+      });
+      const result = await publisher.post(video, options);
+      expect(result).toMatchObject({
+        error: errorType,
+        details: { httpStatus: status, ok: false, error_code: status, description },
+      });
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the bot token and bot URL out of errors and logs", async () => {
+      const logError = jest.spyOn(publisher.logger, "error");
+      const logWarn = jest.spyOn(publisher.logger, "warn");
+      const logInfo = jest.spyOn(publisher.logger, "info");
+      mockAxiosInstance.post.mockRejectedValue({
+        message: "Request failed for https://api.telegram.org/bottest_bot_token/sendVideo",
+        config: { baseURL: "https://api.telegram.org/bottest_bot_token", url: "/sendVideo" },
+        request: { path: "/bottest_bot_token/sendVideo" },
+        response: {
+          status: 400,
+          data: {
+            ok: false,
+            error_code: 400,
+            description: "Bad Request: see https://api.telegram.org/bottest_bot_token for token test_bot_token",
+          },
+        },
+      });
+      const result = await publisher.post(video, options);
+      expect(result.error).toBe(PostErrorType.PUBLISH_REJECTED);
+      const everything = JSON.stringify({
+        result,
+        logs: [...logError.mock.calls, ...logWarn.mock.calls, ...logInfo.mock.calls],
+      });
+      expect(everything).not.toMatch(/test_bot_token|api\.telegram\.org|"config"|"request"/);
+      expect(everything).toContain("[redacted URL]");
     });
   });
 

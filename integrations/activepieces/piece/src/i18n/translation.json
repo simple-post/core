@@ -69,6 +69,8 @@
   "PUT": "PUT",
   "DELETE": "DELETE",
   "HEAD": "HEAD",
+  "Request": "Request",
+  "Data to send": "Data to send",
   "Post Published": "Post Published",
   "Post Failed": "Post Failed",
   "Triggers when a SimplePost post is published.": "Triggers when a SimplePost post is published.",

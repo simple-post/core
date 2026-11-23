@@ -37,7 +37,17 @@ export function buildPostContent(input: PostContentInput): Record<string, unknow
   if (media) body['media'] = media;
   if (thread) body['thread'] = thread;
   if (accountOptions) body['accountOptions'] = accountOptions;
-  if (accountOverrides) body['accountOverrides'] = accountOverrides;
+  if (accountOverrides) {
+    body['accountOverrides'] = Object.fromEntries(Object.entries(accountOverrides).map(([id, value]) => {
+      const override = optionalObject(value, 'Account override');
+      if (!override) return [id, value];
+      return [id, {
+        ...override,
+        ...(Array.isArray(override['media']) ? { media: toMediaFiles(override['media']) ?? [] } : {}),
+        ...(Array.isArray(override['thread']) ? { thread: toThread(override['thread']) ?? [] } : {}),
+      }];
+    }));
+  }
   return body;
 }
 

@@ -37,7 +37,7 @@ export function mediaTypeFromContentType(contentType: string | undefined): Media
   return undefined;
 }
 
-type MediaInput = { url?: unknown; type?: unknown };
+type MediaInput = Partial<SimplePostMediaFile>;
 
 // The Scheduler API takes full media descriptors. SimplePost imports external
 // URLs into its own storage and replaces the filename and size with the real
@@ -52,7 +52,7 @@ export function toMediaFiles(items: unknown[] | undefined): SimplePostMediaFile[
       throw new Error(`Media item ${index + 1} needs a file URL.`);
     }
 
-    const filename = filenameFromUrl(url);
+    const filename = input.filename || filenameFromUrl(url);
     const type =
       input.type === 'image' || input.type === 'video' ? input.type : mediaTypeFromFilename(filename);
     if (!type) {
@@ -61,14 +61,19 @@ export function toMediaFiles(items: unknown[] | undefined): SimplePostMediaFile[
       );
     }
 
-    return { id: randomUUID(), url, type, filename, size: 0 };
+    return { ...input, id: input.id || randomUUID(), url, type, filename, size: input.size ?? 0 };
   });
 }
 
-export function toThread(items: unknown[] | undefined): { message: string }[] | undefined {
-  const segments = (items ?? [])
-    .map((item) => (typeof item === 'string' ? item : item == null ? '' : String(item)))
-    .filter((message) => message.trim().length > 0)
-    .map((message) => ({ message }));
+export function toThread(items: unknown[] | undefined): Record<string, unknown>[] | undefined {
+  const segments = (items ?? []).flatMap<Record<string, unknown>>((item) => {
+    if (typeof item === 'string') return item.trim() ? [{ message: item }] : [];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const segment = item as Record<string, unknown>;
+    return [{
+      ...segment,
+      ...(Array.isArray(segment['media']) ? { media: toMediaFiles(segment['media']) ?? [] } : {}),
+    }];
+  });
   return segments.length > 0 ? segments : undefined;
 }

@@ -5,11 +5,34 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { configuredAppRoot } from "../src/app-root.js";
-import { platforms } from "../src/types.js";
+import { platforms, type Scenario } from "../src/types.js";
 import { validationCases } from "../src/validation-cases.js";
 import { materialize } from "../src/catalog.js";
 import { mediaFiles } from "../src/media.js";
 import { account, config } from "./helpers.js";
+
+// Hosted MCP validates remote media and uses its text.media envelope. Native
+// publishers validate local content.media after sniffing the file bytes. Assert
+// their distinct contracts literally instead of reusing hosted field paths or
+// treating any rejection as a pass. The remaining cases share the same evidence.
+const publishingContracts: Record<string, { issue: NonNullable<Scenario["expectedIssue"]>; error: string }> = {
+  "instagram.validation-portrait-ratio": {
+    issue: { code: "media_aspect_ratio_unsupported", field: "media[0]", actual: 0.5, limit: 0.8 },
+    error: "aspect_ratio",
+  },
+  "instagram.validation-carousel-child-ratio": {
+    issue: { code: "media_aspect_ratio_unsupported", field: "media[1]" },
+    error: "aspect_ratio",
+  },
+  "instagram.validation-short-reel": {
+    issue: { code: "media_duration_seconds_unsupported", field: "media[0]", actual: 1, limit: 3 },
+    error: "duration_seconds",
+  },
+  "bluesky.validation-disguised-container": {
+    issue: { code: "video_format_unsupported", field: "media[0]" },
+    error: "MP4",
+  },
+};
 
 // Exercise shipped artifacts and the real CLI parser in a fresh process. No
 // validator, publisher, media decoder, or probe is replaced. The network tripwire
@@ -38,6 +61,8 @@ for (const scenario of validationCases) {
     const root = configuredAppRoot();
     try {
       const s = materialize(scenario, account(), "cli-local", "offline", "https://fixtures.invalid");
+      const expectedIssue = publishingContracts[s.id]?.issue ?? s.expectedIssue;
+      const expectedError = publishingContracts[s.id]?.error ?? s.expectedError!;
       const files = await mediaFiles(config(), s.media);
       const post = {
         platforms: [s.platform],
@@ -125,7 +150,7 @@ for (const scenario of validationCases) {
       expect(result.details).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
-            ...s.expectedIssue,
+            ...expectedIssue,
             severity: "error",
             platform: s.platform,
           }),
@@ -160,7 +185,7 @@ for (const scenario of validationCases) {
       expect(cli.code).toBe(1);
       const output = cli.stdout + cli.stderr;
       expect(output).toContain("INVALID_CONTENT");
-      expect(output).toMatch(new RegExp(s.expectedError!, "i"));
+      expect(output).toMatch(new RegExp(expectedError, "i"));
       expect(output).not.toMatch(/\(id: /);
       expect(await readFile(networkLog, "utf8")).toBe("");
     } finally {

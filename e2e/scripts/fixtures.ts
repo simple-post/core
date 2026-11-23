@@ -1,6 +1,6 @@
 import { imageFitFixtures } from "./image-fit-fixtures.js";
 import { validationFixtures } from "./validation-fixtures.js";
-import { filenames } from "../src/media.js";
+import { filenames, optionalFixtureKeys } from "../src/media.js";
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -43,7 +43,11 @@ for (const sound of [true, false]) {
 await validationFixtures(dir);
 await imageFitFixtures(dir);
 const manifest: Record<string, unknown> = {};
+// The large upload-acceptance originals are optional, local-only files with
+// their own generator and manifest (yarn e2e:upload-fixtures).
+const optional = new Set(optionalFixtureKeys.map((key) => filenames[key]));
 for (const file of Object.values(filenames)) {
+  if (optional.has(file)) continue;
   const bytes = await readFile(path.join(dir, file));
   manifest[file] = { bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
 }

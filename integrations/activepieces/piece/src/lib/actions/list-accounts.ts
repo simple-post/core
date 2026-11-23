@@ -23,6 +23,7 @@ export const listAccounts = createAction({
       { key: 'account_id', label: 'Account ID' },
       { key: 'name', label: 'Name' },
       { key: 'platform', label: 'Platform' },
+      { key: 'display_name', label: 'Display Name' },
       { key: 'username', label: 'Username' },
       { key: 'can_publish', label: 'Can Publish', format: 'boolean' },
       { key: 'needs_reconnect', label: 'Needs Reconnect', format: 'boolean' },

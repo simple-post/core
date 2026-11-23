@@ -1,6 +1,6 @@
 import { PieceAuth, Property } from '@activepieces/pieces-framework';
 
-import { DEFAULT_BASE_URL, listAccounts } from './common/client';
+import { DEFAULT_BASE_URL, listAccounts, toSimplePostError } from './common/client';
 
 export const simplepostAuth = PieceAuth.CustomAuth({
   displayName: 'SimplePost Connection',
@@ -29,12 +29,8 @@ API keys require a SimplePost plan that includes API access.`,
     try {
       await listAccounts(auth);
       return { valid: true };
-    } catch {
-      return {
-        valid: false,
-        error:
-          'SimplePost rejected this API key. Check the key, the Base URL, and that your plan includes API access.',
-      };
+    } catch (error) {
+      return { valid: false, error: toSimplePostError(error).message };
     }
   },
 });

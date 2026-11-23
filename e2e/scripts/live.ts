@@ -25,6 +25,7 @@ try {
           : "Live posting enabled. Configured budgets and account checks apply.",
       );
       console.log(`To resume, use the same selection with --run-id ${options.env.E2E_RUN_ID}`);
+      console.log("Selected platforms run in parallel; UI, MCP and CLI cases remain sequential within each platform.");
     }
     const child = spawn(
       process.execPath,

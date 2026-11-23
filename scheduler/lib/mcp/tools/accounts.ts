@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { getBillingStatus } from "@/lib/billing/subscriptions";
 import { normalizePlatformId } from "@/lib/config";
+import { getAccountConnectionLinks, getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
+import { credentialStatusDisplay } from "@/lib/i18n/validation-display";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
@@ -54,6 +56,24 @@ export const listAccountsOutputSchema = z.object({
     total: z.number(),
     platforms: z.array(z.string()),
   }),
+  connectionLinks: z
+    .array(
+      z.object({
+        platform: z.string(),
+        name: z.string(),
+        connectionType: z.enum(["oauth", "manual"]),
+        url: z.string(),
+      }),
+    )
+    .describe(
+      "User-bound links valid for one hour. Show the requested platform's URL unchanged. OAuth platforms open provider authorization after SimplePost sign-in; manual platforms open their setup form. Never request provider passwords, tokens or keys in chat. Refresh this tool if a link expires.",
+    ),
+  connectAccountsUrl: z
+    .string()
+    .optional()
+    .describe(
+      "Present only when no account is connected: the SimplePost page where the user connects one. Show it as a clickable link; no tool can connect accounts.",
+    ),
 });
 
 export async function listAccounts(userId: string): Promise<z.infer<typeof listAccountsOutputSchema>> {
@@ -67,7 +87,7 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
 
   const mappedAccounts = accounts.map((storedAccount) => {
     const account = decryptConnectedAccountSecrets(storedAccount);
-    const credentialStatus = getConnectedAccountCredentialStatus(account);
+    const credentialStatus = credentialStatusDisplay(getConnectedAccountCredentialStatus(account));
     const trialUsed = billing.trial?.platformUsage[normalizePlatformId(account.platform)] ?? 0;
     return {
       accountId: account.id,
@@ -108,10 +128,12 @@ export async function listAccounts(userId: string): Promise<z.infer<typeof listA
 
   return {
     kind: "accounts" as const,
+    connectionLinks: getAccountConnectionLinks(userId),
     accounts: mappedAccounts,
     summary: {
       total: mappedAccounts.length,
       platforms: [...new Set(mappedAccounts.map((account) => account.platform))],
     },
+    ...(mappedAccounts.length === 0 && { connectAccountsUrl: getConnectAccountsUrl() }),
   };
 }

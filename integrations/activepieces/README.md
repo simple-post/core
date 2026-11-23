@@ -46,3 +46,5 @@ The sync script copies `piece/` into the checkout and adds the `tsconfig.base.js
 To try the piece in a local Activepieces, run `AP_DEV_PIECES=simplepost npm start` in the checkout. Then open http://localhost:4200 and sign in as `dev@ap.com` / `12345678`.
 
 If edits are made in the checkout, copy them back into `piece/` before committing here.
+
+A Create Post step uses a stable key within a flow run. Map a source item ID as the idempotency key to deduplicate across runs. Publish Now can return the original post with status `scheduled` when SimplePost queues a retry. The Custom API Call action supports `imageFit` for accounts with that feature enabled.

@@ -27,6 +27,8 @@ jest.mock("@/lib/config", () => ({
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     publishAttempt: { count: jest.fn(), deleteMany: jest.fn(), groupBy: jest.fn() },
+    tikTokUploadInitAttempt: { deleteMany: jest.fn() },
+    tikTokUploadPause: { findMany: jest.fn(async () => []) },
     publishCheckpoint: { findMany: jest.fn() },
     post: {
       findMany: jest.fn(),
@@ -101,9 +103,12 @@ interface DuePostFixture {
   accountOverrides?: unknown;
   thread?: unknown;
   accountResults?: unknown;
+  threadResults?: unknown;
   media?: unknown[];
   accounts: Array<{ id: string; platform: string }>;
   quotePostId?: string | null;
+  tiktokRetryApproved?: boolean;
+  errorDetails?: unknown;
   quotePost?: { status: string } | null;
 }
 
@@ -624,6 +629,7 @@ describe("dispatchDueScheduledPosts", () => {
       [expect.objectContaining({ accountId: "a1", postId: "source-tweet" })],
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
+      undefined,
     );
   });
 
@@ -660,6 +666,7 @@ describe("dispatchDueScheduledPosts", () => {
       [expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" })],
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
+      undefined,
     );
     expect(result.publishedPosts).toBe(1);
   });
@@ -886,6 +893,91 @@ it("reschedules a partial thread when another process consumes the remaining cap
   expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
 });
 
+it("parks a TikTok inbox backlog without validating, uploading or failing every queued post", async () => {
+  mockFindMany({ due: [duePost({ id: "paused-tiktok", accounts: [{ id: "a1", platform: "tiktok" }] })] });
+  jest
+    .mocked(prisma.tikTokUploadPause.findMany)
+    .mockResolvedValueOnce([{ accountId: "a1", code: "spam_risk_too_many_pending_share", resumeAt: null }] as never);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock).not.toHaveBeenCalled();
+  expect(validatePostForAccounts).not.toHaveBeenCalled();
+  expect(result.failedPosts).toBe(0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "paused-tiktok" },
+      data: expect.objectContaining({ status: "scheduled", tiktokPaused: true }),
+    }),
+  );
+});
+
+it("dispatches an approved original through the account pause and retains approval on minute deferral", async () => {
+  mockFindMany({
+    due: [duePost({ id: "approved-tiktok", accounts: [{ id: "a1", platform: "tiktok" }], tiktokRetryApproved: true })],
+  });
+  jest
+    .mocked(prisma.tikTokUploadPause.findMany)
+    .mockResolvedValueOnce([{ accountId: "a1", code: "spam_risk_too_many_pending_share", resumeAt: null }] as never);
+  postToAccountsMock.mockResolvedValue([
+    { accountId: "a1", platform: "tiktok", success: false, error: "LOCAL_RATE_LIMIT" },
+  ]);
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a1"]);
+  expect(postToAccountsMock.mock.calls[0][10]).toBe(true);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "approved-tiktok" },
+      data: expect.objectContaining({ status: "scheduled", tiktokRetryApproved: true }),
+    }),
+  );
+});
+
+it.each([0, 2, 3])(
+  "uses the shared processing retry budget at attempt %i without replaying successful accounts",
+  async (count) => {
+    mockFindMany({
+      due: [
+        duePost({
+          id: "processing-retry",
+          accounts: [
+            { id: "a1", platform: "instagram" },
+            { id: "a2", platform: "tiktok" },
+          ],
+          accountResults: {
+            a1: { accountId: "a1", platform: "instagram", success: true, postId: "already-published" },
+          },
+          errorDetails: { tiktokProcessingRetryCount: count },
+        }),
+      ],
+    });
+    postToAccountsMock.mockResolvedValue([
+      {
+        accountId: "a2",
+        platform: "tiktok",
+        success: false,
+        error: "PUBLISH_REJECTED",
+        details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+      },
+    ]);
+    const result = await dispatchDueScheduledPosts();
+    expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+    expect(result.failedPosts).toBe(count === 3 ? 1 : 0);
+    expect(prismaMock.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "processing-retry" },
+        data: expect.objectContaining({
+          status: count === 3 ? "failed" : "scheduled",
+          accountResults: expect.objectContaining({
+            a1: expect.objectContaining({ success: true, postId: "already-published" }),
+          }),
+          ...(count < 3 ? { errorDetails: expect.objectContaining({ tiktokProcessingRetryCount: count + 1 }) } : {}),
+        }),
+      }),
+    );
+    if (count < 3)
+      expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+  },
+);
+
 it("allows a thread larger than one rate window to start making progress", async () => {
   mockFindMany({
     due: [
@@ -895,6 +987,85 @@ it("allows a thread larger than one rate window to start making progress", async
   postToAccountsMock.mockResolvedValue(successFor(["a1"]));
   await dispatchDueScheduledPosts();
   expect(postToAccountsMock).toHaveBeenCalledTimes(1);
+});
+
+it.each([0, 2, 3])("retries Instagram processing failures with a persisted budget of %i", async (count) => {
+  const published = { accountId: "a1", platform: "x", success: true, postId: "already-published" };
+  mockFindMany({
+    due: [
+      duePost({
+        id: "instagram-retry",
+        accounts: [
+          { id: "a1", platform: "x" },
+          { id: "a2", platform: "instagram" },
+        ],
+        accountResults: { a1: published },
+        errorDetails: { instagramProcessingRetryCount: count },
+      }),
+    ],
+  });
+  postToAccountsMock.mockResolvedValue([
+    {
+      accountId: "a2",
+      platform: "instagram",
+      success: false,
+      error: "PREPARATION_ERROR",
+      details: { phase: "processing", statusCode: "ERROR", containerId: "failed-container" },
+    },
+  ]);
+  const result = await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+  expect(result.failedPosts).toBe(count === 3 ? 1 : 0);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "instagram-retry" },
+      data: expect.objectContaining({
+        status: count === 3 ? "failed" : "scheduled",
+        accountResults: expect.objectContaining({ a1: published }),
+        errorDetails: expect.objectContaining({ instagramProcessingRetryCount: Math.min(count + 1, 3) }),
+      }),
+    }),
+  );
+  if (count < 3) {
+    expect(dispatchPostWebhooks).not.toHaveBeenCalledWith(expect.anything(), "post.failed", expect.anything());
+  } else {
+    expect(dispatchPostWebhooks).toHaveBeenCalledWith(
+      "user-1",
+      "post.failed",
+      expect.objectContaining({ id: "instagram-retry" }),
+    );
+  }
+});
+
+it("keeps an already successful thread's results when the remaining TikTok retry completes", async () => {
+  const threadResults = {
+    a1: [
+      { index: 0, success: true, postId: "x-root" },
+      { index: 1, success: true, postId: "x-reply" },
+    ],
+  };
+  mockFindMany({
+    due: [
+      duePost({
+        id: "partial-tiktok",
+        accounts: [
+          { id: "a1", platform: "x" },
+          { id: "a2", platform: "tiktok" },
+        ],
+        accountResults: toAccountResultsMap(successFor(["a1"])),
+        threadResults,
+      }),
+    ],
+  });
+  postToAccountsMock.mockResolvedValue(successFor(["a2"], "tiktok"));
+  await dispatchDueScheduledPosts();
+  expect(postToAccountsMock.mock.calls[0][3]).toEqual(["a2"]);
+  expect(prismaMock.post.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { id: "partial-tiktok" },
+      data: expect.objectContaining({ status: "published", threadResults }),
+    }),
+  );
 });
 
 it("publishes due posts while storage collection is still waiting for its provider", async () => {

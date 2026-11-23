@@ -1,5 +1,6 @@
 import { reviewImageFit } from "./ui-image-fit.js";
 import { expect, type Page, type Route, type Response } from "@playwright/test";
+import { timed } from "../timing.js";
 import type { Account, LiveConfig } from "../config.js";
 import type { Materialized, MediaFile, Options, Receipt } from "../types.js";
 import { parsePostingResponse, receiptFrom } from "../http.js";
@@ -101,9 +102,19 @@ export async function setOptions(page: Page, account: Account, s: Materialized, 
         label = String(name);
       }
       // Selecting the already displayed default may not invoke onValueChange.
-      // Explicit LinkedIn visibility must still reach the submitted options.
-      if (s.platform === "linkedin" && key === "visibility" && initiallySelected === label) {
-        const alternate = labels[value === "PUBLIC" ? "CONNECTIONS" : "PUBLIC"];
+      // Persist explicit audience choices even when the UI displays an implicit default.
+      const alternateValue =
+        s.platform === "linkedin" && key === "visibility"
+          ? value === "PUBLIC"
+            ? "CONNECTIONS"
+            : "PUBLIC"
+          : s.platform === "youtube" && key === "privacyStatus"
+            ? value === "private"
+              ? "unlisted"
+              : "private"
+            : undefined;
+      if (alternateValue && initiallySelected === label) {
+        const alternate = labels[alternateValue];
         await page.getByRole("option", { name: alternate, exact: true }).click();
         await expect(field).toContainText(alternate);
         await field.click();
@@ -151,7 +162,7 @@ export function assertUiPayload(raw: Record<string, unknown>, s: Materialized, a
   if (s.thread) expect((raw.thread as { message: string }[])?.map((t) => t.message)).toEqual(s.thread);
   if (mode === "schedule") expect(raw.scheduledFor).toBe(s.scheduledFor);
 }
-async function submit(
+export async function submitUiRequest(
   page: Page,
   config: LiveConfig,
   s: Materialized,
@@ -159,6 +170,7 @@ async function submit(
   mode: string,
   postId?: string,
   fittedUrls?: string[],
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   const routePath = postId ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = postId ? "PATCH" : "POST";
@@ -170,6 +182,7 @@ async function submit(
   const handler = async (route: Route) => {
     if (route.request().method() !== method) return route.continue();
     try {
+      await assertCanSubmit?.();
       const payload = route.request().postDataJSON();
       assertUiPayload(payload, s, account, mode);
       if (fittedUrls) {
@@ -272,6 +285,7 @@ export async function uiCreate(
   media: MediaFile[],
   beforeSubmit?: () => Promise<void>,
   prepareSchedule?: () => Promise<void>,
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   await openComposer(page, config);
   let submittedOptions = s.options;
@@ -282,11 +296,13 @@ export async function uiCreate(
     .getByLabel("Message", { exact: true })
     .fill(s.mode === "draft-edit" ? `${s.message} before edit` : s.message);
   if (media.length) {
-    await page
-      .locator('input[type="file"]')
-      .first()
-      .setInputFiles(media.map((m) => m.path));
-    await waitForMedia(page, media, config.publishTimeoutMs);
+    await timed("upload", async () => {
+      await page
+        .locator('input[type="file"]')
+        .first()
+        .setInputFiles(media.map((m) => m.path));
+      await waitForMedia(page, media, config.publishTimeoutMs);
+    });
   }
   for (const segment of s.thread ?? []) {
     await page.getByRole("button", { name: "Add to thread", exact: true }).click();
@@ -312,7 +328,16 @@ export async function uiCreate(
   const consent = page.locator("#tiktok-consent-create");
   if (await consent.isVisible()) await consent.check();
   await beforeSubmit?.();
-  const receipt = await submit(page, config, { ...s, options: submittedOptions }, account, mode, undefined, fittedUrls);
+  const receipt = await submitUiRequest(
+    page,
+    config,
+    { ...s, options: submittedOptions },
+    account,
+    mode,
+    undefined,
+    fittedUrls,
+    assertCanSubmit,
+  );
   if (fittedUrls) receipt.reviewedMediaUrls = fittedUrls;
   return receipt;
 }
@@ -323,17 +348,40 @@ export async function uiEditDraft(
   account: Account,
   id: string,
   prepareSchedule?: () => Promise<void>,
+  assertCanSubmit?: () => Promise<void>,
 ): Promise<Receipt> {
   await page.goto(`${config.baseUrl}/posts/${id}/edit`);
   await expect(page.getByLabel("Message", { exact: true })).toHaveValue(`${s.message} before edit`);
   await page.reload();
   await expect(page.getByLabel("Message", { exact: true })).toHaveValue(`${s.message} before edit`);
   await page.getByLabel("Message", { exact: true }).fill(s.message);
-  const submittedOptions = await setOptions(page, account, s, config);
+  let submittedOptions: Options;
+  if (s.platform === "pinterest" && s.options.boardId !== undefined) {
+    // Pinterest's board picker is on the per-account advanced settings route
+    // in the edit composer, not on its main form.
+    await page.getByRole("link", { name: /^Settings for Pinterest:/ }).click();
+    await setOptions(page, account, { ...s, options: { boardId: s.options.boardId } }, config);
+    await page.getByRole("link", { name: "Back to edit post", exact: true }).click();
+    const remainingOptions = { ...s.options };
+    delete remainingOptions.boardId;
+    submittedOptions = {
+      ...s.options,
+      ...(await setOptions(page, account, { ...s, options: remainingOptions }, config)),
+    };
+  } else submittedOptions = await setOptions(page, account, s, config);
   await page.locator("#post-schedule").click();
   await prepareSchedule?.();
   await pickSchedule(page, s.scheduledFor!);
   const consent = page.locator("#tiktok-consent-edit");
   if (await consent.isVisible()) await consent.check();
-  return submit(page, config, { ...s, options: submittedOptions }, account, "schedule", id);
+  return submitUiRequest(
+    page,
+    config,
+    { ...s, options: submittedOptions },
+    account,
+    "schedule",
+    id,
+    undefined,
+    assertCanSubmit,
+  );
 }

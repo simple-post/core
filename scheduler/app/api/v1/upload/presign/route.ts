@@ -4,6 +4,7 @@ import { getPresignedUploadUrl, generateFileKey } from "@simple-post/sdk";
 import { ALLOWED_MEDIA_TYPES, normalizeContentType } from "@simple-post/sdk/media-types";
 import { z } from "zod";
 
+import { serverMessage } from "@/lib/i18n/server";
 import { API_UPLOAD_MAX_BYTES } from "@/lib/media-limits";
 import { requireAuth } from "@/lib/middleware/auth";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
@@ -27,11 +28,15 @@ export async function POST(req: NextRequest) {
     const resolvedContentType = normalizeContentType(validated.contentType, validated.filename);
 
     if (!resolvedContentType) {
-      throw new BadRequestError("Invalid content type");
+      throw new BadRequestError(serverMessage("Invalid content type"));
     }
 
     if (!ALLOWED_MEDIA_TYPES.has(resolvedContentType)) {
-      throw new BadRequestError(`Invalid content type: ${resolvedContentType}`);
+      throw new BadRequestError(
+        serverMessage("Invalid content type: {{resolvedContentType}}", {
+          resolvedContentType: String(resolvedContentType),
+        }),
+      );
     }
 
     // Generate a unique key for the file

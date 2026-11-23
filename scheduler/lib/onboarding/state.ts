@@ -2,12 +2,18 @@ import { prisma } from "@/lib/prisma";
 
 export interface OnboardingState {
   hasConnectedAccount: boolean;
-  /** A post that was actually scheduled or published. A draft is not enough. */
+  /** A draft, scheduled post, or published post. */
   hasPost: boolean;
   /** A post successfully published to all of its destinations. */
   hasPublishedPost: boolean;
   /** Any live MCP, CLI, or API credential: the user has wired up an assistant. */
   hasAiConnection: boolean;
+}
+
+export async function hasOnboardingPost(userId: string): Promise<boolean> {
+  return (
+    (await prisma.post.count({ where: { userId, status: { in: ["draft", "scheduled", "published"] } }, take: 1 })) > 0
+  );
 }
 
 /**
@@ -16,9 +22,9 @@ export interface OnboardingState {
  * user who arrives through the MCP server or CLI is already counted as done.
  */
 export async function getOnboardingState(userId: string, now: Date = new Date()): Promise<OnboardingState> {
-  const [connectedAccounts, posts, publishedPosts, mcpTokens, cliTokens, apiKeys] = await Promise.all([
+  const [connectedAccounts, hasPost, publishedPosts, mcpTokens, cliTokens, apiKeys] = await Promise.all([
     prisma.connectedAccount.count({ where: { userId }, take: 1 }),
-    prisma.post.count({ where: { userId, status: { in: ["scheduled", "published"] } }, take: 1 }),
+    hasOnboardingPost(userId),
     prisma.post.count({ where: { userId, status: "published" }, take: 1 }),
     prisma.mcpAccessToken.count({
       where: { userId, revokedAt: null, expiresAt: { gt: now } },
@@ -33,7 +39,7 @@ export async function getOnboardingState(userId: string, now: Date = new Date())
 
   return {
     hasConnectedAccount: connectedAccounts > 0,
-    hasPost: posts > 0,
+    hasPost,
     hasPublishedPost: publishedPosts > 0,
     hasAiConnection: mcpTokens > 0 || cliTokens > 0 || apiKeys > 0,
   };

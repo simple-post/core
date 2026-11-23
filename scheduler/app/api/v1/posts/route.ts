@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
 
+import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { getTrialExpiryScheduleWarning } from "@/lib/billing/schedule-warning";
 import {
   assertCanCreatePost,
@@ -11,13 +12,16 @@ import {
   toBillingSocialAccounts,
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
+import { serverMessage } from "@/lib/i18n/server";
+import { joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
-import { requireAuth } from "@/lib/middleware/auth";
+import { requireAuth, requireReadAuth } from "@/lib/middleware/auth";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
 import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import {
   createPostingProgressStream,
   sanitizePostingResult,
@@ -28,7 +32,7 @@ import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
 import { buildPublishedRepostState, resolvePostRepostSettings } from "@/lib/repost/settings";
-import { handleApiError, BadRequestError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
+import { handleApiError, BadRequestError, ApiError, ValidationError, sanitizeForJson } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 import { requiredDraftImageFittingErrors } from "@/lib/validation/draft-image-fitting";
 import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
@@ -80,12 +84,15 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
   }
 
   if (!scheduledForValue) {
-    throw new BadRequestError("Choose a date and time before scheduling this post.");
+    throw new BadRequestError(
+      serverMessage("Choose a date and time before scheduling this post."),
+      "INVALID_SCHEDULED_TIME",
+    );
   }
 
   const scheduledForError = getScheduledForValueError(scheduledForValue);
   if (scheduledForError) {
-    throw new BadRequestError(scheduledForError);
+    throw new BadRequestError(serverMessage(scheduledForError), "INVALID_SCHEDULED_TIME");
   }
 
   return parseScheduledForValue(scheduledForValue)!;
@@ -94,7 +101,7 @@ function resolveScheduledFor(postingMode: PostingMode, scheduledForValue?: strin
 // GET /api/v1/posts - Get all posts (drafts, scheduled, past, and failed) with pagination
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth(req);
+    const session = await requireReadAuth(req);
     const repository = new PostsModel(session.user.id);
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "all";
@@ -148,10 +155,20 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
   const startTime = Date.now();
   log.info("Received post creation request");
 
+  let measurementUserId: string | null = null;
   try {
     log.debug("Authenticating user");
     const session = await requireAuth(req);
     const userId = session.user.id;
+    measurementUserId = userId;
+    await recordFunnelEvent(userId, "post_create_attempted", {
+      channel:
+        session.session?.token === "mcp"
+          ? "mcp"
+          : session.session?.token === "cli" || session.session?.token === "api_key"
+            ? "api"
+            : "web",
+    });
     log.debug({ userId }, "User authenticated");
 
     const repository = new PostsModel(userId);
@@ -223,7 +240,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     });
 
     if (validation.accounts.length !== validated.accountIds.length) {
-      throw new BadRequestError("One or more accounts were not found");
+      throw new BadRequestError(serverMessage("One or more accounts were not found"));
     }
 
     const draftImageErrors = await requiredDraftImageFittingErrors({
@@ -235,7 +252,9 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
       throw new ValidationError(
         draftImageErrors.length > 0 ? { ...validation, imageFitHelp: IMAGE_FIT_HELP } : validation,
         draftImageErrors.length > 0
-          ? `The draft contains images that must be fitted before it can be saved. ${IMAGE_FIT_HELP}`
+          ? serverMessage("The draft contains images that must be fitted before it can be saved. {{help}}", {
+              help: serverMessage(IMAGE_FIT_HELP),
+            })
           : undefined,
       );
     }
@@ -247,7 +266,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         userId,
       });
       if (credentialIssues.length > 0) {
-        throw new BadRequestError(credentialIssues.map((issue) => issue.message).join(" "));
+        throw new BadRequestError(joinedValidationMessages(credentialIssues, " "));
       }
     }
 
@@ -380,7 +399,10 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
         const accountResults = sanitizeForJson(toAccountResultsMap(results)) as AccountResultsMap;
 
         // Update post status based on results
-        if (summary.overallSuccess) {
+        const deferred = await deferPostRetry(post.id, results, accountResults, threadResultsByAccount);
+        if (deferred) {
+          // Keep the original queued for a safe retry, preserving successful targets.
+        } else if (summary.overallSuccess) {
           const publishedAt = new Date();
           const repostState = buildPublishedRepostState({
             enabled: repostSettings.enabled,
@@ -477,7 +499,7 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
 
         const durationMs = Date.now() - startTime;
         log.error({ durationMs }, "Failed to post to platforms");
-        throw new BadRequestError("Failed to post to platforms");
+        throw new ApiError(serverMessage("Publishing could not be confirmed. Check Posts before retrying."), 500);
       }
     }
 
@@ -485,6 +507,10 @@ async function createPost(req: NextRequest, onPostingResult?: PostingResultCallb
     log.info({ postId: post.id, durationMs, postingMode }, "Post created successfully");
     return NextResponse.json({ post, warnings: scheduleWarnings }, { status: 201 });
   } catch (error) {
+    if (measurementUserId)
+      await recordFunnelEvent(measurementUserId, "post_create_rejected", {
+        properties: { reason: measurementFailure(error) },
+      });
     return handleApiError(error, req);
   }
 }

@@ -45,6 +45,14 @@ describe('piece definition', () => {
   });
 });
 
+test('the custom API action rejects requests outside the configured origin', async () => {
+  const send = vi.spyOn(httpClient, 'sendRequest');
+  const action = simplepost.actions()['custom_api_call'];
+  await expect(action.run(actionContext({ method: 'GET', url: { url: 'https://other.example.com' } })))
+    .rejects.toThrow('configured SimplePost origin');
+  expect(send).not.toHaveBeenCalled();
+});
+
 describe('create post', () => {
   test('schedules a post with the Scheduler API contract', async () => {
     const send = vi.spyOn(httpClient, 'sendRequest').mockResolvedValue({
@@ -82,6 +90,18 @@ describe('create post', () => {
       idempotencyKey: 'row-42',
     });
     expect(output).toMatchObject({ post_id: 'p1', status: 'scheduled', replayed: false });
+  });
+
+  test('reuses the generated key when retrying a step and returns a deferred post', async () => {
+    const send = vi.spyOn(httpClient, 'sendRequest').mockResolvedValue({
+      status: 201, headers: {}, body: { post: { id: 'p3', status: 'scheduled' } },
+    });
+    const context = actionContext({ account_ids: ['a1'], posting_mode: 'now', message: 'Hi' });
+    expect(await createPost.run(context)).toMatchObject({ post_id: 'p3', status: 'scheduled' });
+    await createPost.run(context);
+    const keys = send.mock.calls.map(([request]) => (request.body as { idempotencyKey: string }).idempotencyKey);
+    expect(keys[0]).toMatch(/^activepieces:/);
+    expect(keys[1]).toBe(keys[0]);
   });
 
   test('fails the step when publishing fails', async () => {
@@ -131,16 +151,18 @@ describe('validate post', () => {
 describe('webhook signatures', () => {
   const secret = 'whsec_test';
   const body = JSON.stringify({ event: 'post.published', createdAt: '2030-01-01T00:00:00.000Z', post: { id: 'p1' } });
-  const timestamp = '1893456000000';
+  const now = 1893456000000;
+  const timestamp = String(now);
   const signature = `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
 
   test('accepts SimplePost signatures from the raw or parsed body', () => {
     const headers = { 'x-simplepost-signature': signature, 'x-simplepost-timestamp': timestamp };
-    expect(verifySimplePostSignature({ secret, headers, rawBody: body, body: JSON.parse(body) })).toBe(true);
-    expect(verifySimplePostSignature({ secret, headers, rawBody: Buffer.from(body), body: null })).toBe(true);
-    expect(verifySimplePostSignature({ secret, headers, rawBody: undefined, body: JSON.parse(body) })).toBe(true);
+    expect(verifySimplePostSignature({ now, secret, headers, rawBody: body, body: JSON.parse(body) })).toBe(true);
+    expect(verifySimplePostSignature({ now, secret, headers, rawBody: Buffer.from(body), body: null })).toBe(true);
+    expect(verifySimplePostSignature({ now, secret, headers, rawBody: undefined, body: JSON.parse(body) })).toBe(true);
     expect(
       verifySimplePostSignature({
+        now,
         secret,
         headers: { 'X-SimplePost-Signature': signature, 'X-SimplePost-Timestamp': timestamp },
         rawBody: body,
@@ -151,8 +173,9 @@ describe('webhook signatures', () => {
 
   test('rejects tampered or unsigned payloads', () => {
     const headers = { 'x-simplepost-signature': signature, 'x-simplepost-timestamp': timestamp };
-    expect(verifySimplePostSignature({ secret: 'other', headers, rawBody: body, body: null })).toBe(false);
-    expect(verifySimplePostSignature({ secret, headers, rawBody: body.replace('p1', 'p2'), body: null })).toBe(false);
-    expect(verifySimplePostSignature({ secret, headers: {}, rawBody: body, body: null })).toBe(false);
+    expect(verifySimplePostSignature({ now, secret: 'other', headers, rawBody: body, body: null })).toBe(false);
+    expect(verifySimplePostSignature({ now, secret, headers, rawBody: body.replace('p1', 'p2'), body: null })).toBe(false);
+    expect(verifySimplePostSignature({ now, secret, headers: {}, rawBody: body, body: null })).toBe(false);
+    expect(verifySimplePostSignature({ now: now + 300001, secret, headers, rawBody: body, body: null })).toBe(false);
   });
 });

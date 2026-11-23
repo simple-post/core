@@ -25,4 +25,4 @@ The hosted MCP endpoint is production infrastructure. Do not describe it as beta
 - **Privacy:** `https://app.simplepost.social/privacy`
 - **Support:** `support@simplepost.social`
 
-Submit the repository through [kiro.dev/powers/submit](https://kiro.dev/powers/submit/).
+Submit the repository through the [Kiro registry form](https://kiro.dev/registry/submit/?type=power). For an existing submission, request its status before submitting a duplicate. If no confirmation or reviewer contact is available, ask [Kiro Support](https://support.aws.amazon.com/#/contacts/kiro) to route the inquiry to the registry team. The submission form accepts the Registry Publisher Terms; the owner must review and approve those terms before a new submission is sent.

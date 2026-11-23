@@ -12,7 +12,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PIECE_NAME = 'simplepost';
-const UPSTREAM_PACKAGE = '@activepieces/piece-simplepost';
 const sourceDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../piece');
 
 function parseArgs(argv) {
@@ -43,6 +42,21 @@ if (!existsSync(tsconfigPath) || !existsSync(path.join(options.activepiecesDir, 
 
 const relativeTarget = `packages/pieces/${options.type}/${PIECE_NAME}`;
 const targetDir = path.join(options.activepiecesDir, relativeTarget);
+const alternateType = options.type === 'community' ? 'custom' : 'community';
+const alternateTarget = `packages/pieces/${alternateType}/${PIECE_NAME}`;
+if (existsSync(path.join(options.activepiecesDir, alternateTarget))) {
+  throw new Error(`A SimplePost piece already exists in ${alternateTarget}. Use a separate checkout for the ${options.type} build.`);
+}
+
+const tsconfigText = readFileSync(tsconfigPath, 'utf8');
+const paths = JSON.parse(tsconfigText).compilerOptions.paths;
+const entryPath = `${relativeTarget}/src/index.ts`;
+const sourcePackage = JSON.parse(readFileSync(path.join(sourceDir, 'package.json'), 'utf8'));
+const packageName = options.packageName ?? sourcePackage.name;
+const previousName = Object.keys(paths).find((name) => paths[name].includes(entryPath));
+if (paths[packageName] && packageName !== previousName) {
+  throw new Error(`The Activepieces checkout already uses the package name ${packageName}.`);
+}
 rmSync(targetDir, { recursive: true, force: true });
 cpSync(sourceDir, targetDir, {
   recursive: true,
@@ -59,28 +73,19 @@ if (options.packageName) {
 if (options.logoUrl) {
   const indexPath = path.join(targetDir, 'src/index.ts');
   const source = readFileSync(indexPath, 'utf8');
-  writeFileSync(indexPath, source.replace(/logoUrl: '[^']*'/, `logoUrl: '${options.logoUrl}'`));
+  writeFileSync(indexPath, source.replace(/logoUrl: '[^']*'/, () => `logoUrl: ${JSON.stringify(options.logoUrl)}`));
 }
 
-// The monorepo resolves pieces through tsconfig paths. Edit the file as text so
-// the diff is only our entry, inserted alphabetically among the piece entries.
-const escape = (value) => value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-let tsconfigText = readFileSync(tsconfigPath, 'utf8');
-for (const name of new Set([UPSTREAM_PACKAGE, packageJson.name])) {
-  tsconfigText = tsconfigText.replace(new RegExp(`\\n {6}"${escape(name)}": \\[\\n[^\\]]*\\],`, 'g'), '');
+// Keep the upstream formatting intact, including unrelated workspace paths.
+const key = JSON.stringify(packageName);
+const nextConfig = previousName
+  ? tsconfigText.replace(`${JSON.stringify(previousName)}:`, () => `${key}:`)
+  : tsconfigText.replace(/("paths":\s*\{)/, (match) =>
+      `${match}\n      ${key}: [\n        ${JSON.stringify(entryPath)}\n      ],`);
+if (!JSON.parse(nextConfig).compilerOptions.paths[packageName]?.includes(entryPath)) {
+  throw new Error(`Could not register ${packageName} in tsconfig.base.json.`);
 }
-const entry = `      "${packageJson.name}": [\n        "${relativeTarget}/src/index.ts"\n      ],\n`;
-const pieceKeys = [...tsconfigText.matchAll(/^ {6}"(@activepieces\/piece-[^"]+)": \[$/gm)];
-const next = packageJson.name.startsWith('@activepieces/piece-')
-  ? pieceKeys.find((match) => match[1].localeCompare(packageJson.name) > 0)
-  : undefined;
-if (next) {
-  tsconfigText = `${tsconfigText.slice(0, next.index)}${entry}${tsconfigText.slice(next.index)}`;
-} else {
-  tsconfigText = tsconfigText.replace(/("paths": \{\n)/, `$1${entry}`);
-}
-JSON.parse(tsconfigText);
-writeFileSync(tsconfigPath, tsconfigText);
+writeFileSync(tsconfigPath, nextConfig);
 
 console.log(`Copied the piece to ${relativeTarget} as ${packageJson.name}.`);
 console.log('Next, from the Activepieces checkout:');

@@ -3,6 +3,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { ScheduleWarning } from "@/lib/billing/schedule-warning";
+import type { SourceCopy } from "@/lib/i18n/source-copy";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { queryKeys } from "@/lib/query-client";
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { PostingMode, SocialPost } from "@/types";
@@ -10,20 +12,21 @@ import type { PostingMode, SocialPost } from "@/types";
 const POSTING_PROGRESS_CONTENT_TYPE = "application/x-ndjson";
 
 // Delete post mutation
-async function deletePost(postId: string): Promise<void> {
+async function deletePost(postId: string, copy: SourceCopy): Promise<void> {
   const response = await fetch(`/api/v1/posts/${postId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error("Failed to delete post");
+    throw new Error(copy("Failed to delete post"));
   }
 }
 
 export function useDeletePost() {
+  const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deletePost,
+    mutationFn: (postId: string) => deletePost(postId, copy),
     onSuccess: () => {
       // Invalidate all post queries to refetch
       queryClient.invalidateQueries({ queryKey: ["posts"] });
@@ -32,20 +35,21 @@ export function useDeletePost() {
 }
 
 // Disconnect account mutation
-async function disconnectAccount(accountId: string): Promise<void> {
+async function disconnectAccount(accountId: string, copy: SourceCopy): Promise<void> {
   const response = await fetch(`/api/v1/accounts/${accountId}`, {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error("Failed to disconnect account");
+    throw new Error(copy("Failed to disconnect account"));
   }
 }
 
 export function useDisconnectAccount() {
+  const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: disconnectAccount,
+    mutationFn: (accountId: string) => disconnectAccount(accountId, copy),
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
@@ -57,12 +61,13 @@ export function useDisconnectAccount() {
 
 // Connect Telegram account mutation
 interface ConnectTelegramParams {
+  handoffToken?: string;
   botToken: string;
   chatId: string;
   channelName?: string;
 }
 
-async function connectTelegram(params: ConnectTelegramParams): Promise<void> {
+async function connectTelegram(params: ConnectTelegramParams, copy: SourceCopy): Promise<void> {
   const response = await fetch("/api/connect/telegram", {
     method: "POST",
     headers: {
@@ -73,15 +78,16 @@ async function connectTelegram(params: ConnectTelegramParams): Promise<void> {
 
   if (!response.ok) {
     const data = await response.json();
-    throw new ApiResponseError(data, "Failed to connect Telegram account", response.status);
+    throw new ApiResponseError(data, copy("Failed to connect Telegram account"), response.status);
   }
 }
 
 export function useConnectTelegram() {
+  const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: connectTelegram,
+    mutationFn: (params: ConnectTelegramParams) => connectTelegram(params, copy),
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
@@ -91,9 +97,10 @@ export function useConnectTelegram() {
   });
 }
 export function useConnectForem() {
+  const { copy } = useUiCopy();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { instanceUrl: string; apiKey: string }) => {
+    mutationFn: async (params: { instanceUrl: string; apiKey: string; handoffToken?: string }) => {
       const response = await fetch("/api/connect/forem", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +108,7 @@ export function useConnectForem() {
       });
       if (!response.ok) {
         const data = await response.json();
-        throw new ApiResponseError(data, "Failed to connect Forem", response.status);
+        throw new ApiResponseError(data, copy("Failed to connect Forem"), response.status);
       }
     },
     onSuccess: () => {
@@ -179,14 +186,15 @@ interface PostMutationResult {
 type PostingProgressEvent =
   | { type: "result"; result: PostingResult }
   | { type: "complete"; data: PostMutationResult }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string; status?: number; code?: string; reason?: string; details?: unknown };
 
 async function readPostingProgress(
   response: Response,
   onPostingResult: (result: PostingResult) => void,
+  copy: SourceCopy,
 ): Promise<PostMutationResult> {
   if (!response.body) {
-    throw new Error("Posting progress stream was unavailable");
+    throw new Error(copy("Posting progress stream was unavailable"));
   }
 
   const reader = response.body.getReader();
@@ -208,7 +216,7 @@ async function readPostingProgress(
         break;
       }
       case "error": {
-        throw new Error(event.error);
+        throw new ApiResponseError(event, copy("Posting request failed"), event.status ?? 500);
       }
     }
   };
@@ -227,13 +235,16 @@ async function readPostingProgress(
   processLine(buffer);
 
   if (!completed) {
-    throw new Error("Posting finished without a final response");
+    throw new Error(copy("Posting finished without a final response"));
   }
 
   return completed;
 }
 
-async function submitPost({ body, mode, postId, onPostingResult }: PostMutationParams): Promise<PostMutationResult> {
+async function submitPost(
+  { body, mode, postId, onPostingResult }: PostMutationParams,
+  copy: SourceCopy,
+): Promise<PostMutationResult> {
   const url = mode === "edit" ? `/api/v1/posts/${postId}` : "/api/v1/posts";
   const method = mode === "edit" ? "PATCH" : "POST";
   const streamProgress = body.postingMode === "now" && typeof onPostingResult === "function";
@@ -249,11 +260,15 @@ async function submitPost({ body, mode, postId, onPostingResult }: PostMutationP
 
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { error?: unknown } | null;
-    throw new ApiResponseError(data, `Failed to ${mode} post`, response.status);
+    throw new ApiResponseError(
+      data,
+      mode === "edit" ? copy("Failed to edit post") : copy("Failed to create post"),
+      response.status,
+    );
   }
 
   if (streamProgress && response.headers.get("content-type")?.includes(POSTING_PROGRESS_CONTENT_TYPE)) {
-    return readPostingProgress(response, onPostingResult);
+    return readPostingProgress(response, onPostingResult, copy);
   }
 
   const result = (await response.json()) as PostMutationResult;
@@ -264,15 +279,17 @@ async function submitPost({ body, mode, postId, onPostingResult }: PostMutationP
 }
 
 export function useSubmitPost() {
+  const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: submitPost,
+    mutationFn: (params: PostMutationParams) => submitPost(params, copy),
     onSuccess: (_data: PostMutationResult, variables: PostMutationParams) => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       // Posting consumes trial allowance, so the banner and compose-form
       // counters need the fresh usage numbers.
       queryClient.invalidateQueries({ queryKey: queryKeys.billing });
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
       if (variables.postId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.post(variables.postId) });

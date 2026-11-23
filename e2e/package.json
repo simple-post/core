@@ -11,6 +11,7 @@
     "plan": "node --import tsx scripts/plan.ts",
     "auth": "node --import tsx scripts/auth.ts",
     "fixtures": "node --import tsx scripts/fixtures.ts",
+    "upload-fixtures": "node --import tsx scripts/upload-fixtures.ts",
     "reliability": "node --import tsx scripts/reliability.ts",
     "mcp-auth": "node --import tsx scripts/mcp-auth.ts",
     "configure": "node --import tsx scripts/setup.ts",
@@ -23,7 +24,7 @@
     "@simple-post/sdk": "workspace:*",
     "@types/node": "^24.0.0",
     "prettier": "^3.4.2",
-    "sharp": "^0.34.4",
+    "sharp": "^0.35.5",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "zod": "^4.4.3"

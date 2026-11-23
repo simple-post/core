@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { oauthError } from "@/lib/i18n/oauth-display";
+import { serverMessage } from "@/lib/i18n/server";
+
 import { createLogger, serializeError } from "@/lib/logger";
 import { isAllowedMcpRedirectUri, validateMcpScope } from "@/lib/mcp/config";
 import { registerClient } from "@/lib/mcp/oauth";
@@ -24,44 +27,42 @@ export async function POST(req: NextRequest) {
     const tokenEndpointAuthMethod =
       body.token_endpoint_auth_method === "none" ? "none" : body.token_endpoint_auth_method || "client_secret_post";
     if (tokenEndpointAuthMethod !== "client_secret_post" && tokenEndpointAuthMethod !== "none") {
-      return NextResponse.json(
-        {
-          error: "invalid_client_metadata",
-          error_description: "token_endpoint_auth_method must be client_secret_post or none",
-        },
+      return oauthError(
+        req,
+        "invalid_client_metadata",
+        serverMessage("token_endpoint_auth_method must be client_secret_post or none"),
         { status: 400 },
       );
     }
 
     const redirectUris = body.redirect_uris;
     if (!Array.isArray(redirectUris) || redirectUris.length === 0) {
-      return NextResponse.json(
-        { error: "invalid_client_metadata", error_description: "redirect_uris is required" },
-        { status: 400 },
-      );
+      return oauthError(req, "invalid_client_metadata", serverMessage("redirect_uris is required"), { status: 400 });
     }
 
     for (const uri of redirectUris) {
       if (typeof uri !== "string") {
-        return NextResponse.json(
-          { error: "invalid_client_metadata", error_description: "redirect_uris must be strings" },
-          { status: 400 },
-        );
+        return oauthError(req, "invalid_client_metadata", serverMessage("redirect_uris must be strings"), {
+          status: 400,
+        });
       }
       try {
         new URL(uri);
       } catch {
-        return NextResponse.json(
-          { error: "invalid_client_metadata", error_description: `Invalid redirect URI: ${uri}` },
+        return oauthError(
+          req,
+          "invalid_client_metadata",
+          serverMessage("Invalid redirect URI: {{uri}}", { uri: uri }),
           { status: 400 },
         );
       }
       if (!isAllowedMcpRedirectUri(uri)) {
-        return NextResponse.json(
-          {
-            error: "invalid_client_metadata",
-            error_description: `Redirect URI must use HTTPS, HTTP loopback, or an approved native-app callback: ${uri}`,
-          },
+        return oauthError(
+          req,
+          "invalid_client_metadata",
+          serverMessage("Redirect URI must use HTTPS, HTTP loopback, or an approved native-app callback: {{uri}}", {
+            uri: uri,
+          }),
           { status: 400 },
         );
       }
@@ -69,11 +70,10 @@ export async function POST(req: NextRequest) {
 
     const scopeResult = validateMcpScope(typeof body.scope === "string" ? body.scope : undefined);
     if (!scopeResult.ok) {
-      return NextResponse.json(
-        {
-          error: "invalid_client_metadata",
-          error_description: `Unsupported scope(s): ${scopeResult.unsupported.join(", ")}`,
-        },
+      return oauthError(
+        req,
+        "invalid_client_metadata",
+        serverMessage("Unsupported scope(s): {{scopes}}", { scopes: scopeResult.unsupported.join(", ") }),
         { status: 400 },
       );
     }
@@ -101,9 +101,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log.error({ err: serializeError(error) }, "Client registration error");
-    return NextResponse.json(
-      { error: "server_error", error_description: `Registration failed: ${message}` },
-      { status: 500 },
-    );
+    return oauthError(req, "server_error", serverMessage("Registration failed: {{detail}}", { detail: message }), {
+      status: 500,
+    });
   }
 }

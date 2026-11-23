@@ -1,3 +1,4 @@
+import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError } from "@/lib/utils/errors";
 
@@ -16,7 +17,7 @@ export async function validateQuoteSource(options: ValidateQuoteSourceOptions) {
   if (!options.quotePostId) return null;
 
   if (options.quotePostId === options.currentPostId) {
-    throw new BadRequestError("A post cannot quote itself.");
+    throw new BadRequestError(serverMessage("A post cannot quote itself."));
   }
 
   const source = await prisma.post.findFirst({
@@ -31,7 +32,7 @@ export async function validateQuoteSource(options: ValidateQuoteSourceOptions) {
   });
 
   if (!source) {
-    throw new BadRequestError("The post selected for quoting was not found.");
+    throw new BadRequestError(serverMessage("The post selected for quoting was not found."));
   }
 
   if (source.status === "published") {
@@ -39,11 +40,13 @@ export async function validateQuoteSource(options: ValidateQuoteSourceOptions) {
   }
 
   if (source.status !== "scheduled") {
-    throw new BadRequestError("Only published posts and future scheduled posts can be quoted.");
+    throw new BadRequestError(serverMessage("Only published posts and future scheduled posts can be quoted."));
   }
 
   if (options.postingMode === "now") {
-    throw new BadRequestError("A scheduled post can only be quoted by a post scheduled after it is published.");
+    throw new BadRequestError(
+      serverMessage("A scheduled post can only be quoted by a post scheduled after it is published."),
+    );
   }
 
   if (
@@ -52,7 +55,7 @@ export async function validateQuoteSource(options: ValidateQuoteSourceOptions) {
     options.scheduledFor &&
     options.scheduledFor <= source.scheduledFor
   ) {
-    throw new BadRequestError("Schedule the quote after the post it quotes is due to be published.");
+    throw new BadRequestError(serverMessage("Schedule the quote after the post it quotes is due to be published."));
   }
 
   return source;
@@ -70,7 +73,9 @@ export async function assertNoUnresolvedQuotes(userId: string, sourcePostId: str
 
   if (dependent) {
     throw new BadRequestError(
-      "This post is the source of a draft, scheduled, publishing, or retryable quote. Remove that quote first.",
+      serverMessage(
+        "This post is the source of a draft, scheduled, publishing, or retryable quote. Remove that quote first.",
+      ),
     );
   }
 }

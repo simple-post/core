@@ -32,6 +32,8 @@ beforeEach(() => {
 });
 it.each([
   ["PREPARATION_ERROR", "failed"],
+  ["PUBLISH_REJECTED", "failed"],
+  ["LOCAL_RATE_LIMIT", "failed"],
   ["API_ERROR", "unknown"],
 ])("records %s with the correct retry boundary", async (error, state) => {
   const publish = jest
@@ -49,4 +51,64 @@ it("does not resubmit an existing unknown outcome", async () => {
   const result = await runDurablePublish(input, publish);
   expect(result.error).toBe("PUBLISH_OUTCOME_UNKNOWN");
   expect(publish).not.toHaveBeenCalled();
+});
+
+it("allows a fresh attempt after TikTok confirms a terminal photo-download failure", async () => {
+  const publish = jest
+    .fn()
+    .mockResolvedValueOnce({
+      accountId: "account",
+      platform: "tiktok",
+      success: false,
+      error: "PUBLISH_REJECTED",
+      details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+    })
+    .mockResolvedValueOnce({ accountId: "account", platform: "tiktok", success: true, postId: "published" });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ error: "PUBLISH_REJECTED" });
+  expect(db.publishCheckpoint.update.mock.calls[0][0].data.state).toBe("failed");
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ success: true, postId: "published" });
+  expect(publish).toHaveBeenCalledTimes(2);
+});
+
+it("allows retry of a definite Facebook rejection and retains accepted IDs on uncertain results", async () => {
+  const facebook = { ...input, platform: "facebook" };
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  const publish = jest.fn().mockResolvedValue({
+    accountId: "account",
+    platform: "facebook",
+    success: false,
+    error: "API_ERROR",
+    details: { stage: "processing", videoId: "accepted_video" },
+  });
+  const result = await runDurablePublish(facebook, publish);
+  expect(publish).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN", details: { videoId: "accepted_video" } });
+  expect(db.publishCheckpoint.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        state: "unknown",
+        result: expect.objectContaining({ details: { stage: "processing", videoId: "accepted_video" } }),
+      }),
+    }),
+  );
+});
+
+it("allows retry of a rejected TikTok upload but blocks resubmission after uncertain processing", async () => {
+  db.publishCheckpoint.findUnique.mockResolvedValue({ state: "failed", fingerprint: input.fingerprint });
+  const publish = jest.fn().mockResolvedValue({
+    accountId: "account",
+    platform: "tiktok",
+    success: false,
+    error: "API_ERROR",
+    details: { phase: "status", publishId: "accepted_video" },
+  });
+  const result = await runDurablePublish(input, publish);
+  expect(publish).toHaveBeenCalledTimes(1);
+  expect(result).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN", details: { publishId: "accepted_video" } });
+  const { data } = db.publishCheckpoint.update.mock.calls[0][0];
+  expect(data.state).toBe("unknown");
+  db.publishCheckpoint.findUnique.mockResolvedValue({ ...data, fingerprint: input.fingerprint });
+  expect(await runDurablePublish(input, publish)).toMatchObject({ error: "PUBLISH_OUTCOME_UNKNOWN" });
+  expect(publish).toHaveBeenCalledTimes(1);
 });

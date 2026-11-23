@@ -1,3 +1,5 @@
+import type { Locale } from "@/lib/i18n/locales";
+import { createServerCopy } from "@/lib/i18n/server";
 import { getAppBaseUrl } from "@/lib/mcp/config";
 import { WIDGET_ASSETS, type WidgetName } from "@/lib/mcp/ui/widget-assets";
 
@@ -15,7 +17,8 @@ export function isWidgetName(value: string | null): value is WidgetName {
   return value !== null && Object.hasOwn(WIDGET_ASSETS, value);
 }
 
-export function widgetRuntimeScript(name: WidgetName, mountId: string): string {
+export function widgetRuntimeScript(name: WidgetName, mountId: string, locale: Locale = "en"): string {
+  const copy = createServerCopy(locale);
   const baseUrl = getAppBaseUrl();
   const assets = WIDGET_ASSETS[name];
   const scriptUrl = new URL(`/mcp-widgets/${assets.script}`, `${baseUrl}/`).toString();
@@ -28,7 +31,7 @@ const runtimeStateKey = "__simplepostRuntimeMount";
 
 function assertCurrentMount() {
   if (window[runtimeStateKey] !== mountId) {
-    throw new Error("This SimplePost widget mount has been superseded.");
+    throw ${"new Error(" + JSON.stringify(copy("This SimplePost widget mount has been superseded.")) + ")"};
   }
 }
 
@@ -45,7 +48,7 @@ async function loadStylesheet() {
     link.rel = "stylesheet";
     link.href = stylesheetUrl;
     link.addEventListener("load", resolve, { once: true });
-    link.addEventListener("error", () => reject(new Error("Unable to load SimplePost widget styles.")), {
+    link.addEventListener("error", () => reject(${"new Error(" + JSON.stringify(copy("Unable to load SimplePost widget styles.")) + ")"}), {
       once: true,
     });
     document.head.appendChild(link);
@@ -60,7 +63,7 @@ try {
   assertCurrentMount();
   const mount = runtime[${JSON.stringify(exportName)}];
   if (typeof mount !== "function") {
-    throw new Error("The SimplePost widget runtime is missing its mount function.");
+    throw ${"new Error(" + JSON.stringify(copy("The SimplePost widget runtime is missing its mount function.")) + ")"};
   }
   await mount();
   window.dispatchEvent(new CustomEvent("simplepost:runtime-ready", { detail: { mount: mountId } }));

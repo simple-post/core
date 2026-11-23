@@ -1,6 +1,6 @@
 # Publishing the SimplePost Activepieces piece
 
-Checked against the Activepieces repository and docs on 2026-10-04 (upstream `main` at `1cc3a0d`, release 0.92.0).
+Target release: Activepieces 0.93.0 (`dec8e16d`).
 
 ## How distribution works now
 
@@ -29,7 +29,7 @@ Checked against the Activepieces repository and docs on 2026-10-04 (upstream `ma
    ```bash
    node integrations/activepieces/scripts/sync-to-activepieces.mjs ../activepieces
    ```
-   The script writes `packages/pieces/community/simplepost` and adds the `@activepieces/piece-simplepost` path to `tsconfig.base.json` in alphabetical order. That entry is required, or the build fails ([piece-builder skill, Step 5](https://github.com/activepieces/activepieces/blob/main/.agents/skills/piece-builder/SKILL.md)). The files match what `npm run create-piece` scaffolds: `package.json` with `workspace:*` deps, `tsconfig.json`, `tsconfig.lib.json`, and `.eslintrc.json` with the import-boundary rule ([create-piece.ts](https://github.com/activepieces/activepieces/blob/main/packages/cli/src/lib/commands/create-piece.ts), [Migrate to bundles](https://www.activepieces.com/docs/build-pieces/misc/migrate-pieces-to-bundles)).
+   The script writes `packages/pieces/community/simplepost` and adds the `@activepieces/piece-simplepost` path to `tsconfig.base.json`. That entry is required, or the build fails ([piece-builder skill, Step 5](https://github.com/activepieces/activepieces/blob/main/.agents/skills/piece-builder/SKILL.md)). The files match what `npm run create-piece` scaffolds: `package.json` with `workspace:*` deps, `tsconfig.json`, `tsconfig.lib.json`, and `.eslintrc.json` with the import-boundary rule ([create-piece.ts](https://github.com/activepieces/activepieces/blob/main/packages/cli/src/lib/commands/create-piece.ts), [Migrate to bundles](https://www.activepieces.com/docs/build-pieces/misc/migrate-pieces-to-bundles)).
 5. Install, then build, lint, and test:
    ```bash
    bun install
@@ -41,7 +41,7 @@ Checked against the Activepieces repository and docs on 2026-10-04 (upstream `ma
    npm run build-piece simplepost
    # → packages/pieces/community/simplepost/dist/activepieces-piece-simplepost-<version>.tgz
    ```
-   ([Build Custom Pieces](https://www.activepieces.com/docs/build-pieces/misc/build-piece)). If the CLI stops with `TS2339 … deno.ts`, prefix the command with `TS_NODE_TRANSPILE_ONLY=true`. On 2026-10-04 that upstream CLI type error showed up for existing pieces such as `buffer` too, so it isn't caused by this piece.
+   ([Build Custom Pieces](https://www.activepieces.com/docs/build-pieces/misc/build-piece)).
 7. Test end to end in a local instance:
    ```bash
    AP_DEV_PIECES=simplepost npm start   # http://localhost:4200, dev@ap.com / 12345678
@@ -102,7 +102,7 @@ Checked against the Activepieces repository and docs on 2026-10-04 (upstream `ma
 
 Use this for a design partner or customer who runs their own Activepieces: self-hosted, or Cloud Ultimate.
 
-1. Sync with `--type custom` and the logo override. Package name and version must not collide with what is already installed.
+1. Use a separate checkout from the community build. Sync with `--type custom` and the logo override. Package name and version must not collide with what is already installed.
 2. Then either:
    - Build with `npm run build-piece simplepost`, and upload `packages/pieces/custom/simplepost/dist/*.tgz` under **Platform Admin → Catalogue → Pieces → Install Piece → Upload File** ([Private](https://www.activepieces.com/docs/build-pieces/sharing-pieces/private)), or
    - Run `npm run publish-piece-to-api`. Enter the folder name `simplepost`, the API URL (e.g. `https://cloud.activepieces.com/api` or `https://<instance>/api`), and a platform API key from Platform Admin settings ([Publish Custom Pieces](https://www.activepieces.com/docs/build-pieces/misc/publish-piece)). For CI, use `AP_API_KEY=… bun run sync-pieces -- --apiUrl https://<instance>/api` ([Custom Pieces CI/CD](https://www.activepieces.com/docs/build-pieces/misc/pieces-ci-cd)).

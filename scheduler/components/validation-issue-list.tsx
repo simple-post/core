@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 
 import { PlatformIcon } from "@/components/platform-icons";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
+import { useValidationCopy } from "@/lib/i18n/use-validation-copy";
 import { cn } from "@/lib/utils";
 import { groupValidationIssues } from "@/lib/validation/issue-display";
 import type { ConnectedAccount } from "@/types";
@@ -16,7 +18,12 @@ export function ValidationIssueList({
   accounts?: ConnectedAccount[];
   className?: string;
 }) {
-  const groups = useMemo(() => groupValidationIssues(issues, accounts), [accounts, issues]);
+  const { copy } = useUiCopy();
+  const validationCopy = useValidationCopy(issues.length > 0);
+  const groups = useMemo(
+    () => groupValidationIssues(issues, accounts, copy, validationCopy),
+    [accounts, copy, issues, validationCopy],
+  );
 
   return (
     <div className={cn("space-y-2.5", className)}>
@@ -29,7 +36,7 @@ export function ValidationIssueList({
               {group.accountName ? <span className="text-muted-foreground">· {group.platformName}</span> : null}
             </div>
           ) : null}
-          <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground marker:text-muted-foreground/60">
+          <ul className="list-disc space-y-0.5 ps-5 text-muted-foreground marker:text-muted-foreground/60">
             {group.messages.map((message) => (
               <li key={message}>{message}</li>
             ))}

@@ -1,3 +1,4 @@
+import { describeDisplayMessage } from "../../validation/display-message";
 import { hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, PinterestOptions } from "../../types/post";
@@ -24,50 +25,71 @@ export function validatePinterestContent(content: Content, options?: PinterestOp
   const mediaCount = media.length;
 
   if (mediaCount === 0) {
-    errors.push({
-      platform: "pinterest",
-      severity: "error",
-      code: "media_required",
-      message: "Pinterest posts require at least one media item.",
-      field: "media",
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "pinterest",
+          severity: "error",
+          code: "media_required",
+          message: "Pinterest posts require at least one media item.",
+          field: "media",
+        },
+        "Pinterest posts require at least one media item.",
+      ),
+    );
   }
 
   if (text.length > PINTEREST_MAX_DESCRIPTION_LENGTH) {
-    errors.push({
-      platform: "pinterest",
-      severity: "error",
-      code: "description_too_long",
-      message: `Pinterest descriptions cannot exceed ${PINTEREST_MAX_DESCRIPTION_LENGTH} characters.`,
-      field: "text",
-      limit: PINTEREST_MAX_DESCRIPTION_LENGTH,
-      actual: text.length,
-    });
+    errors.push(
+      describeDisplayMessage(
+        {
+          platform: "pinterest",
+          severity: "error",
+          code: "description_too_long",
+          message: `Pinterest descriptions cannot exceed ${PINTEREST_MAX_DESCRIPTION_LENGTH} characters.`,
+          field: "text",
+          limit: PINTEREST_MAX_DESCRIPTION_LENGTH,
+          actual: text.length,
+        },
+        "Pinterest descriptions cannot exceed {{PINTEREST_MAX_DESCRIPTION_LENGTH}} characters.",
+        { PINTEREST_MAX_DESCRIPTION_LENGTH: String(PINTEREST_MAX_DESCRIPTION_LENGTH) },
+      ),
+    );
   }
 
   for (const item of media) {
     if (!hasMediaSource(item)) {
-      errors.push({
-        platform: "pinterest",
-        severity: "error",
-        code: "media_source_missing",
-        message: "Media must have either a path or url.",
-        field: "media",
-      });
+      errors.push(
+        describeDisplayMessage(
+          {
+            platform: "pinterest",
+            severity: "error",
+            code: "media_source_missing",
+            message: "Media must have either a path or url.",
+            field: "media",
+          },
+          "Media must have either a path or url.",
+        ),
+      );
       break;
     }
   }
 
   if (mediaCount > PINTEREST_MAX_MEDIA_COUNT) {
-    warnings.push({
-      platform: "pinterest",
-      severity: "warning",
-      code: "too_many_media",
-      message: "Pinterest supports only one media item per pin. Only the first will be posted.",
-      field: "media",
-      limit: PINTEREST_MAX_MEDIA_COUNT,
-      actual: mediaCount,
-    });
+    warnings.push(
+      describeDisplayMessage(
+        {
+          platform: "pinterest",
+          severity: "warning",
+          code: "too_many_media",
+          message: "Pinterest supports only one media item per pin. Only the first will be posted.",
+          field: "media",
+          limit: PINTEREST_MAX_MEDIA_COUNT,
+          actual: mediaCount,
+        },
+        "Pinterest supports only one media item per pin. Only the first will be posted.",
+      ),
+    );
   }
 
   errors.push(

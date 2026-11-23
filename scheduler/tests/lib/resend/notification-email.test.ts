@@ -3,6 +3,7 @@ import { EmailDeliveryError, sendNotificationEmail } from "@/lib/resend/notifica
 const message = {
   from: "SimplePost <auth@example.invalid>",
   to: "owner@example.invalid",
+  replyTo: "support@example.invalid",
   subject: "Reconnect",
   html: "<p>Reconnect</p>",
   text: "Reconnect",
@@ -18,12 +19,26 @@ afterAll(() => {
 });
 it("uses bounded requests and identical request bytes even after JSONB key reordering", async () => {
   fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "provider-id" }) });
-  expect(await sendNotificationEmail(message, "episode-1")).toBe("provider-id");
+  const bcc = "monitor@example.invalid";
+  expect(await sendNotificationEmail({ ...message, bcc }, "episode-1")).toBe("provider-id");
   await sendNotificationEmail(
-    { text: message.text, subject: message.subject, to: message.to, html: message.html, from: message.from },
+    {
+      bcc,
+      text: message.text,
+      subject: message.subject,
+      to: message.to,
+      html: message.html,
+      from: message.from,
+      replyTo: message.replyTo,
+    },
     "episode-1",
   );
   expect(fetchMock.mock.calls[0][1].body).toBe(fetchMock.mock.calls[1][1].body);
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+    to: message.to,
+    bcc,
+    reply_to: message.replyTo,
+  });
   expect(fetchMock).toHaveBeenCalledWith(
     "https://api.resend.com/emails",
     expect.objectContaining({
@@ -32,6 +47,11 @@ it("uses bounded requests and identical request bytes even after JSONB key reord
       redirect: "error",
     }),
   );
+});
+it("omits the BCC field when no monitoring recipient is set", async () => {
+  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "provider-id" }) });
+  await sendNotificationEmail(message, "episode-1");
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty("bcc");
 });
 it("does not incorporate provider errors or secrets in the exception", async () => {
   const json = jest.fn(async () => ({ message: "SECRET recipient and key" }));

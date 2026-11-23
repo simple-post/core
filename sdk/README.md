@@ -86,6 +86,12 @@ MIT
 
 TikTok supports 1–35 photos, optional recommended music (`autoAddMusic`), and upload-to-inbox mode (`publishMode: "draft"`) for manual music selection and publishing. The SDK supports these options; hosted interfaces add their own permissions, upload limits, and consent flows. See [TikTok requirements and examples](https://docs.simplepost.social/tiktok).
 
+## TikTok video upload recovery
+
+Video uploads automatically restart from byte zero after transient failures before the final chunk is sent, or after TikTok explicitly discards the upload session (HTTP 403/404). Recovery allows at most two restarts, after 1 and 3 seconds, and applies to both Direct Post and inbox uploads. Each new initialization still passes through `beforeUploadInit` when configured. Other non-final HTTP errors stop without automatic retries.
+
+Direct Post starts publishing when the final chunk arrives; there is no separate publish request afterward. Timeouts and server errors on the final chunk (including single-chunk uploads) remain uncertain and require reconciliation before resubmission. Initialization and status-query failures do not trigger this upload recovery.
+
 ## Bluesky video
 
 Bluesky supports one MP4 video per post (300 MB, 10 minutes), including replies and quotes, with OAuth or app-password credentials. The SDK uploads and waits for processing before creating the post. Hosted interfaces impose additional [upload limits](https://docs.simplepost.social/publishing#upload-limits), including 50 MiB per file in the web app. See [Bluesky requirements and examples](https://docs.simplepost.social/bluesky).

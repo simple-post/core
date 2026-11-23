@@ -9,13 +9,15 @@ import { Calendar, CalendarDays, CheckCircle, AlertCircle, FileText } from "luci
 import { TrialBanner } from "@/components/billing/trial-banner";
 import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
-import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
+import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { PostsList } from "@/components/posts-list";
 import { ScheduleCalendar } from "@/components/schedule-calendar";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { UiCopy } from "@/components/ui-copy";
 import { PostStatusTabs } from "@/components/visual/post-status-tabs";
 import { usePostCounts } from "@/hooks/use-posts";
 import { useSession } from "@/lib/auth/auth-client";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 type TimelineTabType = "drafts" | "scheduled" | "past" | "failed";
@@ -53,6 +55,7 @@ function TabCountBadge({
 }
 
 export default function Dashboard() {
+  const { copy } = useUiCopy();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabParam = searchParams.get("tab");
@@ -127,16 +130,16 @@ export default function Dashboard() {
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
         <TrialBanner />
-        <OnboardingChecklist />
+        <OnboardingModal />
 
         <div className="mb-6 flex items-center gap-3 animate-reveal">
           <div className="section-kicker !mb-0">
             <span className="section-kicker-dot" />
-            <span className="section-kicker-label">Dashboard</span>
+            <span className="section-kicker-label">{copy("Dashboard")}</span>
           </div>
           <span className="h-3 w-px bg-border" />
           <h1 className="text-xl font-semibold tracking-[-0.025em] text-foreground">
-            Your <span className="text-primary">posts</span>
+            <UiCopy source="Your <part1>posts</part1>" components={{ part1: <span className="text-primary" /> }} />
           </h1>
         </div>
 
@@ -147,7 +150,7 @@ export default function Dashboard() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-primary">
               <CalendarDays className="h-3.5 w-3.5" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground">Calendar</h2>
+            <h2 className="text-lg font-semibold text-foreground">{copy("Calendar")}</h2>
           </div>
           <ScheduleCalendar />
         </section>

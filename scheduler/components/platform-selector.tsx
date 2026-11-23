@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { SOCIAL_PLATFORMS, getPlatformById } from "@/lib/config";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 interface PlatformSelectorProps {
   selectedPlatforms: string[];
@@ -18,10 +19,11 @@ interface PlatformSelectorProps {
 export function PlatformSelector({
   selectedPlatforms,
   onSelectionChange,
-  title = "Select Platforms",
-  description = "Choose where to publish your content",
+  title,
+  description,
   maxSelections,
 }: PlatformSelectorProps) {
+  const { copy } = useUiCopy();
   const [showAll, setShowAll] = useState(false);
   const displayPlatforms = showAll ? SOCIAL_PLATFORMS : SOCIAL_PLATFORMS.slice(0, 6);
 
@@ -52,10 +54,16 @@ export function PlatformSelector({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">{title}</h3>
-          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+          <h3 className="text-sm font-medium">{title ?? copy("Select Platforms")}</h3>
+          {description !== "" && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {description ?? copy("Choose where to publish your content")}
+            </p>
+          )}
         </div>
-        <div className="text-xs text-muted-foreground">{selectedPlatforms.length} selected</div>
+        <div className="text-xs text-muted-foreground">
+          {copy("{{count, number}} selected", { count: selectedPlatforms.length })}
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -67,7 +75,7 @@ export function PlatformSelector({
           onClick={selectAll}
           disabled={maxSelections ? selectedPlatforms.length >= maxSelections : false}
           className="text-xs">
-          Select All
+          {copy("Select All")}{" "}
         </Button>
         <Button
           type="button"
@@ -76,7 +84,7 @@ export function PlatformSelector({
           onClick={clearAll}
           disabled={selectedPlatforms.length === 0}
           className="text-xs bg-transparent">
-          Clear
+          {copy("Clear")}{" "}
         </Button>
       </div>
 
@@ -116,7 +124,7 @@ export function PlatformSelector({
       {SOCIAL_PLATFORMS.length > 6 && (
         <div className="text-center">
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowAll(!showAll)} className="text-xs">
-            {showAll ? "Show Less" : `Show ${SOCIAL_PLATFORMS.length - 6} More`}
+            {showAll ? copy("Show Less") : copy("Show {{count, number}} More", { count: SOCIAL_PLATFORMS.length - 6 })}
           </Button>
         </div>
       )}
@@ -125,7 +133,7 @@ export function PlatformSelector({
       {selectedPlatforms.length > 0 && (
         <div className="p-3 rounded-lg border border-border bg-card text-sm">
           <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
-            Publishing to
+            {copy("Publishing to")}{" "}
           </p>
           <div className="text-foreground">
             {selectedPlatforms.map((platformId, index) => {
@@ -145,7 +153,7 @@ export function PlatformSelector({
 
       {/* Validation Message */}
       {selectedPlatforms.length === 0 && (
-        <p className="text-xs text-muted-foreground">Select at least one platform to publish your content</p>
+        <p className="text-xs text-muted-foreground">{copy("Select at least one platform to publish your content")}</p>
       )}
     </div>
   );

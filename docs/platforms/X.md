@@ -4,8 +4,13 @@
 
 - **Text**: Standard character limits
 - **Media**: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV)
-- **Limit**: Maximum 4 media files per post
+- **Limit**: Up to 20 photos and videos combined per post, including mixed photo/video posts. Animated GIFs must be posted alone.
+- **File sizes**: 5 MiB per photo, 15 MiB per animated GIF, and 512 MiB per video in SimplePost.
 - **Requirements**: Must have text OR media (no empty posts)
+
+The 20-attachment limit was [announced by X on November 12, 2026](https://x.com/dinkin_flickaa/status/2120946118267732158).
+X's public API documentation still lists the earlier attachment limits as of November 16, 2026;
+X may reject attachments when the expanded limit is unavailable for the API or posting account.
 
 ## Platform-Specific Options
 
@@ -76,15 +81,15 @@ const content = {
 
 X recommends OAuth 2.0 for new integrations. The SDK accepts OAuth 2.0 user credentials in three combinations — pick whichever fits how your app holds and rotates tokens.
 
-| Mode | What you provide | What the SDK does |
-| --- | --- | --- |
-| **Access token only** | `clientId`, `accessToken` (+ optional `expiresAt`) | Uses the access token as-is. Never calls the refresh endpoint. If X returns 401, the call fails — your app is responsible for issuing a fresh token. |
-| **Refresh token only** | `clientId`, `refreshToken` (+ `clientSecret` for confidential clients) | Exchanges the refresh token for a fresh access token on first call, then refreshes again as needed during the publisher's lifetime. |
-| **Both** | `clientId`, `accessToken`, `expiresAt`, `refreshToken` (+ `clientSecret` for confidential clients) | Uses the cached access token while it's still valid; refreshes only when it's within 60s of expiry. |
+| Mode                   | What you provide                                                                                   | What the SDK does                                                                                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Access token only**  | `clientId`, `accessToken` (+ optional `expiresAt`)                                                 | Uses the access token as-is. Never calls the refresh endpoint. If X returns 401, the call fails — your app is responsible for issuing a fresh token. |
+| **Refresh token only** | `clientId`, `refreshToken` (+ `clientSecret` for confidential clients)                             | Exchanges the refresh token for a fresh access token on first call, then refreshes again as needed during the publisher's lifetime.                  |
+| **Both**               | `clientId`, `accessToken`, `expiresAt`, `refreshToken` (+ `clientSecret` for confidential clients) | Uses the cached access token while it's still valid; refreshes only when it's within 60s of expiry.                                                  |
 
 ### ⚠️ Refresh token rotation
 
-X rotates refresh tokens on every successful refresh: each call to `/2/oauth2/token` returns a brand-new `refresh_token` *and* invalidates the old one. **The SDK does not persist credentials for you.** Every time a refresh happens, the new tokens are returned in `result.extraData.refreshedCredentials`:
+X rotates refresh tokens on every successful refresh: each call to `/2/oauth2/token` returns a brand-new `refresh_token` _and_ invalidates the old one. **The SDK does not persist credentials for you.** Every time a refresh happens, the new tokens are returned in `result.extraData.refreshedCredentials`:
 
 ```typescript
 Map(1) {

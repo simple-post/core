@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { createAction, Property } from '@activepieces/pieces-framework';
 import { HttpMethod } from '@activepieces/pieces-common';
 
@@ -83,6 +85,7 @@ export const createPost = createAction({
   outputSchema: {
     fields: [
       ...postOutputSchema.fields,
+      { key: 'warnings', label: 'Warnings' },
       { key: 'replayed', label: 'Returned Existing Post', format: 'boolean' },
     ],
   },
@@ -105,7 +108,14 @@ export const createPost = createAction({
       body['repost'] = { enabled: true, delayHours };
     }
     if (props.quote_post_id?.trim()) body['quotePostId'] = props.quote_post_id.trim();
-    if (props.idempotency_key?.trim()) body['idempotencyKey'] = props.idempotency_key.trim();
+    const explicitKey = props.idempotency_key?.trim();
+    if (explicitKey && explicitKey.length > 255) {
+      throw new Error('Idempotency Key must be at most 255 characters.');
+    }
+    const requestKey = createHash('sha256')
+      .update(JSON.stringify([context.run.id, context.step.name, props]))
+      .digest('hex');
+    body['idempotencyKey'] = explicitKey || `activepieces:${requestKey}`;
 
     const response = await simplepostRequest<CreatePostResponse>({
       auth: context.auth,
@@ -113,14 +123,14 @@ export const createPost = createAction({
       path: '/api/v1/posts',
       body,
     });
+    if (!response.post?.id) throw new Error('SimplePost did not return a post ID. Check Posts before retrying.');
     const output = {
       ...flattenPost(response.post),
       replayed: response.replayed === true,
       warnings: response.warnings ?? [],
     };
 
-    // Publishing problems come back as a stored post with status "failed";
-    // fail the step so the flow's error handling and retries apply.
+    // A failed result can include successful publishes. The stable key keeps a step retry from reposting to them.
     if (output.status === 'failed') {
       const failures = output.results
         .filter((result) => !result.success)

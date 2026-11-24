@@ -51,6 +51,8 @@ test.beforeAll(async () => {
             "@/components/schedule-calendar-context":
               "export const ScheduleCalendarProvider = ({children}) => children;",
             "@/components/activation-analytics": "export const ActivationAnalytics = () => null;",
+            "@/components/workspaces/team-screen":
+              'export const TeamScreen = () => { throw new Error("Personal account handoff entered a team workspace"); };',
             "@/components/navbar": "export const Navbar = () => null;",
             "@/components/account-avatar": "export const AccountAvatar = () => null;",
             "@/components/help-link": "export const HelpLink = () => null;",

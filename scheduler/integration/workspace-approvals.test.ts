@@ -44,6 +44,7 @@ function send(who: Actor, cmd: unknown) {
 async function clean() {
   await prisma.post.deleteMany({ where: { userId: { in: people.map((p) => p.id) } } });
   await prisma.user.deleteMany({ where: { id: { in: people.map((p) => p.id) } } });
+  await prisma.storageDeletion.deleteMany({ where: { userId: { in: people.map((p) => p.id) } } });
 }
 beforeEach(async () => {
   delete process.env.SELF_HOSTED;
@@ -278,9 +279,10 @@ it("retains a shared approved file across two connected deliveries and audits ca
     expect(uploadFromBuffer).toHaveBeenCalledTimes(1);
     expect(deliveries[0].media[0].url).toBe(deliveries[1].media[0].url);
     expect(deliveries[0].media[0].id).not.toBe(deliveries[1].media[0].id);
-    await prisma.storageDeletion.updateMany({ where: { userId: admin.id }, data: { dueAt: new Date(0) } });
+    const sharedKey = jest.mocked(uploadFromBuffer).mock.calls[0][1];
+    await prisma.storageDeletion.update({ where: { key: sharedKey }, data: { dueAt: new Date(0) } });
     await collectUnusedStorage();
-    expect(deleteFromStorage).not.toHaveBeenCalled();
+    expect(jest.mocked(deleteFromStorage).mock.calls.map(([key]) => key)).not.toContain(sharedKey);
     await new PostsModel(admin.id).deletePost(deliveries[0].id, deliveries[0].updatedAt);
     expect(await prisma.teamEvent.count({ where: { postId, reviewId, kind: "delivery removed" } })).toBe(1);
     // Owner erasure cascades to originals, reviews and remaining deliveries in one statement.

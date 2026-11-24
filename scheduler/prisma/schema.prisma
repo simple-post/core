@@ -28,6 +28,8 @@ model UserFeature {
 }
 
 model User {
+  ownedWorkspaces TeamWorkspace[]
+  teamMemberships TeamMember[]
   features                     UserFeature[]
   id                           String                      @id
   name                         String
@@ -370,6 +372,8 @@ model PendingOAuthConnection {
 
 // Posts saved as drafts, scheduled for dispatch, or already processed
 model Post {
+  workspaceReviewId String?
+  workspaceReview TeamReview? @relation(fields: [workspaceReviewId], references: [id], onDelete: NoAction)
   id           String    @id @default(cuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -432,6 +436,7 @@ model Post {
   @@index([userId, status])
   @@index([userId, scheduledFor])
   @@index([quotePostId])
+  @@index([workspaceReviewId])
   @@index([repostStatus, repostDueAt])
   @@map("post")
 }
@@ -972,4 +977,111 @@ model AccountAnalyticsSnapshot {
   @@unique([accountId, day])
   @@index([userId, day])
   @@map("account_analytics_snapshot")
+}
+
+model TeamWorkspace {
+  id String @id @default(cuid())
+  creatorId String
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  name String
+  icon String
+  description String
+  members TeamMember[]
+  invites TeamInvite[]
+  posts TeamPost[]
+  files TeamFile[]
+  states TeamState[]
+  @@index([creatorId])
+}
+
+model TeamMember {
+  workspaceId String
+  workspace TeamWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role String
+  approver Boolean
+  @@id([workspaceId,userId])
+  @@index([userId])
+}
+
+model TeamInvite {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace TeamWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email String
+  role String
+  approver Boolean
+  expiresAt DateTime
+  @@unique([workspaceId,email])
+  @@index([email])
+}
+
+model TeamState {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace TeamWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  kind String
+  name String
+  position Int
+  posts TeamPost[]
+  @@unique([workspaceId,id])
+  @@unique([workspaceId,name])
+}
+
+model TeamPost {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace TeamWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stateId String
+  state TeamState @relation(fields: [workspaceId,stateId], references: [workspaceId,id], onDelete: NoAction)
+  title String
+  ownerId String?
+  dueAt DateTime?
+  plannedAt DateTime
+  variants Json
+  revision Int @default(1)
+  currentReviewId String?
+  deliveredAt DateTime?
+  reviews TeamReview[]
+  events TeamEvent[]
+  @@index([workspaceId,plannedAt])
+}
+
+model TeamReview {
+  id String @id @default(cuid())
+  postId String
+  post TeamPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  snapshot Json
+  requestedBy String
+  requestedAt DateTime @default(now())
+  outcome String?
+  decidedBy String?
+  decidedAt DateTime?
+  deliveries Post[]
+  @@index([postId,requestedAt])
+}
+
+model TeamEvent {
+  id String @id @default(cuid())
+  postId String
+  post TeamPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  actorId String
+  actorName String
+  kind String
+  body String
+  reviewId String?
+  createdAt DateTime @default(now())
+  @@index([postId,createdAt])
+}
+
+// Private originals are immutable and live as long as their workspace and review history.
+model TeamFile {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace TeamWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  filename String
+  mime String
+  bytes Bytes
+  @@index([workspaceId])
 }

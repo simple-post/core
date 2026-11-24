@@ -18,11 +18,12 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
   const { id } = use(params);
   const router = useRouter();
   const { data: post, isLoading: loading } = usePost(id);
-  const canEdit = post?.status === "scheduled" || post?.status === "draft" || post?.status === "failed";
+  const canEdit =
+    !post?.workspaceReviewId && (post?.status === "scheduled" || post?.status === "draft" || post?.status === "failed");
 
   useEffect(() => {
     if (post && !canEdit) {
-      router.replace("/?tab=past");
+      router.replace(post.workspaceReviewId ? `/posts/${post.id}` : "/?tab=past");
     }
   }, [canEdit, post, router]);
 

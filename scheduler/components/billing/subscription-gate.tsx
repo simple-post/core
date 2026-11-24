@@ -21,7 +21,7 @@ export function useSelfHosted(): boolean {
   return useContext(SelfHostedContext);
 }
 
-const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans"]);
+const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans", "/workspaces"]);
 
 export function SubscriptionGate({ children }: { children: ReactNode }) {
   const { copy } = useUiCopy();

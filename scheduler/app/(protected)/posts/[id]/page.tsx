@@ -206,6 +206,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
+            {post.workspaceReviewId && (
+              <Link href="/workspaces" className="text-sm underline">
+                Managed by team workspace
+              </Link>
+            )}
             {!readOnly && (
               <div className="flex items-center gap-2" aria-label={copy("Post actions")}>
                 {isDraft && (
@@ -214,7 +219,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                   </Button>
                 )}
-                {(isScheduled || isDraft) && (
+                {!post.workspaceReviewId && (isScheduled || isDraft) && (
                   <Button
                     size="sm"
                     variant={isDraft ? "outline" : "default"}
@@ -224,7 +229,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     {isScheduled ? copy("Reschedule") : copy("Schedule")}
                   </Button>
                 )}
-                {(isScheduled || isDraft || isFailed) && (
+                {!post.workspaceReviewId && (isScheduled || isDraft || isFailed) && (
                   <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
                     <Link href={`/posts/${id}/edit`}>
                       <Edit className="h-4 w-4" />
@@ -415,7 +420,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         </AlertDialogContent>
       </AlertDialog>
 
-      {(isScheduled || isDraft) && (
+      {!post.workspaceReviewId && (isScheduled || isDraft) && (
         <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
       )}
     </>

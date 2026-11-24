@@ -420,9 +420,25 @@ export class PostsModel {
       };
     }
 
+    // Delivery workers can record outcomes. All edits to a released workspace
+    // payload, including unversioned internal calls, require a new team review.
+    const editsReviewedContent =
+      expected !== undefined ||
+      [
+        updates.message,
+        updates.scheduledFor,
+        updates.media,
+        updates.accountIds,
+        updates.accountOptions,
+        updates.accountOverrides,
+        updates.thread,
+        updates.quotePostId,
+        updates.repostEnabled,
+        updates.repostDelayHours,
+      ].some((value) => value !== undefined);
     const post = await client.post
       .update({
-        where: { id, userId: this.userId, ...expected },
+        where: { id, userId: this.userId, ...expected, ...(editsReviewedContent ? { workspaceReviewId: null } : {}) },
         data: updateData as Parameters<typeof prisma.post.update>[0]["data"],
         include: {
           media: true,
@@ -430,7 +446,7 @@ export class PostsModel {
         },
       })
       .catch((error: unknown) => {
-        if (expected && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (editsReviewedContent && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
           throw new ConflictError(
             serverMessage("This post changed or started publishing. Reload it before trying again."),
           );
@@ -465,6 +481,23 @@ export class PostsModel {
     await lockUserForQuota(client, this.userId);
     const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
     await queueStorageDeletion(client, this.userId, previous);
+    if (previous?.workspaceReviewId) {
+      const review = await client.teamReview.findUniqueOrThrow({
+        where: { id: previous.workspaceReviewId },
+        select: { postId: true },
+      });
+      const user = await client.user.findUniqueOrThrow({ where: { id: this.userId }, select: { name: true } });
+      await client.teamEvent.create({
+        data: {
+          postId: review.postId,
+          reviewId: previous.workspaceReviewId,
+          actorId: this.userId,
+          actorName: user.name,
+          kind: "delivery removed",
+          body: id,
+        },
+      });
+    }
     await client.post
       .delete({
         where: {
@@ -484,6 +517,7 @@ export class PostsModel {
   }
 
   private mapPostToSocialPost(post: {
+    workspaceReviewId?: string | null;
     id: string;
     message: string;
     scheduledFor: Date | null;
@@ -520,6 +554,7 @@ export class PostsModel {
   }): PostSnapshot {
     return {
       id: post.id,
+      ...(post.workspaceReviewId ? { workspaceReviewId: post.workspaceReviewId } : {}),
       message: post.message,
       accountIds: post.accounts.map((a) => a.id),
       media: post.media.map((m) => ({

@@ -1,0 +1,469 @@
+.tw {
+  --tw-accent: #315873;
+  --tw-ink: var(--foreground);
+  --tw-muted: var(--muted-foreground);
+  --tw-rule: var(--border);
+  max-width: 1240px;
+  padding: 24px clamp(16px, 4vw, 56px) 80px;
+  margin: auto;
+  color: var(--tw-ink);
+  font-size: 14px;
+}
+.tw h1,
+.tw h2,
+.tw h3,
+.tw h4,
+.tw p {
+  margin: 0;
+}
+.tw h1 {
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 1.15;
+}
+.tw h2 {
+  font-size: 1.4rem;
+  letter-spacing: -0.035em;
+  font-weight: 620;
+}
+.tw h3 {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+.tw h4 {
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+.tw small,
+.tw .tw-meta,
+.tw-switch,
+.tw-heading p,
+.tw-toolbar > span {
+  color: var(--tw-muted);
+}
+.tw small {
+  font-size: 12px;
+}
+.tw button,
+.tw select,
+.tw input:not([type="checkbox"]),
+.tw textarea {
+  border: 1px solid var(--tw-rule);
+  border-radius: 6px;
+  padding: 7px 11px;
+  background: var(--background);
+  color: var(--tw-ink);
+  font: inherit;
+}
+.tw button {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 550;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.tw button:hover {
+  background: var(--muted);
+}
+.tw button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.tw button.primary {
+  background: var(--tw-accent);
+  border-color: var(--tw-accent);
+  color: white;
+}
+.tw :focus-visible {
+  outline: 2px solid #5199cc;
+  outline-offset: 2px;
+}
+.tw-switch,
+.tw-switch label,
+.tw-heading,
+.tw-toolbar,
+.tw-line,
+.tw-row,
+.tw-tabs,
+.tw-segment,
+.tw-check,
+.tw-variant h3,
+.tw-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tw-switch {
+  gap: 18px;
+  font-size: 12px;
+}
+.tw-switch select {
+  font-size: 13px;
+  color: var(--tw-ink);
+  font-weight: 600;
+}
+.tw-heading,
+.tw-toolbar,
+.tw-row {
+  justify-content: space-between;
+}
+.tw-heading {
+  padding: 26px 0 22px;
+}
+.tw-heading p {
+  margin-top: 6px;
+}
+.tw-tabs {
+  gap: 22px;
+  border-bottom: 1px solid var(--tw-rule);
+  margin-bottom: 20px;
+}
+.tw-tabs button {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 9px 0;
+  color: var(--tw-muted);
+  border-bottom: 2px solid transparent;
+}
+.tw-tabs button[aria-current="page"] {
+  color: var(--tw-ink);
+  border-bottom-color: var(--tw-accent);
+}
+.tw-tabs span {
+  font-size: 11px;
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.tw-toolbar {
+  margin: 12px 0 17px;
+  flex-wrap: wrap;
+}
+.tw-toolbar h2 {
+  margin-inline-end: 8px;
+}
+.tw-segment {
+  border: 1px solid var(--tw-rule);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 0;
+}
+.tw-segment button {
+  border: 0;
+}
+.tw-segment [aria-pressed="true"] {
+  background: var(--muted);
+}
+.tw-calendar-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--tw-rule);
+  border-radius: 10px;
+}
+.tw-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(100px, 1fr));
+  min-width: 730px;
+}
+.tw-dayname {
+  background: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 10px;
+}
+.tw-day {
+  padding: 9px 7px;
+  min-height: 132px;
+  border-top: 1px solid var(--tw-rule);
+  border-inline-end: 1px solid var(--tw-rule);
+}
+.tw-calendar.week .tw-day {
+  min-height: 360px;
+}
+.tw-day:nth-child(7n) {
+  border-inline-end: 0;
+}
+.tw-day > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 25px;
+  height: 25px;
+  font-variant-numeric: tabular-nums;
+}
+.tw-day > span.today {
+  border-radius: 50%;
+  background: var(--tw-accent);
+  color: white;
+}
+.tw-day.outside > span {
+  color: var(--tw-muted);
+}
+.tw button.tw-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: start;
+  width: 100%;
+  margin-top: 7px;
+  padding: 9px 8px;
+  gap: 5px;
+  border-inline-start: 3px solid #8996a4;
+  overflow-wrap: anywhere;
+}
+.tw-card[data-kind="review"] {
+  border-inline-start-color: #ba8425;
+}
+.tw-card[data-kind="approved"] {
+  border-inline-start-color: #4d8975;
+}
+.tw-card-top {
+  width: 100%;
+  gap: 5px;
+  font-size: 12px;
+}
+.tw-card-top time {
+  margin-inline-start: auto;
+  color: var(--tw-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.tw-card small {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+}
+.tw-state {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 11px;
+  background: #e8edf1;
+  color: #344c60;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.tw-state[data-kind="review"] {
+  background: #fff0ce;
+  color: #735315;
+}
+.tw-state[data-kind="approved"] {
+  background: #dff0e8;
+  color: #205c45;
+}
+.tw .tw-late {
+  color: #a0443c;
+}
+.tw-body {
+  min-width: 0;
+}
+.tw-line {
+  flex-wrap: wrap;
+}
+.tw-fields {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.tw-fields > label {
+  flex: 1;
+  min-width: 145px;
+}
+.tw label:not(.tw-check) {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.tw .tw-switch label {
+  display: flex;
+  align-items: center;
+}
+.tw .tw-check {
+  display: inline-flex;
+  gap: 6px;
+  font-weight: 500;
+}
+.tw textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+.tw form,
+.tw-editor fieldset,
+.tw-settings,
+.tw-detail,
+.tw-content {
+  display: grid;
+  gap: 14px;
+}
+.tw-editor,
+.tw-detail,
+.tw-settings {
+  max-width: 850px;
+}
+.tw-editor legend {
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+.tw form.tw-line,
+.tw form.tw-row {
+  display: flex;
+}
+.tw-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--tw-rule);
+  flex-wrap: wrap;
+}
+.tw-row small {
+  display: block;
+}
+.tw-settings section,
+.tw-history {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--tw-rule);
+}
+.tw-settings h2,
+.tw-settings form,
+.tw-detail h2 {
+  margin: 10px 0;
+}
+.tw-row input[type="number"] {
+  width: 75px;
+}
+.tw form > button {
+  justify-self: start;
+}
+.tw-feed {
+  display: grid;
+  grid-template-columns: minmax(160px, 24%) 1fr;
+  gap: 22px;
+}
+.tw-feed aside {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tw-feed aside button {
+  display: grid;
+  text-align: start;
+  justify-content: start;
+}
+.tw-feed aside [aria-pressed="true"] {
+  border-color: var(--tw-accent);
+  background: var(--muted);
+}
+.tw-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 12px;
+}
+.tw-meta b {
+  display: block;
+  color: var(--tw-ink);
+  font-size: 13px;
+}
+.tw-variant {
+  border: 1px solid var(--tw-rule);
+  border-radius: 9px;
+  padding: 14px;
+  display: grid;
+  gap: 9px;
+}
+.tw-variant p,
+.tw-history p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tw-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.tw-gallery:empty {
+  display: none;
+}
+.tw-gallery img,
+.tw-gallery video {
+  max-width: 220px;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 5px;
+}
+.tw-gallery figcaption,
+.tw-history small {
+  font-size: 11px;
+  color: var(--tw-muted);
+}
+.tw-history > div {
+  margin: 12px 0;
+}
+.tw-history small {
+  margin-inline-start: 8px;
+}
+.tw details {
+  padding: 7px 0;
+}
+.tw summary {
+  cursor: pointer;
+}
+.tw details .tw-content {
+  margin-top: 8px;
+}
+.tw-empty {
+  padding: 35px;
+  background: var(--muted);
+  border-radius: 8px;
+}
+.tw [role="alert"] {
+  margin: 12px 0;
+  padding: 10px;
+  background: #fff0ea;
+  color: #702f19;
+}
+.tw-back {
+  margin-bottom: 16px;
+}
+@media (max-width: 680px) {
+  .tw {
+    padding: 16px 12px 50px;
+  }
+  .tw-feed {
+    grid-template-columns: 1fr;
+  }
+  .tw-feed aside {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .tw-heading {
+    align-items: flex-start;
+  }
+  .tw-heading p {
+    font-size: 13px;
+  }
+  .tw-tabs {
+    gap: 14px;
+  }
+  .tw-toolbar h2 {
+    width: 100%;
+  }
+  .tw-row,
+  .tw-line {
+    gap: 7px;
+  }
+  .tw-fields {
+    align-items: stretch;
+  }
+  .tw-fields > label {
+    min-width: 100%;
+  }
+  .tw-gallery img {
+    max-width: 100%;
+  }
+}

@@ -392,7 +392,7 @@ function PostCard({
                       {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                     </DropdownMenuItem>
                   )}
-                  {(isScheduled || isDraft) && (
+                  {!post.workspaceReviewId && (isScheduled || isDraft) && (
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.preventDefault();
@@ -404,7 +404,7 @@ function PostCard({
                       {isScheduled ? copy("Reschedule") : copy("Schedule")}
                     </DropdownMenuItem>
                   )}
-                  {(isScheduled || isDraft || isFailed) && (
+                  {!post.workspaceReviewId && (isScheduled || isDraft || isFailed) && (
                     <Link href={`/posts/${post.id}/edit`}>
                       <DropdownMenuItem
                         onClick={(e) => {
@@ -477,7 +477,7 @@ function PostCard({
         </AlertDialogContent>
       </AlertDialog>
 
-      {(isScheduled || isDraft) && (
+      {!post.workspaceReviewId && (isScheduled || isDraft) && (
         <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
       )}
     </>

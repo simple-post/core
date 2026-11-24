@@ -90,6 +90,7 @@ export interface AccountPlatformOptions {
 }
 
 export interface SocialPost {
+  workspaceReviewId?: string;
   id: string;
   updatedAt?: Date;
   message: string;

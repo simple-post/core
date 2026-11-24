@@ -38,7 +38,8 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
-  const showCreateCta = !readOnly && !pathname.startsWith("/schedule");
+  const inTeamPlanner = pathname === "/workspaces";
+  const showCreateCta = !inTeamPlanner && !readOnly && !pathname.startsWith("/schedule");
   const activeSection = pathname.startsWith("/accounts")
     ? "accounts"
     : pathname.startsWith("/analytics")
@@ -94,24 +95,28 @@ export function Navbar({ actions }: NavbarProps) {
           </div>
         </div>
       </header>
-      {readOnly && billing?.trial && !pathname.startsWith("/billing") && pathname !== "/subscribe" && (
-        <aside
-          aria-label={t("trialExpired")}
-          className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            {t("trialMessage", {
-              date: new Date(billing.trial.expiresAt).toLocaleDateString(locale, {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              }),
-            })}
-          </p>
-          <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
-            <Link href="/billing/plans">{t("choosePlan")}</Link>
-          </Button>
-        </aside>
-      )}
+      {!inTeamPlanner &&
+        readOnly &&
+        billing?.trial &&
+        !pathname.startsWith("/billing") &&
+        pathname !== "/subscribe" && (
+          <aside
+            aria-label={t("trialExpired")}
+            className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {t("trialMessage", {
+                date: new Date(billing.trial.expiresAt).toLocaleDateString(locale, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }),
+              })}
+            </p>
+            <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
+              <Link href="/billing/plans">{t("choosePlan")}</Link>
+            </Button>
+          </aside>
+        )}
     </>
   );
 }

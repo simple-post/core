@@ -153,7 +153,7 @@ it("updates an unchanged snapshot with its ownership and version conditions", as
   expect(result.message).toBe("replacement");
   expect(postMock.update).toHaveBeenCalledWith(
     expect.objectContaining({
-      where: { id: "p1", userId: "u1", status: "scheduled", updatedAt: snapshotTime },
+      where: { id: "p1", userId: "u1", status: "scheduled", updatedAt: snapshotTime, workspaceReviewId: null },
     }),
   );
 });

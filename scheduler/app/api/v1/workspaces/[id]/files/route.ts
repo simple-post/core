@@ -1,15 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { requireBrowserSession } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 import { authorize, membership } from "@/lib/workspaces/access";
 import { maxFileSize } from "@/lib/workspaces/contracts";
 import { saveFile } from "@/lib/workspaces/files";
+import { requireTeamWorkspaceSession } from "@/lib/workspaces/session";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { user } = await requireBrowserSession(req);
+    const { user } = await requireTeamWorkspaceSession(req);
     const { id } = await params;
     authorize(await membership(prisma, id, user.id), "edit");
     const reader = req.body?.getReader();

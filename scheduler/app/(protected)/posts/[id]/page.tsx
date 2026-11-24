@@ -206,7 +206,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            {post.workspaceReviewId && (
+            {post.workspaceReviewId && hasFeature("TEAM_WORKSPACES") && (
               <Link href="/workspaces" className="text-sm underline">
                 Managed by team workspace
               </Link>

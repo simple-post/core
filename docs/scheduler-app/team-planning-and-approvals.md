@@ -69,3 +69,9 @@ Reviewers sign off on the title, ordered platform variants, destinations, captio
 The creator owns the workspace for its lifetime. Removing a collaborator preserves their past attribution. Deleting the creator account removes its workspaces, originals and decisions with the account. Creation requires a qualifying hosted plan, including an active grant of that plan. Self-hosted mode has no paid-plan creation entitlement. Personal delivery copies can be canceled by the account owner and the workspace records their removal. Native and connected releases use separate planning items.
 
 Private uploads support JPEG, PNG, WebP and MP4 up to 8 MiB each, with 512 MiB of original media per workspace. Admins can remove unused uploads. The service retains every file used by a current post or a historical review. A connected release copies the approved media into the creator's existing publishing storage and charges the normal scheduling allowance per platform delivery.
+
+## Activate the private rollout
+
+Deploy the scheduler with its Prisma migrations. The `TEAM_WORKSPACES` migration creates zero grants. Sign in to the hosted app with your verified site administrator account, open `/admin/team-workspaces`, and select **Enable for my account**. The enabled list should contain just your sign-in email. Select **Open team workspaces** to enter the planner.
+
+To add a pilot account, enter its verified SimplePost sign-in email on the same page. **Revoke** removes that account’s grant and blocks its next workspace API request. Each collaborator needs a grant and a workspace membership or invitation. Workspace creation still requires the usual plan allowance. The rollout uses individual grants exclusively, including for site administrators. Adding `TEAM_WORKSPACES` to `GLOBAL_FEATURES` has no effect.

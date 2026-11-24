@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 
 import { GET } from "@/app/api/v1/workspaces/[id]/files/[fileId]/route";
 import { mediaType, readFile } from "@/lib/workspaces/files";
-jest.mock("@/lib/middleware/auth", () => ({
-  requireBrowserSession: jest.fn(async () => ({ user: { id: "member" } })),
+jest.mock("@/lib/workspaces/session", () => ({
+  requireTeamWorkspaceSession: jest.fn(async () => ({ user: { id: "member" } })),
 }));
 jest.mock("@/lib/workspaces/files", () => ({ ...jest.requireActual("@/lib/workspaces/files"), readFile: jest.fn() }));
 const bytes = Uint8Array.from([1, 2, 3, 4, 5, 6]);

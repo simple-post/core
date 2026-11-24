@@ -13,7 +13,7 @@ export function useFeatures() {
     queryKey: ["features", session?.user.id],
     enabled: !!session?.user.id,
     queryFn: async (): Promise<Feature[]> => {
-      const response = await fetch("/api/v1/features", { cache: "no-store" });
+      const response = await fetch("/api/features", { cache: "no-store" });
       if (!response.ok) throw new Error(copy("Failed to fetch features"));
       const data: { features: Feature[] } = await response.json();
       return data.features;

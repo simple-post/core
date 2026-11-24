@@ -1,16 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 import { readWorkspace } from "@/lib/workspaces/access";
 import { commandSchema } from "@/lib/workspaces/contracts";
 import { runCommand } from "@/lib/workspaces/posts";
 import { release } from "@/lib/workspaces/release";
+import { requireTeamWorkspaceSession } from "@/lib/workspaces/session";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Context) {
   try {
-    const { user } = await requireBrowserSession(req);
+    const { user } = await requireTeamWorkspaceSession(req);
     const { id } = await params;
     return NextResponse.json(await readWorkspace(user, id));
   } catch (error) {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: Context) {
 }
 export async function POST(req: NextRequest, { params }: Context) {
   try {
-    const { user } = await requireBrowserSession(req);
+    const { user } = await requireTeamWorkspaceSession(req);
     const { id } = await params;
     const cmd = commandSchema.parse(await req.json());
     const result =

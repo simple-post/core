@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { requireBrowserSession } from "@/lib/middleware/auth";
 import { handleApiError } from "@/lib/utils/errors";
 import { readFile } from "@/lib/workspaces/files";
+import { requireTeamWorkspaceSession } from "@/lib/workspaces/session";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) {
   try {
-    const { user } = await requireBrowserSession(req);
+    const { user } = await requireTeamWorkspaceSession(req);
     const { id, fileId } = await params;
     const file = await readFile(user, id, fileId);
     const total = file.bytes.byteLength;

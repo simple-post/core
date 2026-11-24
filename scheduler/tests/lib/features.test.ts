@@ -46,6 +46,14 @@ describe("GLOBAL_FEATURES", () => {
     delete process.env.GLOBAL_FEATURES;
   });
 
+  it("keeps the team-workspace pilot account-only even when named in GLOBAL_FEATURES", async () => {
+    process.env.GLOBAL_FEATURES = "TEAM_WORKSPACES,IMAGE_FITTING";
+    jest.mocked(prisma.userFeature.findUnique).mockResolvedValue(null);
+    jest.mocked(prisma.userFeature.findMany).mockResolvedValue([]);
+    expect(await hasFeature("outside", Feature.TEAM_WORKSPACES)).toBe(false);
+    expect(await getUserFeatures("outside")).toEqual([Feature.IMAGE_FITTING]);
+  });
+
   it("grants a globally enabled feature without consulting or needing a grant", async () => {
     process.env.GLOBAL_FEATURES = "IMAGE_FITTING";
     expect(await hasFeature("user-a", Feature.IMAGE_FITTING)).toBe(true);

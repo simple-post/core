@@ -15,6 +15,7 @@ enum Feature {
   PLUGIN_EXTENSIONS
   POST_ANALYTICS
   SOCIAL_INBOX
+  TEAM_WORKSPACES
 }
 
 model UserFeature {

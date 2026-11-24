@@ -11,15 +11,17 @@ const TIMELINE_TAB_TRIGGER_CLASS =
 export function PostStatusTabs({
   items,
   disabled = false,
+  ariaLabel,
 }: {
   items: Array<{ id: string; label: string; icon: ReactNode; badge?: ReactNode }>;
   disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const { copy } = useUiCopy();
   return (
     <TabsList
-      aria-label={copy("Post status")}
-      className="simplepost-visual mb-6 grid h-auto w-full grid-cols-4 items-stretch gap-1 rounded-xl border border-border bg-card p-1 sm:inline-flex sm:h-10 sm:w-auto sm:items-center sm:justify-start sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:p-0">
+      aria-label={ariaLabel ?? copy("Post status")}
+      className="simplepost-visual mb-6 grid h-auto w-full grid-flow-col auto-cols-fr items-stretch gap-1 rounded-xl border border-border bg-card p-1 sm:inline-flex sm:h-10 sm:w-auto sm:items-center sm:justify-start sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:p-0">
       {items.map((item) => (
         <TabsTrigger key={item.id} value={item.id} disabled={disabled} className={TIMELINE_TAB_TRIGGER_CLASS}>
           {item.icon}

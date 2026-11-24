@@ -1,6 +1,11 @@
 import { useState } from "react";
 
-import { PlatformIcon } from "@/components/platform-icon";
+import { PlatformIconBadge } from "@/components/platform-icons";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { maxFileSize, platforms, type Variant } from "@/lib/workspaces/contracts";
 
 import { localTime, platformName, request, type FileInfo, type Item, type Run, type Workspace } from "./types";
@@ -18,11 +23,13 @@ export function PostEditor({
   post,
   run,
   close,
+  plannedDay,
 }: {
   workspace: Workspace;
   post?: Item;
   run: Run;
   close: () => void;
+  plannedDay?: Date;
 }) {
   const [baseRevision] = useState(post?.revision);
   const [variants, setVariants] = useState<Variant[]>(post?.variants ?? [freshVariant("instagram")]);
@@ -51,7 +58,7 @@ export function PostEditor({
   }
   return (
     <form
-      className="tw-editor"
+      className="mx-auto max-w-3xl space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6"
       onSubmit={async (e) => {
         e.preventDefault();
         const data = new FormData(e.currentTarget);
@@ -75,44 +82,47 @@ export function PostEditor({
         )
           close();
       }}>
-      <h2>{post ? "Edit post" : "New post"}</h2>
-      <label>
+      <h2 className="text-lg font-semibold tracking-tight">{post ? "Edit post" : "New post"}</h2>
+      <Label className="min-w-0 flex-col items-stretch">
         Post title
-        <input name="title" required maxLength={80} defaultValue={post?.title} disabled={!!post?.deliveredAt} />
-      </label>
-      <div className="tw-fields">
-        <label>
+        <Input name="title" required maxLength={80} defaultValue={post?.title} disabled={!!post?.deliveredAt} />
+      </Label>
+      <div className="grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
+        <Label className="min-w-0 flex-col items-stretch">
           Planned publication
-          <input
+          <Input
             type="datetime-local"
             name="planned"
             required
             disabled={!!post?.deliveredAt}
-            defaultValue={localTime(post?.plannedAt ?? new Date(Date.now() + 86_400_000).toISOString())}
+            defaultValue={localTime(
+              post?.plannedAt ?? plannedDay?.toISOString() ?? new Date(Date.now() + 86_400_000).toISOString(),
+            )}
           />
-        </label>
-        <label>
+        </Label>
+        <Label className="min-w-0 flex-col items-stretch">
           Owner
-          <select name="owner" defaultValue={post ? (post.ownerId ?? "") : w.member.userId}>
+          <NativeSelect name="owner" defaultValue={post ? (post.ownerId ?? "") : w.member.userId}>
             <option value="">Unassigned</option>
             {w.members.map((m) => (
               <option key={m.userId} value={m.userId}>
                 {m.user.name}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
+          </NativeSelect>
+        </Label>
+        <Label className="min-w-0 flex-col items-stretch">
           Internal deadline
-          <input type="datetime-local" name="due" defaultValue={post?.dueAt ? localTime(post.dueAt) : ""} />
-        </label>
+          <Input type="datetime-local" name="due" defaultValue={post?.dueAt ? localTime(post.dueAt) : ""} />
+        </Label>
       </div>
-      <fieldset disabled={!!post?.deliveredAt || uploading}>
-        <legend>Platform variants</legend>
-        <div className="tw-line">
+      <fieldset className="min-w-0 space-y-4" disabled={!!post?.deliveredAt || uploading}>
+        <legend className="mb-3 text-sm font-semibold">Platform variants</legend>
+        <div className="flex flex-wrap items-end gap-3">
           {platforms.map((platform) => (
-            <label key={platform} className="tw-check">
+            <Label key={platform} className="shrink-0">
               <input
+                className="size-4 accent-primary"
                 type="checkbox"
                 checked={variants.some((v) => v.platform === platform)}
                 onChange={(e) =>
@@ -123,28 +133,28 @@ export function PostEditor({
                   )
                 }
               />
-              <PlatformIcon platform={platform} />
+              <PlatformIconBadge platform={platform} />
               {platformName[platform]}
-            </label>
+            </Label>
           ))}
         </div>
         {variants.map((v) => (
-          <div key={v.platform} className="tw-variant">
-            <h3>
-              <PlatformIcon platform={v.platform} /> {platformName[v.platform]}
+          <div key={v.platform} className="min-w-0 space-y-4 rounded-xl border border-border bg-background/40 p-4">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <PlatformIconBadge platform={v.platform} /> {platformName[v.platform]}
             </h3>
-            <label>
+            <Label className="min-w-0 flex-col items-stretch">
               Caption
-              <textarea
+              <Textarea
                 maxLength={12_000}
                 value={v.caption}
                 onChange={(e) => patch(v.platform, { caption: e.target.value })}
               />
-            </label>
+            </Label>
             {w.member.userId === w.creatorId ? (
-              <label>
+              <Label className="min-w-0 flex-col items-stretch">
                 Destination
-                <select
+                <NativeSelect
                   value={v.accountId ?? ""}
                   onChange={(e) => patch(v.platform, { accountId: e.target.value || null, destination: null })}>
                   <option value="">Native publishing</option>
@@ -155,15 +165,17 @@ export function PostEditor({
                         {a.displayName || a.username || a.id}
                       </option>
                     ))}
-                </select>
-              </label>
+                </NativeSelect>
+              </Label>
             ) : (
-              <small>{v.destination?.label ?? "Native publishing"}</small>
+              <small className="block text-xs text-muted-foreground">
+                {v.destination?.label ?? "Native publishing"}
+              </small>
             )}
             {v.platform === "tiktok" && (
-              <label>
+              <Label className="min-w-0 flex-col items-stretch">
                 TikTok audience
-                <select
+                <NativeSelect
                   value={v.options.privacyLevel ?? ""}
                   onChange={(e) =>
                     patch(v.platform, {
@@ -176,13 +188,13 @@ export function PostEditor({
                   {["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"].map((o) => (
                     <option key={o}>{o}</option>
                   ))}
-                </select>
-              </label>
+                </NativeSelect>
+              </Label>
             )}
             {v.platform === "linkedin" && (
-              <label>
+              <Label className="min-w-0 flex-col items-stretch">
                 LinkedIn visibility
-                <select
+                <NativeSelect
                   value={v.options.visibility ?? ""}
                   onChange={(e) =>
                     patch(v.platform, {
@@ -192,16 +204,18 @@ export function PostEditor({
                   <option value="">Platform default</option>
                   <option value="PUBLIC">Public</option>
                   <option value="CONNECTIONS">Connections</option>
-                </select>
-              </label>
+                </NativeSelect>
+              </Label>
             )}
-            <h4>Final media</h4>
+            <h4 className="text-sm font-medium">Final media</h4>
             {v.fileIds.map((id, i) => (
-              <div key={i} className="tw-line">
+              <div key={i} className="flex flex-wrap items-end gap-3">
                 <span>
                   {i + 1}. {files.find((f) => f.id === id)?.filename}
                 </span>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   type="button"
                   disabled={!i}
                   onClick={() => {
@@ -210,19 +224,21 @@ export function PostEditor({
                     patch(v.platform, { fileIds: ids });
                   }}>
                   Move up
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   type="button"
                   onClick={() => patch(v.platform, { fileIds: v.fileIds.filter((_, index) => index !== i) })}>
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
             {v.fileIds.length < 10 && (
-              <div className="tw-fields">
-                <label>
+              <div className="grid gap-4 sm:grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]">
+                <Label className="min-w-0 flex-col items-stretch">
                   Upload file · up to 8 MiB
-                  <input
+                  <Input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,video/mp4"
                     onChange={(e) => {
@@ -231,11 +247,13 @@ export function PostEditor({
                       e.target.value = "";
                     }}
                   />
-                </label>
+                </Label>
                 {files.length > 0 && (
-                  <label>
+                  <Label className="min-w-0 flex-col items-stretch">
                     Use workspace file
-                    <select value="" onChange={(e) => patch(v.platform, { fileIds: [...v.fileIds, e.target.value] })}>
+                    <NativeSelect
+                      value=""
+                      onChange={(e) => patch(v.platform, { fileIds: [...v.fileIds, e.target.value] })}>
                       <option value="">Select file</option>
                       {files
                         .filter((f) => !v.fileIds.includes(f.id))
@@ -244,22 +262,26 @@ export function PostEditor({
                             {f.filename}
                           </option>
                         ))}
-                    </select>
-                  </label>
+                    </NativeSelect>
+                  </Label>
                 )}
               </div>
             )}
           </div>
         ))}
       </fieldset>
-      {error && <p role="alert">{error}</p>}
-      <div className="tw-line">
-        <button className="primary" disabled={variants.length === 0 || uploading}>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap items-end gap-3">
+        <Button size="sm" disabled={variants.length === 0 || uploading}>
           {uploading ? "Uploading…" : "Save post"}
-        </button>
-        <button type="button" onClick={close}>
+        </Button>
+        <Button variant="outline" size="sm" type="button" onClick={close}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );

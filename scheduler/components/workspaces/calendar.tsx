@@ -1,100 +1,93 @@
 import { useState } from "react";
 
-import {
-  addDays,
-  addMonths,
-  format,
-  isSameDay,
-  isSameMonth,
-  startOfMonth,
-  startOfWeek,
-  endOfMonth,
-  endOfWeek,
-  eachDayOfInterval,
-} from "date-fns";
-import { ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
+import { format } from "date-fns";
 
-import { PlatformIcon } from "@/components/platform-icon";
+import { ScheduleCalendarView, type CalendarView, type DayEntry } from "@/components/visual/schedule-calendar";
+import { addDays, addMonths, dayKey, getCalendarRange, getPeriodLabel } from "@/lib/calendar-range";
+import { cn } from "@/lib/utils";
 
-import { platformName, type Item, type Workspace } from "./types";
+import type { Workspace } from "./types";
 
-export function PlannerCalendar({ workspace: w, open }: { workspace: Workspace; open: (post: Item) => void }) {
-  const [view, setView] = useState<"Week" | "Month">("Week");
+export function PlannerCalendar({
+  workspace,
+  open,
+  create,
+}: {
+  workspace: Workspace;
+  open: (id: string) => void;
+  create?: (day: Date) => void;
+}) {
+  const [view, setView] = useState<CalendarView>("week");
   const [anchor, setAnchor] = useState(new Date());
-  const start = startOfWeek(view === "Week" ? anchor : startOfMonth(anchor), { weekStartsOn: 1 });
-  const end = view === "Week" ? addDays(start, 6) : endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 });
-  const days = eachDayOfInterval({ start, end });
-  const shift = (n: number) => setAnchor(view === "Week" ? addDays(anchor, n * 7) : addMonths(anchor, n));
+  const now = new Date();
+  const range = getCalendarRange(view, anchor);
+  const entries = new Map<string, DayEntry[]>();
+  for (const post of workspace.posts) {
+    const time = new Date(post.plannedAt);
+    if (time < range.fetchStart || time >= range.fetchEnd) continue;
+    const state = workspace.states.find((s) => s.id === post.stateId);
+    const owner = workspace.members.find((m) => m.userId === post.ownerId)?.user.name ?? "Unassigned";
+    const due = post.dueAt ? new Date(post.dueAt) : null;
+    const overdue = due && due < now && state?.kind !== "approved";
+    const key = dayKey(time);
+    const day = entries.get(key) ?? [];
+    day.push({
+      key: post.id,
+      time,
+      isSlot: false,
+      posts: [
+        {
+          id: post.id,
+          message: post.title,
+          status: post.deliveredAt && post.variants.every((v) => !v.accountId) ? "published" : "planned",
+          platforms: post.variants.map((v) => v.platform),
+          details: (
+            <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+              <span className="block truncate text-foreground">{state?.name}</span>
+              <span className="block truncate">{owner}</span>
+              {due && (
+                <span className={cn("block", overdue && "text-destructive")}>
+                  {overdue ? "Overdue" : "Due"} {format(due, "MMM d")}
+                </span>
+              )}
+            </span>
+          ),
+        },
+      ],
+    });
+    entries.set(key, day);
+  }
+  for (const day of entries.values()) day.sort((a, b) => a.time.getTime() - b.time.getTime());
   return (
     <section aria-label="Editorial calendar">
-      <div className="tw-toolbar">
-        <div className="tw-line">
-          <h2>
-            {view === "Month"
-              ? format(anchor, "MMMM yyyy")
-              : `${format(start, "MMM d")} – ${format(end, "MMM d, yyyy")}`}
-          </h2>
-          <button aria-label="Previous period" onClick={() => shift(-1)}>
-            <ChevronLeft size={16} />
-          </button>
-          <button aria-label="Next period" onClick={() => shift(1)}>
-            <ChevronRight size={16} />
-          </button>
-          <button onClick={() => setAnchor(new Date())}>Today</button>
-        </div>
-        <div className="tw-segment">
-          {(["Week", "Month"] as const).map((v) => (
-            <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>
-              {v}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="tw-calendar-scroll">
-        <div className={`tw-calendar ${view.toLowerCase()}`}>
-          {days.slice(0, 7).map((d) => (
-            <div key={d.toISOString()} className="tw-dayname">
-              {format(d, "EEEE")}
-            </div>
-          ))}
-          {days.map((day) => (
-            <div
-              className={`tw-day ${view === "Week" || isSameMonth(day, anchor) ? "" : "outside"}`}
-              key={day.toISOString()}>
-              <span className={isSameDay(day, new Date()) ? "today" : ""}>{format(day, "d")}</span>
-              {w.posts
-                .filter((p) => isSameDay(new Date(p.plannedAt), day))
-                .map((p) => {
-                  const state = w.states.find((s) => s.id === p.stateId)!;
-                  const owner = w.members.find((m) => m.userId === p.ownerId)?.user.name;
-                  const late = p.dueAt && new Date(p.dueAt) < new Date() && state.kind !== "approved";
-                  return (
-                    <button key={p.id} className="tw-card" data-kind={state.kind} onClick={() => open(p)}>
-                      <span className="tw-card-top">
-                        {p.variants.map((v) => (
-                          <span key={v.platform} title={platformName[v.platform]}>
-                            <PlatformIcon platform={v.platform} />
-                          </span>
-                        ))}
-                        <time>{format(new Date(p.plannedAt), "HH:mm")}</time>
-                      </span>
-                      <strong>{p.title}</strong>
-                      <span className="tw-state" data-kind={state.kind}>
-                        {state.name}
-                      </span>
-                      <small>{owner ?? "Unassigned"}</small>
-                      {p.dueAt && (
-                        <small className={late ? "tw-late" : ""}>
-                          <Clock3 size={11} /> {late ? "Overdue" : "Due"} {format(new Date(p.dueAt), "MMM d")}
-                        </small>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
-      </div>
+      <ScheduleCalendarView
+        view={view}
+        periodLabel={getPeriodLabel(view, range)}
+        range={range}
+        anchorDate={anchor}
+        now={now}
+        entriesByDay={entries}
+        setView={setView}
+        setAnchorDate={setAnchor}
+        move={(direction) =>
+          setAnchor(
+            view === "month" ? addMonths(anchor, direction) : addDays(anchor, direction * (view === "week" ? 7 : 1)),
+          )
+        }
+        onToday={() => setAnchor(new Date())}
+        allowCreate={!!create}
+        renderAction={({ target, className, ...props }) => (
+          <button
+            {...props}
+            type="button"
+            className={cn(className, target.kind === "post" && "w-full text-start")}
+            onClick={() => {
+              if (target.kind === "post") open(target.id);
+              else if (target.kind === "create") create?.(anchor);
+            }}
+          />
+        )}
+      />
     </section>
   );
 }

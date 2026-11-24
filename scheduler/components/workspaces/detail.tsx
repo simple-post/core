@@ -1,6 +1,11 @@
 import { useState } from "react";
 
-import { PlatformIcon } from "@/components/platform-icon";
+import { PlatformIconBadge } from "@/components/platform-icons";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import type { Snapshot } from "@/lib/workspaces/contracts";
 
 import { displayDate, platformName, type Item, type Workspace, type Run } from "./types";
@@ -21,30 +26,40 @@ const activity: Record<string, string> = {
 };
 export function Content({ workspace: w, snapshot }: { workspace: Workspace; snapshot: Snapshot }) {
   return (
-    <div className="tw-content">
+    <div className="grid gap-3">
       {snapshot.variants.map((v) => (
-        <section key={v.platform} className="tw-variant">
-          <h3>
-            <PlatformIcon platform={v.platform} /> {platformName[v.platform]}
+        <section key={v.platform} className="min-w-0 space-y-4 rounded-xl border border-border bg-background/40 p-4">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <PlatformIconBadge platform={v.platform} /> {platformName[v.platform]}
           </h3>
-          <small>
+          <small className="block text-xs text-muted-foreground">
             {v.destination?.label ?? "Native publishing"}
             {Object.values(v.options).map((val) => ` · ${val}`)}
           </small>
-          <p>{v.caption}</p>
-          <div className="tw-gallery">
+          <p className="whitespace-pre-wrap break-words text-sm">{v.caption}</p>
+          <div className="flex flex-wrap gap-3 empty:hidden">
             {v.fileIds.map((id, i) => {
               const file = w.files.find((f) => f.id === id);
               if (!file) return null;
               const url = `/api/v1/workspaces/${w.id}/files/${id}`;
               return (
-                <figure key={i}>
+                <figure key={i} className="max-w-full space-y-1">
                   {file.mime.startsWith("video/") ? (
-                    <video controls preload="metadata" src={url} aria-label={file.filename} />
+                    <video
+                      className="max-h-44 max-w-full rounded-lg"
+                      controls
+                      preload="metadata"
+                      src={url}
+                      aria-label={file.filename}
+                    />
                   ) : (
-                    <img src={url} alt={file.filename} />
+                    <img
+                      className="max-h-44 max-w-full rounded-lg border border-border object-contain"
+                      src={url}
+                      alt={file.filename}
+                    />
                   )}
-                  <figcaption>
+                  <figcaption className="break-all text-xs text-muted-foreground hover:text-foreground">
                     <a href={url} download={file.filename}>
                       {file.filename}
                     </a>
@@ -82,13 +97,11 @@ export function PostDetail({
   const snapshot = queue && review ? review.snapshot : p;
   const connected = snapshot.variants.some((v) => v.accountId);
   return (
-    <article className="tw-detail">
-      <header>
-        <span className="tw-state" data-kind={state.kind}>
-          {state.name}
-        </span>
-        <h2>{snapshot.title}</h2>
-        <div className="tw-meta">
+    <article className="min-w-0 space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
+      <header className="space-y-2">
+        <Badge variant={state.kind === "approved" ? "default" : "secondary"}>{state.name}</Badge>
+        <h2 className="text-lg font-semibold tracking-tight">{snapshot.title}</h2>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
           <span>
             Planned <b>{displayDate(snapshot.plannedAt)}</b>
           </span>
@@ -106,19 +119,21 @@ export function PostDetail({
         </div>
       </header>
       <Content workspace={w} snapshot={snapshot} />
-      <div className="tw-line tw-actions">
-        {editor && !queue && <button onClick={edit}>Edit post</button>}
+      <div className="flex flex-wrap items-end gap-2">
+        {editor && !queue && (
+          <Button variant="outline" size="sm" onClick={edit}>
+            Edit post
+          </Button>
+        )}
         {editor && !p.deliveredAt && !pending && state.kind !== "approved" && (
-          <button
-            className="primary"
-            onClick={() => void run({ action: "submit", postId: p.id, revision: p.revision })}>
+          <Button size="sm" onClick={() => void run({ action: "submit", postId: p.id, revision: p.revision })}>
             Submit for review
-          </button>
+          </Button>
         )}
         {editor && !queue && !p.deliveredAt && (
-          <label>
+          <Label className="min-w-0 flex-col items-stretch">
             Move to{" "}
-            <select
+            <NativeSelect
               value=""
               onChange={(e) =>
                 void run({ action: "move", postId: p.id, revision: p.revision, stateId: e.target.value })
@@ -131,19 +146,21 @@ export function PostDetail({
                     {s.name}
                   </option>
                 ))}
-            </select>
-          </label>
+            </NativeSelect>
+          </Label>
         )}
         {w.member.approver && pending && (
           <>
-            <button
-              className="primary"
+            <Button
+              size="sm"
               onClick={() =>
                 void run({ action: "decide", postId: p.id, reviewId: review.id, outcome: "approved", body: "" })
               }>
               Approve
-            </button>
-            <button onClick={() => setRequesting(!requesting)}>Request changes</button>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setRequesting(!requesting)}>
+              Request changes
+            </Button>
           </>
         )}
         {editor &&
@@ -151,11 +168,9 @@ export function PostDetail({
           state.kind === "approved" &&
           review &&
           (!connected || w.creatorId === w.member.userId) && (
-            <button
-              className="primary"
-              onClick={() => void run({ action: "release", postId: p.id, reviewId: review.id })}>
+            <Button size="sm" onClick={() => void run({ action: "release", postId: p.id, reviewId: review.id })}>
               {connected ? "Schedule with SimplePost" : "Mark as published natively"}
-            </button>
+            </Button>
           )}
         {p.deliveredAt && (
           <strong>
@@ -167,6 +182,7 @@ export function PostDetail({
       </div>
       {requesting && pending && (
         <form
+          className="space-y-3"
           onSubmit={async (e) => {
             e.preventDefault();
             if (
@@ -176,42 +192,47 @@ export function PostDetail({
               setRequesting(false);
             }
           }}>
-          <label>
+          <Label className="min-w-0 flex-col items-stretch">
             Requested changes
-            <textarea autoFocus value={feedback} maxLength={4000} onChange={(e) => setFeedback(e.target.value)} />
-          </label>
-          <button type="submit">Send change request</button>
+            <Textarea autoFocus value={feedback} maxLength={4000} onChange={(e) => setFeedback(e.target.value)} />
+          </Label>
+          <Button variant="outline" size="sm" type="submit">
+            Send change request
+          </Button>
         </form>
       )}
-      <section className="tw-history">
-        <h3>Discussion and activity</h3>
+      <section className="space-y-3 border-t border-border pt-5">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">Discussion and activity</h3>
         {p.events.map((event) => (
-          <div key={event.id}>
+          <div key={event.id} className="break-words border-s-2 border-border ps-3 text-sm">
             <strong>{event.actorName}</strong> {activity[event.kind] ?? event.kind}
-            <small>{displayDate(event.createdAt)}</small>
-            {event.body && <p>{event.body}</p>}
+            <small className="block text-xs text-muted-foreground">{displayDate(event.createdAt)}</small>
+            {event.body && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{event.body}</p>}
           </div>
         ))}
         {(editor || w.member.approver) && (
           <form
+            className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
               if (await run({ action: "comment", postId: p.id, body: comment })) setComment("");
             }}>
-            <label>
+            <Label className="min-w-0 flex-col items-stretch">
               Add a comment
-              <textarea required maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)} />
-            </label>
-            <button disabled={!comment.trim()}>Post comment</button>
+              <Textarea required maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)} />
+            </Label>
+            <Button variant="outline" size="sm" disabled={!comment.trim()}>
+              Post comment
+            </Button>
           </form>
         )}
       </section>
       {p.reviews.length > 0 && (
         <section>
-          <h3>Review history</h3>
+          <h3 className="flex items-center gap-2 text-sm font-semibold">Review history</h3>
           {p.reviews.map((r, i) => (
-            <details key={r.id}>
-              <summary>
+            <details key={r.id} className="mt-2 space-y-2 border-t border-border pt-3 text-sm">
+              <summary className="cursor-pointer text-muted-foreground">
                 Version {p.reviews.length - i} · {r.outcome ?? "Awaiting decision"} · {displayDate(r.requestedAt)}
               </summary>
               <strong>{r.snapshot.title}</strong>

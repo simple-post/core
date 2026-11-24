@@ -194,7 +194,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           ?.filter((row) => row.status === "granted")
           .map((row) => row.permission)
           .join(",");
-      } else {
+      } else if (platform === "threads") {
+        const url = new URL("https://graph.threads.com/v1.0/debug_token");
+        url.searchParams.set("input_token", accessToken);
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer TH|${config.clientId}|${config.clientSecret}` },
+          redirect: "error",
+          cache: "no-store",
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) return NextResponse.redirect(errorRedirect("token_exchange_failed"));
+        const { data } = await response.json();
+        tokenData.scope = data?.is_valid === true && Array.isArray(data.scopes) ? data.scopes.join(" ") : undefined;
+      } else if (platform !== "instagram") {
         // OAuth permits omitting scope when it matches the authorization request.
         tokenData.scope ??= [...config.scope.split(/[\s,]+/u), ...inboxScopes].join(" ");
       }

@@ -122,6 +122,58 @@ describe("social activity adapters", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ tweet_id: "789" });
   });
 
+  it("uses Facebook's per-comment reply permission", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        data: [
+          { id: "11", can_comment: false },
+          { id: "12", can_comment: true, parent: { id: "11" } },
+        ],
+      }),
+    );
+    const result = await listSocialPostComments(account("facebook"), post("123_456"));
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("fields")?.split(",")).toContain("can_comment");
+    expect(result).toMatchObject({
+      ok: true,
+      data: { data: [{ canReply: false }, { kind: "reply", canReply: true }] },
+    });
+  });
+
+  it("continues a full LinkedIn page without a total and accepts a header-only reply receipt", async () => {
+    const targetUrn = "urn:li:comment:(urn:li:activity:123,456)";
+    const connection = account("linkedin");
+    fetchMock
+      .mockResolvedValueOnce(
+        json({
+          paging: { start: 0, count: 1 },
+          elements: [{ id: "456", object: "urn:li:activity:123", commentUrn: targetUrn, message: { text: "hello" } }],
+        }),
+      )
+      .mockResolvedValueOnce(json({ paging: { start: 1, count: 1 }, elements: [] }))
+      .mockResolvedValueOnce(new Response(null, { status: 201, headers: { "x-restli-id": "789" } }));
+    const source = post("urn:li:share:123");
+    const first = await listSocialPostComments(connection, source, { limit: 1 });
+    if (!first.ok) throw new Error("Missing LinkedIn page");
+    expect(first.data.nextCursor).toBe("1");
+    const last = await listSocialPostComments(connection, source, { limit: 1, cursor: first.data.nextCursor });
+    expect(last.ok && last.data.nextCursor).toBeUndefined();
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("start")).toBe("1");
+    expect(
+      await replyToSocialComment({ account: connection, target: first.data.data[0], text: "thanks" }),
+    ).toMatchObject({ ok: true, data: { nativeId: "789" } });
+  });
+
+  it.each([
+    [400, "badRequest", "invalid_request"],
+    [403, "quotaExceeded", "rate_limited"],
+  ])("classifies YouTube error %s/%s", async (status, reason, code) => {
+    fetchMock.mockResolvedValueOnce(json({ error: { code: status, errors: [{ reason }] } }, Number(status)));
+    expect(await listSocialPostComments(account("youtube"), post("abcDEF_123"))).toMatchObject({
+      ok: false,
+      error: { code },
+    });
+  });
+
   it("uses Instagram Login comment endpoints and replies to a nested comment through its parent", async () => {
     fetchMock.mockResolvedValueOnce(
       json({

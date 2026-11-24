@@ -135,7 +135,7 @@ export class MetaProvider implements SocialActivityProvider {
     if (options.cursor && !cursor) return invalidRequest(this.platform, "the page cursor is invalid.");
     let fields: string;
     if (this.kind === "facebook") {
-      fields = "id,message,from,created_time,permalink_url,like_count,comment_count,user_likes,parent";
+      fields = "id,message,from,created_time,permalink_url,like_count,comment_count,can_comment,user_likes,parent";
     } else if (this.kind === "instagram") {
       fields = "id,text,timestamp,username,like_count,replies.limit(50){id,text,timestamp,username,like_count}";
     } else {
@@ -167,6 +167,7 @@ export class MetaProvider implements SocialActivityProvider {
         return {
           ...item,
           kind: record(row.parent).id ? "reply" : "comment",
+          canReply: row.can_comment === true,
           canLike: true,
           liked: typeof row.user_likes === "boolean" ? row.user_likes : undefined,
         };

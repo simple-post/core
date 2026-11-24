@@ -35,11 +35,18 @@ async function findVerifiedLegacyIdentity(userId: string, channelId: string) {
 }
 
 export async function handleYouTubeCallback(ctx: CallbackContext): Promise<NextResponse> {
+  if (ctx.inboxIdentity && !ctx.refreshToken) {
+    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=permissions`);
+  }
   const channel = await fetchYouTubeChannel(ctx.accessToken);
-  if (ctx.inboxIdentity && ctx.inboxIdentity !== channel.platformAccountId) {
+  const previousIdentity = await findVerifiedLegacyIdentity(ctx.userId, channel.platformAccountId);
+  if (
+    ctx.inboxIdentity &&
+    ctx.inboxIdentity !== channel.platformAccountId &&
+    ctx.inboxIdentity !== previousIdentity?.platformAccountId
+  ) {
     return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
   }
-  const previousIdentity = await findVerifiedLegacyIdentity(ctx.userId, channel.platformAccountId);
 
   await upsertConnectedAccount({
     userId: ctx.userId,

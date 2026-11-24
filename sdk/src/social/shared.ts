@@ -72,13 +72,19 @@ export function page<T>(data: T[], nextCursor?: string, coverage?: string): Soci
   return { data, ...(cursor ? { nextCursor: cursor } : {}), ...(coverage ? { coverage } : {}) };
 }
 
-function errorCode(status: number, providerError?: JsonRecord): SocialActivityErrorCode {
+function errorCode(platform: string, status: number, providerError?: JsonRecord): SocialActivityErrorCode {
   const code = providerError?.code;
   // Meta returns 190 for expired/revoked credentials and commonly uses 10,
   // 200, or 400 for capability/permission rejections.
-  if (code === 190 || code === "190") return "authentication";
-  if (code === 10 || code === 200 || code === 400 || code === "10" || code === "200" || code === "400")
-    return "permission_required";
+  if (["Facebook", "Instagram", "Threads"].includes(platform)) {
+    if (Number(code) === 190) return "authentication";
+    if ([4, 17, 32, 613, 80001].includes(Number(code))) return "rate_limited";
+    if ([10, 200, 283, 400].includes(Number(code))) return "permission_required";
+  }
+  if (platform === "YouTube" && Array.isArray(providerError?.errors)) {
+    const reasons = providerError.errors.map((item) => record(item).reason);
+    if (reasons.some((reason) => reason === "quotaExceeded" || reason === "rateLimitExceeded")) return "rate_limited";
+  }
   if (typeof code === "string") {
     const normalized = code.toLowerCase();
     if (normalized.includes("scope") || normalized.includes("permission")) return "permission_required";
@@ -191,7 +197,7 @@ export async function requestJson(
   const errors = record(body.errors);
   const providerError = embeddedError(body) ?? (Object.keys(errors).length > 0 ? errors : undefined);
   if (!response.ok || providerError) {
-    const code = isWrite && response.status >= 500 ? "uncertain" : errorCode(response.status, providerError);
+    const code = isWrite && response.status >= 500 ? "uncertain" : errorCode(platform, response.status, providerError);
     const retryAfter = Number(response.headers.get("retry-after"));
     return {
       response,

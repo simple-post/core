@@ -124,9 +124,11 @@ export class LinkedInProvider implements SocialActivityProvider {
     if (!Array.isArray(entries)) return invalidResponse(this.platform);
     const paging = record(response.result.data.paging);
     const start = number(paging.start) ?? Number(cursor ?? "0");
-    const count = number(paging.count) ?? entries.length;
+    const count = number(paging.count) ?? pageLimit(options.limit);
     const total = number(paging.total);
-    const next = total !== undefined && start + count < total ? String(start + count) : undefined;
+    const hasNextLink = Array.isArray(paging.links) && paging.links.some((link) => record(link).rel === "next");
+    const hasMore = total === undefined ? hasNextLink || entries.length === count : start + count < total;
+    const next = count > 0 && hasMore ? String(start + count) : undefined;
     return {
       ok: true as const,
       data: page(
@@ -175,16 +177,21 @@ export class LinkedInProvider implements SocialActivityProvider {
         this.platform,
         "the LinkedIn comment context is unavailable. Refresh the conversation first.",
       );
-    const response = await requestJson(this.platform, this.url(this.socialActionPath(targetUrn)), {
-      method: "POST",
-      headers: { ...this.headers(request.account.accessToken), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        actor,
-        object: objectUrn,
-        parentComment: targetUrn,
-        message: { text },
-      }),
-    });
+    const response = await requestJson(
+      this.platform,
+      this.url(this.socialActionPath(targetUrn)),
+      {
+        method: "POST",
+        headers: { ...this.headers(request.account.accessToken), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actor,
+          object: objectUrn,
+          parentComment: targetUrn,
+          message: { text },
+        }),
+      },
+      { allowEmpty: true },
+    );
     if (!response.result.ok) return response.result;
     const id = string(response.result.data.id) ?? response.response?.headers.get("x-restli-id") ?? undefined;
     return id && hasId(id, COMMENT_ID)

@@ -1,14 +1,18 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 import { TrialScheduleNotice } from "@/components/billing/trial-post-allowance";
 import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { Navbar } from "@/components/navbar";
 import { PreviewImport } from "@/components/preview-import";
 import { SchedulePostForm } from "@/components/schedule-post-form";
 import { UiCopy } from "@/components/ui-copy";
+import { TeamScreen } from "@/components/workspaces/team-screen";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function SchedulePage() {
+  const id = useSearchParams().get("workspace");
   const { copy } = useUiCopy();
   return (
     <div className="min-h-screen bg-background">
@@ -27,10 +31,16 @@ export default function SchedulePage() {
             </h1>
           </div>
         </div>
-        <CreatePostWebMcp />
-        <TrialScheduleNotice />
-        <PreviewImport />
-        <SchedulePostForm />
+        {id ? (
+          <TeamScreen key={id} id={id} view="compose" embedded />
+        ) : (
+          <>
+            <CreatePostWebMcp />
+            <TrialScheduleNotice />
+            <PreviewImport />
+            <SchedulePostForm />
+          </>
+        )}
       </main>
     </div>
   );

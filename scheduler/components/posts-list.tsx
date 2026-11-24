@@ -68,7 +68,7 @@ function formatTimeAgo(date: Date, locale: string, copy: SourceCopy): string {
 }
 
 export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange, onPostDeleted }: PostsListProps) {
-  const { copy, locale } = useUiCopy();
+  const { copy } = useUiCopy();
   const { data, isLoading: postsLoading, isFetching } = usePaginatedPosts(type, page, pageSize);
   const { data: accounts = [], isLoading: accountsLoading } = useAccounts();
 
@@ -107,6 +107,31 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
         ))}
       </div>
 
+      <PostListFooter
+        pagination={pagination}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        isFetching={isFetching}
+      />
+    </div>
+  );
+}
+
+export function PostListFooter({
+  pagination,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  isFetching = false,
+}: Pick<PostsListProps, "pageSize" | "onPageChange" | "onPageSizeChange"> & {
+  pagination?: PaginationInfo;
+  isFetching?: boolean;
+}) {
+  const { copy, locale } = useUiCopy();
+  return (
+    <>
+      {" "}
       <div className="flex justify-end">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">{copy("Show")}</span>
@@ -128,14 +153,12 @@ export function PostsList({ type, page, pageSize, onPageChange, onPageSizeChange
           </Select>
         </div>
       </div>
-
       {pagination && pagination.totalPages > 1 && (
         <Pagination pagination={pagination} onPageChange={onPageChange} isFetching={isFetching} />
       )}
-    </div>
+    </>
   );
 }
-
 function Pagination({
   pagination,
   onPageChange,

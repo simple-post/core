@@ -74,4 +74,6 @@ Private uploads support JPEG, PNG, WebP and MP4 up to 8 MiB each, with 512 MiB o
 
 The migration adds `TEAM_WORKSPACES` to the existing `Feature` enum and creates no grants. For an owner-only launch, leave `TEAM_WORKSPACES` out of `GLOBAL_FEATURES` and grant it to your SimplePost user ID in `user_feature`. Use the [existing grant and revoke procedure](../image-fitting.md#private-hosted-rollout) with `Feature.TEAM_WORKSPACES`. Add another account by granting the same feature to its user ID.
 
+Personal is the default dashboard. Eligible accounts switch between Personal and team workspaces in the navigation. Both use the same dashboard, calendar, post editor controls and platform previews. The team view adds states, discussion and approvals. Accounts with only a personal workspace and no creation allowance see the existing interface.
+
 The planner and workspace API check the signed-in account's grant. Collaborators also need a workspace membership or invitation. Workspace creation follows the creator's plan allowance. To roll out to everyone later, add `TEAM_WORKSPACES` to the existing `GLOBAL_FEATURES` list.

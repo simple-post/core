@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { Users, Cpu, CreditCard, KeyRound, Settings2 } from "lucide-react";
+import { Cpu, CreditCard, KeyRound, Settings2 } from "lucide-react";
 
 import { useSelfHosted } from "@/components/billing/subscription-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +16,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useFeatures } from "@/hooks/use-features";
 import { useSession, authClient } from "@/lib/auth/auth-client";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { logClientError } from "@/lib/logger/client";
@@ -24,7 +23,7 @@ import { logClientError } from "@/lib/logger/client";
 export function UserMenu() {
   const { t } = useUiTranslation();
   const { data: session } = useSession();
-  const { hasFeature } = useFeatures();
+
   const selfHosted = useSelfHosted();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -75,14 +74,6 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {hasFeature("TEAM_WORKSPACES") && (
-          <DropdownMenuItem asChild>
-            <Link href="/workspaces" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Team workspaces
-            </Link>
-          </DropdownMenuItem>
-        )}
         <DropdownMenuItem asChild>
           <Link href="/settings" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />

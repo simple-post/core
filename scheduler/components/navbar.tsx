@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
+import { WorkspaceSwitcher, useWorkspaceIndex, workspaceHref } from "@/components/workspaces/switcher";
 import { useBillingStatus, useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useFeatures } from "@/hooks/use-features";
 import { useUiTranslation } from "@/lib/i18n/client";
@@ -38,8 +39,8 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
-  const inTeamPlanner = pathname === "/workspaces";
-  const showCreateCta = !inTeamPlanner && !readOnly && !pathname.startsWith("/schedule");
+  const { id, current } = useWorkspaceIndex();
+  const showCreateCta = (id ? !!current && current.role !== "Viewer" : !readOnly) && !pathname.startsWith("/schedule");
   const activeSection = pathname.startsWith("/accounts")
     ? "accounts"
     : pathname.startsWith("/analytics")
@@ -57,21 +58,22 @@ export function Navbar({ actions }: NavbarProps) {
           "sticky top-0 z-50 bg-background/80 backdrop-blur-[10px] transition-all duration-200",
           scrolled && "border-b border-border",
         )}>
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-6 sm:gap-3">
+        <div className={cn("mx-auto flex h-14 max-w-6xl items-center gap-2 px-6 sm:gap-3", current && "max-sm:px-3")}>
           <Link
-            href="/"
+            href={workspaceHref("/", id)}
             className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
             aria-label={t("simplePostHome")}>
             <SimplePostBrand logoSrc="/simplepost-logo.png" />
           </Link>
 
+          <WorkspaceSwitcher />
           <WorkspaceNavigation
             showAnalytics={hasFeature("POST_ANALYTICS")}
             active={activeSection}
             includeInbox={!readOnly && hasFeature("SOCIAL_INBOX")}
             renderItem={({ id, label, className, children }) => (
               <Link
-                href={id === "posts" ? "/" : `/${id}`}
+                href={id === "posts" || id === "accounts" ? workspaceHref(id === "posts" ? "/" : "/accounts", current?.id) : `/${id}`}
                 aria-label={label}
                 aria-current={id === activeSection ? "page" : undefined}
                 className={className}>
@@ -84,7 +86,7 @@ export function Navbar({ actions }: NavbarProps) {
             {!readOnly && actions}
             {showCreateCta && (
               <Button asChild size="sm" className="gap-2">
-                <Link href="/schedule" aria-label={t("createPost")}>
+                <Link href={workspaceHref("/schedule", id)} aria-label={t("createPost")}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">{t("createPost")}</span>
                 </Link>
@@ -95,28 +97,24 @@ export function Navbar({ actions }: NavbarProps) {
           </div>
         </div>
       </header>
-      {!inTeamPlanner &&
-        readOnly &&
-        billing?.trial &&
-        !pathname.startsWith("/billing") &&
-        pathname !== "/subscribe" && (
-          <aside
-            aria-label={t("trialExpired")}
-            className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {t("trialMessage", {
-                date: new Date(billing.trial.expiresAt).toLocaleDateString(locale, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                }),
-              })}
-            </p>
-            <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
-              <Link href="/billing/plans">{t("choosePlan")}</Link>
-            </Button>
-          </aside>
-        )}
+      {!id && readOnly && billing?.trial && !pathname.startsWith("/billing") && pathname !== "/subscribe" && (
+        <aside
+          aria-label={t("trialExpired")}
+          className="mx-auto mt-4 flex max-w-6xl flex-col gap-3 px-[clamp(18px,4vw,48px)] sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {t("trialMessage", {
+              date: new Date(billing.trial.expiresAt).toLocaleDateString(locale, {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              }),
+            })}
+          </p>
+          <Button asChild size="sm" variant="outline" className="shrink-0 self-start">
+            <Link href="/billing/plans">{t("choosePlan")}</Link>
+          </Button>
+        </aside>
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import type { Snapshot, Variant, WorkspaceCommand } from "@/lib/workspaces/contracts";
 export type WorkspaceIndex = {
-  workspaces: { id: string; name: string; icon: string }[];
+  workspaces: { id: string; name: string; icon: string; role: string }[];
   limit: number;
   owned: number;
   invites: { id: string; workspaceId: string; workspace: { name: string } }[];
@@ -78,3 +78,11 @@ export const json = (data: unknown) => ({
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(data),
 });
+
+export function deliveryStatus(post: Item) {
+  if (!post.deliveredAt) return "draft";
+  if (post.variants.every((v) => !v.accountId)) return "published";
+  const statuses = post.reviews.find((r) => r.id === post.currentReviewId)?.deliveries.map((d) => d.status) ?? [];
+  if (statuses.length === 0 || statuses.some((s) => s === "failed" || s === "partial")) return "failed";
+  return statuses.every((s) => s === "published") ? "published" : "scheduled";
+}

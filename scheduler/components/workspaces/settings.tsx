@@ -125,11 +125,12 @@ export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run:
         {w.invites.length > 0 && (
           <>
             <p className="text-sm text-muted-foreground">
-              Ask invited teammates to sign in at{" "}
-              <a className="text-primary hover:underline" href="/workspaces">
-                /workspaces
+              Ask invited teammates to open their{" "}
+              <a className="text-primary hover:underline" href="/">
+                dashboard
               </a>{" "}
-              with their verified email. Invitations expire after seven days.
+              with their verified email and accept the invitation in the workspace menu. Invitations expire after seven
+              days.
             </p>
             {w.invites.map((i) => (
               <div

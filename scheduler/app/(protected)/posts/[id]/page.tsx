@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { UiCopy } from "@/components/ui-copy";
+import { TeamScreen } from "@/components/workspaces/team-screen";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
@@ -46,6 +47,15 @@ type FailedPlatform = {
 };
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const workspace = useSearchParams().get("workspace");
+  const { id } = use(params);
+  return workspace ? (
+    <TeamScreen key={workspace + id} id={workspace} postId={id} view="detail" />
+  ) : (
+    <PersonalPostPage params={params} />
+  );
+}
+function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
   const { copy, locale } = useUiCopy();
   const { id } = use(params);
   const { hasFeature } = useFeatures();
@@ -207,7 +217,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             {post.workspaceReviewId && hasFeature("TEAM_WORKSPACES") && (
-              <Link href="/workspaces" className="text-sm underline">
+              <Link href={`/workspaces?delivery=${encodeURIComponent(post.id)}`} className="text-sm underline">
                 Managed by team workspace
               </Link>
             )}

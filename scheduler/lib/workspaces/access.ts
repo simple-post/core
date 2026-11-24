@@ -29,7 +29,7 @@ export async function listWorkspaces(actor: Actor) {
   const [memberships, invites, billing, owned] = await Promise.all([
     prisma.teamMember.findMany({
       where: { userId: actor.id },
-      select: { workspace: { select: { id: true, name: true, icon: true } } },
+      select: { role: true, workspace: { select: { id: true, name: true, icon: true } } },
       orderBy: { workspace: { name: "asc" } },
     }),
     actor.emailVerified
@@ -41,7 +41,12 @@ export async function listWorkspaces(actor: Actor) {
     getBillingStatus(actor.id),
     prisma.teamWorkspace.count({ where: { creatorId: actor.id } }),
   ]);
-  return { workspaces: memberships.map((m) => m.workspace), invites, limit: workspaceLimit(billing.plan?.key), owned };
+  return {
+    workspaces: memberships.map((m) => ({ ...m.workspace, role: m.role })),
+    invites,
+    limit: workspaceLimit(billing.plan?.key),
+    owned,
+  };
 }
 export async function createWorkspace(actor: Actor, input: unknown) {
   const fields = workspaceFields.parse(input);

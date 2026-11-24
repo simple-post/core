@@ -57,6 +57,7 @@ import {
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, PostingMode, ThreadSegment } from "@/types";
 
 import { AccountSelector } from "./account-selector";
+import { ComposerColumns } from "./composer-columns";
 import { ImageFitReview } from "./image-fit-review";
 import { PostContentEditor } from "./post-content-editor";
 import { usePostDraft } from "./post-draft-context";
@@ -668,7 +669,7 @@ export function CreatePostForm() {
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <ComposerColumns>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="flex justify-end">
           <Button
@@ -987,6 +988,6 @@ export function CreatePostForm() {
         onRecover={(returnTo, accountIds) => (submittedPostId ? true : saveRecoveryDraft(returnTo, accountIds))}
         results={postingResults}
       />
-    </div>
+    </ComposerColumns>
   );
 }

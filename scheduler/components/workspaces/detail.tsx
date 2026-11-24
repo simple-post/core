@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { PlatformIconBadge } from "@/components/platform-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,6 +7,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import type { Snapshot } from "@/lib/workspaces/contracts";
 
+import { WorkspacePreview } from "./preview";
 import { displayDate, platformName, type Item, type Workspace, type Run } from "./types";
 
 const activity: Record<string, string> = {
@@ -27,48 +27,28 @@ const activity: Record<string, string> = {
 export function Content({ workspace: w, snapshot }: { workspace: Workspace; snapshot: Snapshot }) {
   return (
     <div className="grid gap-3">
+      <WorkspacePreview workspace={w} variants={snapshot.variants} date={new Date(snapshot.plannedAt)} />
       {snapshot.variants.map((v) => (
-        <section key={v.platform} className="min-w-0 space-y-4 rounded-xl border border-border bg-background/40 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <PlatformIconBadge platform={v.platform} /> {platformName[v.platform]}
-          </h3>
-          <small className="block text-xs text-muted-foreground">
-            {v.destination?.label ?? "Native publishing"}
-            {Object.values(v.options).map((val) => ` · ${val}`)}
-          </small>
-          <p className="whitespace-pre-wrap break-words text-sm">{v.caption}</p>
-          <div className="flex flex-wrap gap-3 empty:hidden">
-            {v.fileIds.map((id, i) => {
-              const file = w.files.find((f) => f.id === id);
-              if (!file) return null;
-              const url = `/api/v1/workspaces/${w.id}/files/${id}`;
-              return (
-                <figure key={i} className="max-w-full space-y-1">
-                  {file.mime.startsWith("video/") ? (
-                    <video
-                      className="max-h-44 max-w-full rounded-lg"
-                      controls
-                      preload="metadata"
-                      src={url}
-                      aria-label={file.filename}
-                    />
-                  ) : (
-                    <img
-                      className="max-h-44 max-w-full rounded-lg border border-border object-contain"
-                      src={url}
-                      alt={file.filename}
-                    />
-                  )}
-                  <figcaption className="break-all text-xs text-muted-foreground hover:text-foreground">
-                    <a href={url} download={file.filename}>
-                      {file.filename}
-                    </a>
-                  </figcaption>
-                </figure>
-              );
-            })}
-          </div>
-        </section>
+        <div key={v.platform} className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+          <span>
+            {platformName[v.platform]} · {v.destination?.label ?? "Native publishing"}{" "}
+            {Object.values(v.options).join(" · ")}
+          </span>
+          {v.fileIds.map((id) => {
+            const file = w.files.find((f) => f.id === id);
+            return (
+              file && (
+                <a
+                  className="underline"
+                  key={id}
+                  href={`/api/v1/workspaces/${w.id}/files/${id}`}
+                  download={file.filename}>
+                  {file.filename}
+                </a>
+              )
+            );
+          })}
+        </div>
       ))}
     </div>
   );
@@ -111,6 +91,9 @@ export function PostDetail({
           <span>
             Due <b>{p.dueAt ? displayDate(p.dueAt) : "No deadline"}</b>
           </span>
+          {p.dueAt && new Date(p.dueAt) < new Date() && state.kind !== "approved" && !p.deliveredAt && (
+            <Badge variant="destructive">Overdue</Badge>
+          )}
           {review && (
             <span>
               Review version <b>{p.reviews.length - p.reviews.indexOf(review)}</b>

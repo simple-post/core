@@ -1,12 +1,9 @@
-import { useState } from "react";
-
-import { format } from "date-fns";
-
-import { ScheduleCalendarView, type CalendarView, type DayEntry } from "@/components/visual/schedule-calendar";
+import { useScheduleCalendarState } from "@/components/schedule-calendar-context";
+import { ScheduleCalendarView, type DayEntry } from "@/components/visual/schedule-calendar";
 import { addDays, addMonths, dayKey, getCalendarRange, getPeriodLabel } from "@/lib/calendar-range";
 import { cn } from "@/lib/utils";
 
-import type { Workspace } from "./types";
+import { deliveryStatus, type Workspace } from "./types";
 
 export function PlannerCalendar({
   workspace,
@@ -17,8 +14,7 @@ export function PlannerCalendar({
   open: (id: string) => void;
   create?: (day: Date) => void;
 }) {
-  const [view, setView] = useState<CalendarView>("week");
-  const [anchor, setAnchor] = useState(new Date());
+  const { view, setView, anchorDate: anchor, setAnchorDate: setAnchor } = useScheduleCalendarState();
   const now = new Date();
   const range = getCalendarRange(view, anchor);
   const entries = new Map<string, DayEntry[]>();
@@ -26,9 +22,6 @@ export function PlannerCalendar({
     const time = new Date(post.plannedAt);
     if (time < range.fetchStart || time >= range.fetchEnd) continue;
     const state = workspace.states.find((s) => s.id === post.stateId);
-    const owner = workspace.members.find((m) => m.userId === post.ownerId)?.user.name ?? "Unassigned";
-    const due = post.dueAt ? new Date(post.dueAt) : null;
-    const overdue = due && due < now && state?.kind !== "approved";
     const key = dayKey(time);
     const day = entries.get(key) ?? [];
     day.push({
@@ -39,19 +32,9 @@ export function PlannerCalendar({
         {
           id: post.id,
           message: post.title,
-          status: post.deliveredAt && post.variants.every((v) => !v.accountId) ? "published" : "planned",
+          status: deliveryStatus(post),
           platforms: post.variants.map((v) => v.platform),
-          details: (
-            <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
-              <span className="block truncate text-foreground">{state?.name}</span>
-              <span className="block truncate">{owner}</span>
-              {due && (
-                <span className={cn("block", overdue && "text-destructive")}>
-                  {overdue ? "Overdue" : "Due"} {format(due, "MMM d")}
-                </span>
-              )}
-            </span>
-          ),
+          details: state && <span className="block truncate text-[10px] text-muted-foreground">{state.name}</span>,
         },
       ],
     });
@@ -83,7 +66,7 @@ export function PlannerCalendar({
             className={cn(className, target.kind === "post" && "w-full text-start")}
             onClick={() => {
               if (target.kind === "post") open(target.id);
-              else if (target.kind === "create") create?.(anchor);
+              else if (target.kind === "create") create?.(target.day ?? anchor);
             }}
           />
         )}

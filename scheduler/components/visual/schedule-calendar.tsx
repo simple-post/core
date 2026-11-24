@@ -31,7 +31,10 @@ export interface DayEntry {
   isSlot: boolean;
   posts: CalendarPostData[];
 }
-export type CalendarAction = { kind: "post" | "slot"; id: string } | { kind: "settings" | "create" };
+export type CalendarAction =
+  | { kind: "post" | "slot"; id: string }
+  | { kind: "settings" }
+  | { kind: "create"; day?: Date };
 export type CalendarActionProps = { target: CalendarAction; children: ReactNode; className?: string; title?: string };
 const Actions = createContext<{
   renderAction: (props: CalendarActionProps) => ReactNode;
@@ -642,7 +645,7 @@ function DayAgenda({
           </div>
           {showCreate ? (
             <Button asChild variant="outline" size="sm" className="h-9 shrink-0 px-3 text-xs">
-              <Action target={{ kind: "create" }}>
+              <Action target={{ kind: "create", day }}>
                 <Plus className="h-3.5 w-3.5" />
                 {copy("Add post")}
               </Action>
@@ -772,13 +775,7 @@ function CalendarPost({
             <PlatformIconBadge key={platform} platform={platform} className="size-4" />
           ))}
         </span>
-        <span
-          className={
-            post.details
-              ? "mt-1 block break-words text-xs font-medium text-foreground"
-              : "mt-1 block truncate text-[10px] opacity-75"
-          }
-          dir="auto">
+        <span className="mt-1 block truncate text-[10px] opacity-75" dir="auto">
           {message}
         </span>
         {post.details}
@@ -820,9 +817,7 @@ function CalendarPost({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span
-          className={cn("block text-sm font-medium text-foreground", post.details ? "break-words" : "truncate")}
-          dir="auto">
+        <span className="block truncate text-sm font-medium text-foreground" dir="auto">
           {message}
         </span>
         <span className={cn("mt-0.5 block text-[11px]", isFailed ? "text-destructive" : "text-muted-foreground")}>

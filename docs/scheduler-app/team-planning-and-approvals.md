@@ -72,6 +72,6 @@ Private uploads support JPEG, PNG, WebP and MP4 up to 8 MiB each, with 512 MiB o
 
 ## Activate the private rollout
 
-Deploy the scheduler with its Prisma migrations. The `TEAM_WORKSPACES` migration creates zero grants. Sign in to the hosted app with your verified site administrator account, open `/admin/team-workspaces`, and select **Enable for my account**. The enabled list should contain just your sign-in email. Select **Open team workspaces** to enter the planner.
+The migration adds `TEAM_WORKSPACES` to the existing `Feature` enum and creates no grants. For an owner-only launch, leave `TEAM_WORKSPACES` out of `GLOBAL_FEATURES` and grant it to your SimplePost user ID in `user_feature`. Use the [existing grant and revoke procedure](../image-fitting.md#private-hosted-rollout) with `Feature.TEAM_WORKSPACES`. Add another account by granting the same feature to its user ID.
 
-To add a pilot account, enter its verified SimplePost sign-in email on the same page. **Revoke** removes that account’s grant and blocks its next workspace API request. Each collaborator needs a grant and a workspace membership or invitation. Workspace creation still requires the usual plan allowance. The rollout uses individual grants exclusively, including for site administrators. Adding `TEAM_WORKSPACES` to `GLOBAL_FEATURES` has no effect.
+The planner and workspace API check the signed-in account's grant. Collaborators also need a workspace membership or invitation. Workspace creation follows the creator's plan allowance. To roll out to everyone later, add `TEAM_WORKSPACES` to the existing `GLOBAL_FEATURES` list.

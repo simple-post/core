@@ -78,7 +78,7 @@ function errorCode(platform: string, status: number, providerError?: JsonRecord)
   // 200, or 400 for capability/permission rejections.
   if (["Facebook", "Instagram", "Threads"].includes(platform)) {
     if (Number(code) === 190) return "authentication";
-    if ([4, 17, 32, 613, 80001].includes(Number(code))) return "rate_limited";
+    if ([4, 17, 32, 613, 80_001].includes(Number(code))) return "rate_limited";
     if ([10, 200, 283, 400].includes(Number(code))) return "permission_required";
   }
   if (platform === "YouTube" && Array.isArray(providerError?.errors)) {

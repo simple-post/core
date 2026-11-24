@@ -53,7 +53,8 @@ it.each([
   { data: [{ access_token: "short", permissions: ["instagram_business_basic"] }] },
 ])("retains the actual partial grant at token exchange", async (body) => {
   fetchMock.mockResolvedValue(response(body));
-  expect((await exchangeCodeForToken("instagram", "code", context.baseURL)).scope).toBe("instagram_business_basic");
+  const token = await exchangeCodeForToken("instagram", "code", context.baseURL);
+  expect(token.scope).toBe("instagram_business_basic");
 });
 it("stores an Instagram account after exchanging the token and fetching identity", async () => {
   fetchMock

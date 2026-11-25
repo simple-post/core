@@ -13,7 +13,12 @@ import { captureFirstTouch } from "@/lib/analytics/first-touch";
 import { trackEvent } from "@/lib/analytics/plausible";
 import { authClient } from "@/lib/auth/auth-client";
 import { loginCallbackUrl } from "@/lib/auth/callback-url";
-import { isTestUserEmail } from "@/lib/auth/test-users";
+import {
+  isMuseReviewPassword,
+  isMuseReviewUserEmail,
+  isTestUserEmail,
+  MUSE_REVIEW_PASSWORD_LENGTH,
+} from "@/lib/auth/test-users";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { logClientError } from "@/lib/logger/client";
 
@@ -23,19 +28,19 @@ interface LoginFormProps {
 
 interface TestUserLoginConfigResponse {
   enabled?: boolean;
+  museReviewEnabled?: boolean;
 }
 
-async function fetchTestUserLoginEnabled(): Promise<boolean> {
+async function fetchTestUserLoginConfig(): Promise<TestUserLoginConfigResponse> {
   const response = await fetch("/api/auth/demo-login", {
     method: "GET",
   });
 
   if (!response.ok) {
-    return false;
+    return {};
   }
 
-  const data = (await response.json()) as TestUserLoginConfigResponse;
-  return data.enabled === true;
+  return (await response.json()) as TestUserLoginConfigResponse;
 }
 
 export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
@@ -47,22 +52,24 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
-  const [testUserLoginEnabled, setTestUserLoginEnabled] = useState<boolean | null>(null);
+  const [testUserLoginConfig, setTestUserLoginConfig] = useState<TestUserLoginConfigResponse | null>(null);
   const normalizedEmail = email.trim().toLowerCase();
-  const isDemoLogin = testUserLoginEnabled === true && isTestUserEmail(normalizedEmail);
+  const isDemoLogin = testUserLoginConfig?.enabled === true && isTestUserEmail(normalizedEmail);
+  const isMuseReviewLogin = testUserLoginConfig?.museReviewEnabled === true && isMuseReviewUserEmail(normalizedEmail);
+  const usesPassword = isDemoLogin || isMuseReviewLogin;
 
   useEffect(() => {
     let active = true;
 
-    fetchTestUserLoginEnabled()
-      .then((enabled) => {
+    fetchTestUserLoginConfig()
+      .then((config) => {
         if (active) {
-          setTestUserLoginEnabled(enabled);
+          setTestUserLoginConfig(config);
         }
       })
       .catch(() => {
         if (active) {
-          setTestUserLoginEnabled(false);
+          setTestUserLoginConfig({});
         }
       });
 
@@ -104,7 +111,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
   };
 
   const sendCode = async () => {
-    if (isLoading || testUserLoginEnabled === null) return;
+    if (isLoading || testUserLoginConfig === null) return;
     setIsLoading(true);
     setError(null);
     setSuccess(null);
@@ -120,7 +127,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
             result.error.status === 429 ? "rate_limited" : codeSent ? "verification_failed" : "code_request_failed",
         });
         setError(
-          result.error.status === 429 ? t("rateLimited") : isDemoLogin ? t("signInFailed") : t("codeSendFailed"),
+          result.error.status === 429 ? t("rateLimited") : usesPassword ? t("signInFailed") : t("codeSendFailed"),
         );
         return;
       }
@@ -128,7 +135,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       setCodeSent(true);
       setCode("");
       setResendSeconds(30);
-      if (!isDemoLogin) setSuccess(t("codeSent", { email: `\u2068${normalizedEmail}\u2069` }));
+      if (!usesPassword) setSuccess(t("codeSent", { email: `\u2068${normalizedEmail}\u2069` }));
     } catch (error_) {
       trackEvent("Sign In Failed", { method: "email", reason: "code_request_failed" });
       logClientError(error_, "Email code request error");
@@ -145,8 +152,9 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
       await sendCode();
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
-      setError(isDemoLogin ? t("enterPassword") : t("enterSixDigits"));
+    const validCode = isMuseReviewLogin ? isMuseReviewPassword(code) : /^\d{6}$/.test(code);
+    if (!validCode) {
+      setError(usesPassword ? t("enterPassword") : t("enterSixDigits"));
       return;
     }
 
@@ -162,7 +170,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
             result.error.status === 429 ? "rate_limited" : codeSent ? "verification_failed" : "code_request_failed",
         });
         setError(
-          result.error.status === 429 ? t("rateLimited") : isDemoLogin ? t("invalidPassword") : t("invalidCode"),
+          result.error.status === 429 ? t("rateLimited") : usesPassword ? t("invalidPassword") : t("invalidCode"),
         );
         return;
       }
@@ -317,41 +325,43 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                   <Label
                     htmlFor="code"
                     className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
-                    {isDemoLogin ? t("password") : t("verificationCode")}
+                    {usesPassword ? t("password") : t("verificationCode")}
                   </Label>
                   <Input
-                    key={isDemoLogin ? "password" : "otp"}
+                    key={usesPassword ? "password" : "otp"}
                     id="code"
-                    name={isDemoLogin ? "password" : "code"}
-                    type={isDemoLogin ? "password" : "text"}
-                    inputMode="numeric"
+                    name={usesPassword ? "password" : "code"}
+                    type={usesPassword ? "password" : "text"}
+                    inputMode={isMuseReviewLogin ? "text" : "numeric"}
                     dir="ltr"
-                    autoComplete={isDemoLogin ? "current-password" : "one-time-code"}
-                    pattern="[0-9]{6}"
-                    maxLength={6}
-                    placeholder={isDemoLogin ? t("password") : t("enterCode")}
+                    autoComplete={usesPassword ? "current-password" : "one-time-code"}
+                    pattern={isMuseReviewLogin ? `[a-f0-9]{${MUSE_REVIEW_PASSWORD_LENGTH}}` : "[0-9]{6}"}
+                    maxLength={isMuseReviewLogin ? MUSE_REVIEW_PASSWORD_LENGTH : 6}
+                    placeholder={usesPassword ? t("password") : t("enterCode")}
                     value={code}
-                    onChange={(event) => setCode(event.target.value.replaceAll(/\D/g, ""))}
+                    onChange={(event) =>
+                      setCode(isMuseReviewLogin ? event.target.value : event.target.value.replaceAll(/\D/g, ""))
+                    }
                     disabled={isLoading}
                     className="h-11 tabular-nums"
                     autoFocus
                     required
-                    aria-describedby={isDemoLogin ? undefined : "code-help"}
+                    aria-describedby={usesPassword ? undefined : "code-help"}
                   />
-                  {!isDemoLogin && (
+                  {!usesPassword && (
                     <p id="code-help" className="text-xs text-muted-foreground">
                       {t("codeHelp")}
                     </p>
                   )}
                 </div>
               )}
-              <Button type="submit" disabled={isLoading || testUserLoginEnabled === null} className="w-full h-11">
+              <Button type="submit" disabled={isLoading || testUserLoginConfig === null} className="w-full h-11">
                 {isLoading
                   ? codeSent
                     ? t("signingIn")
                     : t("continuing")
                   : codeSent
-                    ? isDemoLogin
+                    ? usesPassword
                       ? t("signIn")
                       : t("verifyCode")
                     : t("continueEmail")}
@@ -361,7 +371,7 @@ export function LoginForm({ callbackURL = "/" }: LoginFormProps) {
                   <Button type="button" variant="ghost" onClick={changeEmail} disabled={isLoading}>
                     {t("changeEmail")}
                   </Button>
-                  {!isDemoLogin && (
+                  {!usesPassword && (
                     <Button type="button" variant="ghost" onClick={sendCode} disabled={isLoading || resendSeconds > 0}>
                       {resendSeconds > 0 ? t("resendWait", { seconds: resendSeconds }) : t("resendCode")}
                     </Button>

@@ -99,6 +99,29 @@ it("uses ordinary OTP for demo when the server flag is disabled", async () => {
   expect(screen.queryByLabelText("Password")).toBeNull();
 });
 
+it("accepts the dedicated Muse review credential without changing the OpenAI demo flag", async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ enabled: false, museReviewEnabled: true }),
+  });
+
+  await start("MUSE-REVIEW@simplepost.social");
+  const field = await screen.findByLabelText("Password");
+  expect(field.getAttribute("type")).toBe("password");
+  expect(field.getAttribute("maxlength")).toBe("48");
+  expect(screen.queryByRole("status")).toBeNull();
+  const password = "a1".repeat(24);
+  fireEvent.change(field, { target: { value: password } });
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  await screen.findByText("Invalid or expired password. Try again or start over.");
+  expect(mockSignIn).toHaveBeenCalledWith({ email: "muse-review@simplepost.social", otp: password });
+});
+
+it("keeps normal email-code sign-in for the Muse address unless configured", async () => {
+  await start("muse-review@simplepost.social");
+  await screen.findByLabelText("Verification code");
+});
+
 it("stays on the email step when sending fails", async () => {
   mockSendOtp.mockResolvedValue({ error: { status: 500 } });
   await start("person@example.com");

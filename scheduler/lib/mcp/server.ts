@@ -20,6 +20,20 @@ import { formatBytes, formatDateTime as formatUtcDateTime, platformLabel, plural
 import { MCP_TOOL_ANNOTATIONS } from "./tool-annotations";
 import { isMcpBillingDenial, MCP_ERROR_INSTRUCTIONS, mcpToolLogLevel, toMcpErrorDiagnostic } from "./tool-errors";
 import { listAccounts, listAccountsOutputSchema, listAccountsSchema } from "./tools/accounts";
+import {
+  getAccountAnalyticsOutputSchema,
+  getAccountAnalyticsSchema,
+  getAccountAnalyticsTool,
+  getAnalyticsSummaryOutputSchema,
+  getAnalyticsSummarySchema,
+  getAnalyticsSummaryTool,
+  getPostAnalyticsOutputSchema,
+  getPostAnalyticsSchema,
+  getPostAnalyticsTool,
+  listPostAnalyticsOutputSchema,
+  listPostAnalyticsSchema,
+  listPostAnalyticsTool,
+} from "./tools/analytics";
 import { UPLOAD_MEDIA_DESCRIPTION, uploadMedia, uploadMediaOutputSchema, uploadMediaSchema } from "./tools/media";
 import { showPostPreview, showPostPreviewOutputSchema, showPostPreviewSchema } from "./tools/post-preview-ui";
 import {
@@ -55,6 +69,12 @@ const accountGuidance = (url?: string) => formatConnectAccountsGuidance(url, mcp
 
 export const IMAGE_FITTING_INSTRUCTIONS =
   "When image validation fails, offer crop (trim edges) or blur (keep the full image over a blurred background). Pass imageFit with the chosen method to create_post, update_scheduled_post, or validate_post. A call that fails with recovery retry_with_image_fit means exactly this: repeat it once with imageFit set. Drafts are saved either way — when a saved draft reports fixable image errors, say so and offer to fit rather than re-saving it. If the user already asked to fit images, proceed without asking again; use blur unless they chose crop. Originals are preserved. Images needing conversion become JPEG stills, including animations. Never claim fitting fixes attachment counts or mixed-media restrictions.";
+
+export const POST_ANALYTICS_INSTRUCTIONS = `# Analytics
+
+- Use \`get_analytics_summary\` for performance questions about a period (last 24 hours, this week, last month, this year, custom dates), comparisons with the previous period, platform breakdowns, best posting times and follower growth. Use \`list_post_analytics\` to rank posts (top or weakest by any metric). Use \`get_post_analytics\` for exact posts, and \`get_account_analytics\` for follower counts and analytics availability per account. Pass the user's IANA \`timeZone\`.
+- Platforms report different metrics. A missing metric means the platform does not report it — never present it as 0. Bluesky has no views; Telegram has no post analytics; LinkedIn and some Meta metrics need extra permissions. Surface \`notices\` and \`reconnectRecommended\` so the user knows when reconnecting an account in the web app unlocks more data.
+- Numbers come from the platforms and may lag (minutes to a couple of days). Report the period and timezone you used.`;
 
 export const SERVER_INSTRUCTIONS = `SimplePost lets the user save drafts, preview, schedule, and publish social posts to connected accounts. These instructions apply only to SimplePost tools. Use them for social publishing workflows and writing changes in a selected SimplePost editor. Tools can provide links for user-controlled social account authorization in the browser. Edits or deletions of already-published social content must happen on the social platform.
 
@@ -181,6 +201,7 @@ export interface McpToolAuthContext {
   readOnly?: boolean;
   onboardingTrialDays?: number | null;
   imageFittingEnabled?: boolean;
+  postAnalyticsEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;
   userEmail?: string | null;
@@ -962,7 +983,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "inspect_posts",
     {
       title: mcpText("mcpInspectPosts"),
-      description: `Use this to list or inspect the authenticated user's SimplePost records that are drafts, scheduled, posted, or failed. It supports status filtering, pagination, and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It has no text-search parameter and cannot retrieve engagement, impressions, follower growth, comments, or social inbox messages.`,
+      description: `Use this to list or inspect the authenticated user's SimplePost records that are drafts, scheduled, posted, or failed. It supports status filtering, pagination, and exact postId lookup, and returns IDs needed to quote, update, or discard a post. It only reads SimplePost data and does not render UI. It has no text-search parameter.${context.postAnalyticsEnabled ? " Posted posts include cached engagement totals; use get_post_analytics, get_analytics_summary or list_post_analytics for detailed, fresh analytics." : ""} It cannot read comment text or social inbox messages.`,
       inputSchema: inspectPostsSchema,
       outputSchema: inspectPostsOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.inspect_posts,
@@ -1039,6 +1060,100 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
       }
     },
   );
+
+  if (context.postAnalyticsEnabled) {
+    registerMeasuredTool(
+      context,
+      server,
+      "get_analytics_summary",
+      {
+        title: mcpText("mcpAnalyticsSummary"),
+        description: `Use this when the user asks how their social posts are performing overall or for a period: "how did my posts do this week", "last 24 hours", "monthly report", "this year vs last year", "which platform works best", "when should I post", "how many followers did I gain". Returns totals (views, reach, likes, comments, shares, quotes, saves, clicks, engagements, engagement rate), change vs the previous period, per-platform and per-account breakdowns, a timeline, top posts, best publishing weekday/hour and follower growth. Periods: last_24h, last_7d, last_30d, last_90d, last_365d, today, yesterday, this_week, last_week, this_month, last_month, this_quarter, last_quarter, this_year, last_year, all_time, or from/to. mode "published" (default) reports lifetime metrics of posts published in the period; mode "activity" reports what all posts gained during the period. Filter with platforms or accountIds for a single-platform drill-down. Pass the user's timeZone. Platforms report different metrics; a missing metric means the platform does not report it.`,
+        inputSchema: getAnalyticsSummarySchema,
+        outputSchema: getAnalyticsSummaryOutputSchema,
+        annotations: MCP_TOOL_ANNOTATIONS.get_analytics_summary,
+        _meta: toolMeta("mcpReadingAnalytics", "mcpAnalyticsReady"),
+      },
+      async (input) => {
+        try {
+          requireScope(context, "posts:read");
+          const { result, text } = await getAnalyticsSummaryTool(context.userId, input, { readOnly: context.readOnly });
+          return { structuredContent: result, content: [{ type: "text", text }] };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      },
+    );
+
+    registerMeasuredTool(
+      context,
+      server,
+      "list_post_analytics",
+      {
+        title: mcpText("mcpListPostAnalytics"),
+        description: `Use this to rank or list SimplePost posts by performance for a period: "my top 5 posts this month", "which posts got the most comments", "worst performing posts on Instagram", "posts with the best engagement rate". Sort by views, reach, likes, comments, shares, quotes, saves, clicks, engagements, engagementRate or publishedAt, ascending or descending, with pagination and platform/account filters. Returns post IDs, text, platforms and combined metrics. Use get_post_analytics for a per-platform breakdown of one post.`,
+        inputSchema: listPostAnalyticsSchema,
+        outputSchema: listPostAnalyticsOutputSchema,
+        annotations: MCP_TOOL_ANNOTATIONS.list_post_analytics,
+        _meta: toolMeta("mcpReadingAnalytics", "mcpAnalyticsReady"),
+      },
+      async (input) => {
+        try {
+          requireScope(context, "posts:read");
+          const { result, text } = await listPostAnalyticsTool(context.userId, input, { readOnly: context.readOnly });
+          return { structuredContent: result, content: [{ type: "text", text }] };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      },
+    );
+
+    registerMeasuredTool(
+      context,
+      server,
+      "get_post_analytics",
+      {
+        title: mcpText("mcpPostAnalytics"),
+        description: `Use this when the user asks how specific SimplePost posts performed: views, reach, likes, comments, shares, quotes, saves, clicks, profile visits, follows, watch time and engagement rate, per platform account and combined, plus each platform's native metrics and growth history. Find post IDs with inspect_posts or list_post_analytics first; never invent IDs. Stale numbers are refreshed from the platforms by default. Some platforms need extra permissions: when an account reports missing_permission or reconnectRecommended, tell the user to reconnect that account in the SimplePost web app. Telegram cannot report post analytics.`,
+        inputSchema: getPostAnalyticsSchema,
+        outputSchema: getPostAnalyticsOutputSchema,
+        annotations: MCP_TOOL_ANNOTATIONS.get_post_analytics,
+        _meta: toolMeta("mcpReadingAnalytics", "mcpAnalyticsReady"),
+      },
+      async (input) => {
+        try {
+          requireScope(context, "posts:read");
+          const { result, text } = await getPostAnalyticsTool(context.userId, input, { readOnly: context.readOnly });
+          return { structuredContent: result, content: [{ type: "text", text }] };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      },
+    );
+
+    registerMeasuredTool(
+      context,
+      server,
+      "get_account_analytics",
+      {
+        title: mcpText("mcpAccountAnalytics"),
+        description: `Use this when the user asks about their audience size per connected account (followers, following, total posts, total views or likes), or which analytics each platform supports and whether an account needs to be reconnected to unlock analytics. For follower growth over a period use get_analytics_summary.`,
+        inputSchema: getAccountAnalyticsSchema,
+        outputSchema: getAccountAnalyticsOutputSchema,
+        annotations: MCP_TOOL_ANNOTATIONS.get_account_analytics,
+        _meta: toolMeta("mcpReadingAnalytics", "mcpAnalyticsReady"),
+      },
+      async (input) => {
+        try {
+          requireScope(context, "accounts:read");
+          const { result, text } = await getAccountAnalyticsTool(context.userId, input, { readOnly: context.readOnly });
+          return { structuredContent: result, content: [{ type: "text", text }] };
+        } catch (error) {
+          return errorResult(error, context);
+        }
+      },
+    );
+  }
 
   registerMeasuredTool(
     context,

@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 import axios from "axios";
 
+import { fetchLinkedInAccountAnalytics, fetchLinkedInPostAnalytics } from "./analytics";
 import { LINKEDIN_MAX_IMAGES, LINKEDIN_MAX_VIDEOS, LINKEDIN_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -10,6 +11,7 @@ import { httpStatus, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult, RepostResult } from "../../types";
 import type {
   PostOptions,
@@ -417,5 +419,13 @@ export class LinkedInPublisher extends Publisher {
 
   async repostContent(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
     return this.publishReshare(target.postId, "", options, "repost");
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchLinkedInPostAnalytics(this.accessToken, LINKEDIN_REST_VERSION, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchLinkedInAccountAnalytics(this.accessToken, LINKEDIN_REST_VERSION);
   }
 }

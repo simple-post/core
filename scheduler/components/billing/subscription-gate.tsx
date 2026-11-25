@@ -75,7 +75,7 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
   // routes keep the existing upgrade screen; API writes are gated separately.
   if (
     isExpiredTrialReadOnly(billing) &&
-    (pathname === "/" || pathname === "/accounts" || /^\/posts\/[^/]+$/.test(pathname))
+    (pathname === "/" || pathname === "/accounts" || pathname === "/analytics" || /^\/posts\/[^/]+$/.test(pathname))
   ) {
     return children;
   }

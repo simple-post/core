@@ -6,6 +6,7 @@ import multer from "multer";
 import { loadAccounts } from "./config/accounts.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import accountsRoutes from "./routes/accounts.js";
+import analyticsRoutes from "./routes/analytics.js";
 import healthRoutes from "./routes/health.js";
 import mediaRoutes from "./routes/media.js";
 import openApiRoutes from "./routes/openapi.js";
@@ -137,6 +138,7 @@ app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/validation", validationRoutes);
 app.use("/api/v1/posts", postsRoutes);
 app.use("/api/v1/reposts", repostsRoutes);
+app.use("/api/v1/analytics", analyticsRoutes);
 
 app.use("*", (req, res) => {
   res.status(404).json({

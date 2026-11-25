@@ -27,6 +27,7 @@ Use the [SDK](../typescript-sdk/README.md) or [HTTP API server](../http-server/R
 - Shows previews and per-platform validation messages.
 - Publishes immediately or saves scheduled posts for later dispatch.
 - Shows draft, scheduled, published, and failed posts.
+- Reads post and account analytics from the platforms and shows them on each post and on the Analytics dashboard ([post analytics](../post-analytics/README.md)).
 - Exposes the remote MCP server at `/mcp`.
 - Exposes API routes used by the app, CLI, MCP, and user-managed API keys.
 

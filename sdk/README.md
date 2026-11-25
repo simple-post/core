@@ -66,7 +66,24 @@ Credentials are provided per platform via environment variables or explicitly th
 - Native reposts via `repost()` on platforms that support them
 - Native quotes with automatic ordinary-post fallback on unsupported platforms
 - Typed results and errors — no exceptions for expected posting failures
-- Subpath exports for lightweight use: `@simple-post/sdk/validation`, `@simple-post/sdk/media-types`, `@simple-post/sdk/platform-names`
+- Post and account analytics (`getPostAnalytics`, `getAccountAnalytics`) mapped onto one model: views, reach, likes, comments, shares, quotes, saves, clicks, profile visits, follows and watch time
+- Subpath exports for lightweight use: `@simple-post/sdk/validation`, `@simple-post/sdk/media-types`, `@simple-post/sdk/platform-names`, `@simple-post/sdk/analytics`
+
+## Analytics
+
+```ts
+import { getPostAnalytics, getAccountAnalytics } from "@simple-post/sdk";
+
+const { results } = await getPostAnalytics({
+  platform: "x",
+  targets: [{ postId: "1790000000000000000" }],
+  options: { x: { credentials: { accessToken: process.env.X_ACCESS_TOKEN! } } },
+});
+// results[0].status === "ok" → results[0].metrics.views, .likes, .comments, …
+const account = await getAccountAnalytics({ platform: "x", options: { x: { credentials: { accessToken } } } });
+```
+
+Every target gets a `status` (`ok`, `not_found`, `missing_permission`, `rate_limited`, …); metrics a platform does not report are absent rather than `0`, and native metrics are kept in `platformMetrics`. `PLATFORM_ANALYTICS_CAPABILITIES` lists what each platform supports. Several platforms need extra OAuth permissions — see the [permissions guide](https://github.com/simple-post/core/blob/main/docs/post-analytics/platform-permissions.md).
 
 ## Not managing raw credentials?
 

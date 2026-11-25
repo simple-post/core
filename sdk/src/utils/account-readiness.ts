@@ -1,15 +1,15 @@
-import {
-  displayMessage,
-  withDisplayMessage,
-  getDisplayMessage,
-  type DisplayMessage,
-} from "../validation/display-message";
 import axios from "axios";
 
 import { getMetaCredentialRejection, isMetaCredentialPlatform, metaPlatformLabel } from "./meta-credential-rejection";
 
 import { getXTextLength } from "../publishers/x/validation";
 import { PostError, PostErrorType } from "../types";
+import {
+  displayMessage,
+  withDisplayMessage,
+  getDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 
 import type { Content, Platform, PostOptions } from "../types/post";
 import type { ValidationIssue } from "../types/validation";

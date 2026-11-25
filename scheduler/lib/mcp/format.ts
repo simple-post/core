@@ -1,5 +1,5 @@
-import type { Locale } from "@/lib/i18n/locales";
 import { getPlatformById } from "@/lib/config";
+import type { Locale } from "@/lib/i18n/locales";
 
 export function plural(count: number, singular: string, pluralForm?: string): string {
   return `${count} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;

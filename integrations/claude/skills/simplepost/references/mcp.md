@@ -20,6 +20,7 @@ The bundled connector uses `https://app.simplepost.social/mcp`. Complete sign-in
 10. After creating or updating a draft or scheduled post, call `show_post_preview` with the returned post ID.
 11. Use `get_schedule` for a text or structured-data schedule and `show_schedule` for MCP Apps calendar UI. Use `inspect_posts` for post searches or exact post lookup.
 12. When quoting an earlier post, find the exact record with `inspect_posts` and pass its `id` as `quotePostId`. If the source is scheduled, schedule the quote after it.
+13. For performance questions, use `get_analytics_summary` (a period such as `last_24h`, `last_7d`, `this_month`, `last_year`, or `from`/`to`, with comparison to the previous period, platform breakdown, top posts, best posting times and follower growth), `list_post_analytics` (rank posts by any metric), `get_post_analytics` (exact post IDs), and `get_account_analytics` (followers and analytics availability). Pass the user's `timeZone`.
 
 Do not call tools for actions SimplePost cannot perform. For adding a social account, use `list_accounts` or the workspace to return its `connectionLinks` URL unchanged, then refresh accounts when the user returns from browser authorization. Disconnection and reauthorization of existing accounts happen in the web app. Already-published social posts must be edited or deleted on the destination platform.
 
@@ -102,7 +103,7 @@ Drafts are saved even when `validation.isValid` is false. Report that the draft 
 
 An immediate publish can take minutes. If a call times out or its result is uncertain, retry only with the same idempotency key and unchanged content. Never retry with a new key, because that can create a duplicate post.
 
-SimplePost MCP does not expose social-network engagement analytics. `inspect_posts` reports SimplePost content and delivery state, not reach, impressions, clicks, or engagement.
+`inspect_posts` includes cached engagement totals for posted posts. For fresh and detailed numbers use the analytics tools. Each result reports a `status` per account (`ok`, `pending`, `missing_permission`, `unsupported`, …); a missing metric means the platform does not report it, never zero. When `reconnectRecommended` is true or a notice asks for it, tell the user to reconnect that account in the SimplePost web app to unlock more analytics. `mode: "activity"` reports what all posts gained during the period and is approximate.
 
 ## TikTok privacy
 

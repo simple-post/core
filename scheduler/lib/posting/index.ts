@@ -117,7 +117,7 @@ function mergeReplyOverlay(
   };
 }
 
-async function persistRefreshedCredentials(
+export async function persistRefreshedCredentials(
   account: ConnectedAccount,
   refreshedCredentials: NonNullable<NonNullable<PostingResult["extraData"]>["refreshedCredentials"]>,
   log: Logger,

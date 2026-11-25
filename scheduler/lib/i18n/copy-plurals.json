@@ -34,5 +34,7 @@
   "Use at most {{count, number}} characters.": "Use at most {{count, number}} character.",
   "Provide at most {{count, number}} items.": "Provide at most {{count, number}} item.",
   "{{platforms}} do not support quotes, so those destinations receive a regular post.": "{{platforms}} does not support quotes, so that destination receives a regular post.",
-  "Show {{count, number}} More": "Show {{count, number}} More"
+  "Show {{count, number}} More": "Show {{count, number}} More",
+  "Based on {{count, number}} posts": "Based on {{count, number}} post",
+  "{{count, number}} waiting for their first read.": "{{count, number}} waiting for its first read."
 }

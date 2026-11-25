@@ -22,6 +22,7 @@ It uses OAuth with authorization-server discovery, dynamic client registration, 
 10. After creating or updating a draft or scheduled post, call `show_post_preview` with the returned post ID when a rendered review is useful.
 11. Use `get_schedule` for structured schedule data and `show_schedule` for the calendar UI.
 12. To quote an earlier post, find the exact record with `inspect_posts` and pass its `id` as `quotePostId`. Schedule a quote after its source when the source is still scheduled.
+13. For performance questions use `get_analytics_summary` (periods such as `last_24h`, `last_7d`, `this_month`, `last_year` or `from`/`to`, with previous-period comparison, platform breakdown, top posts, best posting times and follower growth), `list_post_analytics` to rank posts, `get_post_analytics` for exact posts and `get_account_analytics` for followers. Pass the user's `timeZone`.
 
 Do not call tools for unsupported actions. Already-published social posts must be edited or deleted on the destination platform.
 
@@ -120,4 +121,4 @@ Top-level `postingMode: "draft"` saves a SimplePost draft and performs no TikTok
 - If authentication expires, use `terminal(command="hermes mcp login simplepost", timeout=315)` and then reload MCP.
 - If `hermes mcp test simplepost` fails before login, complete OAuth and repeat the test once.
 - Do not retry billing, allowance, validation, or platform-policy failures to bypass them.
-- Do not claim engagement analytics from `inspect_posts`; it exposes content and delivery state only.
+- `inspect_posts` carries only cached engagement totals; use the analytics tools for fresh numbers. A missing metric is unreported by that platform, not zero. Relay reconnect notices instead of guessing numbers.

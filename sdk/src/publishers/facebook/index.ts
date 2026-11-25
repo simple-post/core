@@ -4,6 +4,7 @@ import path from "node:path";
 import axios from "axios";
 import FormData from "form-data";
 
+import { fetchFacebookAccountAnalytics, fetchFacebookPostAnalytics } from "./analytics";
 import { FACEBOOK_MAX_MEDIA_COUNT, FACEBOOK_VALIDATION_RULES } from "./validation";
 import { FacebookVideoUpload } from "./video-upload";
 
@@ -13,6 +14,7 @@ import { getDownloadedSourceUrl, rememberDownloadedSource } from "../../utils/re
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Image, PostOptionsWithCredentials, Video } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -190,5 +192,13 @@ export class FacebookPublisher extends Publisher {
     } finally {
       await tempFileManager.cleanup();
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchFacebookPostAnalytics(this.client, this.pageAccessToken, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchFacebookAccountAnalytics(this.client, this.pageId, this.pageAccessToken);
   }
 }

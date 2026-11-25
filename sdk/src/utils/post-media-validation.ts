@@ -1,10 +1,14 @@
-import { displayMessage, getDisplayMessage, withDisplayMessage } from "../validation/display-message";
-import { copyDisplayMessage } from "../validation/display-message";
-import { describeDisplayMessage } from "../validation/display-message";
 import { mediaFormatFailure } from "./media-format-validation";
 import { inspectLocalMedia, inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 
 import { validateContentForPlatform } from "../validation";
+import {
+  displayMessage,
+  getDisplayMessage,
+  withDisplayMessage,
+  copyDisplayMessage,
+  describeDisplayMessage,
+} from "../validation/display-message";
 import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { MediaInspection } from "./media-inspection";

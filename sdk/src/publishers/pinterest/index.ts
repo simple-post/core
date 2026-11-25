@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import axios from "axios";
 import FormData from "form-data";
 
+import { fetchPinterestAccountAnalytics, fetchPinterestPostAnalytics } from "./analytics";
 import { PINTEREST_MAX_TITLE_LENGTH, PINTEREST_VALIDATION_RULES, validatePinterestContent } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -13,6 +14,7 @@ import { isTransientError, withTransientRetry } from "../../utils/transient-retr
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -517,5 +519,13 @@ export class PinterestPublisher extends Publisher {
       await tempFileManager.cleanup();
       await this.cleanupS3Files();
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchPinterestPostAnalytics(this.client, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchPinterestAccountAnalytics(this.client);
   }
 }

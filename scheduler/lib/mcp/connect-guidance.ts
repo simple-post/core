@@ -1,7 +1,7 @@
 import { createConnectionHandoff } from "@/lib/accounts/assistant-handoff";
 import { SOCIAL_PLATFORMS } from "@/lib/config";
-import { getAppBaseUrl } from "@/lib/mcp/config";
 import type { createTranslator } from "@/lib/i18n/translate";
+import { getAppBaseUrl } from "@/lib/mcp/config";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { prisma } from "@/lib/prisma";
 

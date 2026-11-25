@@ -1,4 +1,5 @@
 import accountsRoutes from "../routes/accounts.openapi.js";
+import { analyticsAccountsRoute, analyticsPostsRoute } from "../routes/analytics.openapi.js";
 import healthRoutes from "../routes/health.openapi.js";
 import mediaRoutes from "../routes/media.openapi.js";
 import openApiRoutes from "../routes/openapi.openapi.js";
@@ -20,4 +21,6 @@ export const serverOpenApiRoutes: OpenApiRoute[] = [
   validationRoutes,
   postsRoutes,
   repostsRoutes,
+  analyticsPostsRoute,
+  analyticsAccountsRoute,
 ];

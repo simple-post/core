@@ -13,6 +13,7 @@ import {
 } from "@simple-post/sdk";
 import { generatePostUrl, mapPlatformName } from "@simple-post/sdk/platform-names";
 
+import { env } from "@/lib/env";
 import { postingLogger, serializeError, redact } from "@/lib/logger";
 import {
   acquireConnectedAccountCredentialLock,
@@ -332,6 +333,8 @@ interface AccountSegment {
   mediaFiles: MediaFile[];
 }
 
+const QA_PUBLISH_FAILURE_MESSAGE = "SimplePost QA failure test.";
+
 async function postSegmentsToAccount(
   segments: AccountSegment[],
   account: ConnectedAccount,
@@ -341,6 +344,17 @@ async function postSegmentsToAccount(
   postId: string = randomUUID(),
   tiktokRetryApproved = false,
 ): Promise<PostingResult> {
+  if (account.id === env.QA_PUBLISH_FAILURE_ACCOUNT_ID && segments[0]?.message === QA_PUBLISH_FAILURE_MESSAGE) {
+    // Return a terminal result so the caller persists the failure and sends the normal webhook.
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: "QA_PUBLISH_FAILURE",
+      message: "Intentional test publish failure.",
+    };
+  }
+
   const log = postingLogger.child({
     fn: "postSegmentsToAccount",
     accountId: account.id,

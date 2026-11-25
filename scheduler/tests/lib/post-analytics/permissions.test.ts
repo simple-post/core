@@ -1,4 +1,3 @@
-import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import {
   accountAnalyticsReadiness,
   analyticsAccountReadiness,
@@ -15,15 +14,14 @@ describe("analytics permissions", () => {
   it("requests analytics scopes only for enabled platforms", () => {
     delete process.env.OAUTH_ANALYTICS_SCOPES;
     expect(withAnalyticsScopes("threads", "threads_basic,threads_content_publish")).toBe(
-      "threads_basic,threads_content_publish",
+      "threads_basic,threads_content_publish,threads_manage_insights",
     );
     process.env.OAUTH_ANALYTICS_SCOPES = "threads, tiktok";
     expect(withAnalyticsScopes("threads", "threads_basic,threads_content_publish")).toBe(
       "threads_basic,threads_content_publish,threads_manage_insights",
     );
-    expect(getPlatformOAuthConfig("tiktok")?.scope).not.toContain("video.list");
-    expect(getPlatformOAuthConfig("tiktok", true)?.scope).toContain("video.list,user.info.stats");
-    expect(getPlatformOAuthConfig("facebook", true)?.scope).not.toContain("read_insights");
+    expect(withAnalyticsScopes("tiktok", "video.upload,video.publish")).toContain("video.list,user.info.stats");
+    expect(withAnalyticsScopes("facebook", "public_profile,pages_show_list")).not.toContain("read_insights");
     process.env.OAUTH_ANALYTICS_SCOPES = "all";
     expect(withAnalyticsScopes("linkedin", "openid profile")).toBe(
       "openid profile r_member_postAnalytics r_member_profileAnalytics",
@@ -41,7 +39,7 @@ describe("analytics permissions", () => {
         reconnectRecommended: true,
       }),
     );
-    delete process.env.OAUTH_ANALYTICS_SCOPES;
+    process.env.OAUTH_ANALYTICS_SCOPES = "";
     expect(analyticsAccountReadiness({ platform: "tiktok", scope: "video.publish" })).toEqual(
       expect.objectContaining({ ready: false, reconnectRecommended: false }),
     );

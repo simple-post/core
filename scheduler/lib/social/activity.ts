@@ -19,7 +19,7 @@ import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/utils/errors";
 import type { AccountPublishResult, ConnectedAccount } from "@/types";
 
-import { approvedInboxScopes, hasInboxScopes } from "./permissions";
+import { enabledInboxScopes, hasInboxScopes } from "./permissions";
 
 import type { SocialActivityAccount, SocialActivityError, SocialComment } from "@simple-post/sdk";
 
@@ -437,8 +437,8 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
       canSync: supportsInbox(account.platform),
       hasMore: hasMoreInboxWork(account.socialActivitySync),
       permissionUrl:
-        approvedInboxScopes(account.platform).length > 0 &&
-        !hasInboxScopes(account.scope, approvedInboxScopes(account.platform))
+        enabledInboxScopes(account.platform).length > 0 &&
+        !hasInboxScopes(account.scope, enabledInboxScopes(account.platform))
           ? `/api/connect/${account.platform}?inboxAccountId=${encodeURIComponent(account.id)}`
           : undefined,
       lastSyncedAt: account.socialActivitySync?.lastSyncedAt?.toISOString(),

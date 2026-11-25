@@ -112,12 +112,12 @@ day are free to re-read).
 
 ### Configuration
 
-| Variable                              | Default        | Meaning                                                           |
-| ------------------------------------- | -------------- | ----------------------------------------------------------------- |
-| `OAUTH_ANALYTICS_SCOPES`              | empty          | Platforms (or `all`) whose analytics OAuth scopes are requested.  |
-| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`         | Refresh due analytics after scheduled dispatch.                   |
-| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x` | `all` or a platform list for the background refresh.              |
-| `X_ANALYTICS_DAILY_POST_READS`        | `300`          | Distinct X posts read per user per day; `0` disables X analytics. |
+| Variable                              | Default                                     | Meaning                                                                                          |
+| ------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `OAUTH_ANALYTICS_SCOPES`              | `facebook,instagram,threads,tiktok,youtube` | Platforms (or `all`) whose analytics OAuth scopes are requested for users with `POST_ANALYTICS`. |
+| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`                                      | Refresh due analytics after scheduled dispatch.                                                  |
+| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x`                              | `all` or a platform list for the background refresh.                                             |
+| `X_ANALYTICS_DAILY_POST_READS`        | `300`                                       | Distinct X posts read per user per day; `0` disables X analytics.                                |
 
 Expired trials keep read access to cached analytics; refreshing requires an
 active plan or trial.

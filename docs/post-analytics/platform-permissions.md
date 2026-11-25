@@ -22,7 +22,7 @@ to the sources are listed per platform.
 | Threads   | views, likes, replies, reposts, quotes, shares                                            | `threads_manage_insights`                                                                           | Yes: App Review + Advanced Access                         |
 | Facebook  | views, reach, reactions, comments, shares, clicks                                         | `pages_read_engagement`, `read_insights`                                                            | Yes: App Review + Advanced Access + Business Verification |
 | Instagram | views, reach, likes, comments, shares, saves, profile visits, follows, watch time (Reels) | Instagram Login: `instagram_business_manage_insights` · Facebook Login: `instagram_manage_insights` | Yes: App Review + Advanced Access                         |
-| YouTube   | views, likes, comments, shares², watch time², average view duration², subscribers gained² | None (`youtube.readonly` already granted). Enable the **YouTube Analytics API**                     | No (unless you add `yt-analytics.readonly`)               |
+| YouTube   | views, likes, comments, shares², watch time², average view duration², subscribers gained² | `yt-analytics.readonly`. Enable the **YouTube Analytics API**                                       | Google OAuth verification for the reports scope           |
 | TikTok    | views, likes, comments, shares                                                            | `video.list`, `user.info.stats`                                                                     | Yes: scope review in the TikTok developer portal          |
 | Pinterest | impressions, saves, pin + outbound clicks, comments, reactions                            | None for hosted (`pins:read`, `user_accounts:read` already granted). CLI: add `pins:read`           | No (Standard access required)                             |
 | LinkedIn  | impressions, members reached, reactions, comments, reshares                               | `r_member_postAnalytics`, `r_member_profileAnalytics` (Community Management API)                    | Yes: separate Community Management API application        |
@@ -34,15 +34,12 @@ to the sources are listed per platform.
 
 ### Turning on the new scopes safely
 
-Requesting a permission that the platform has not approved for your app makes
-the **whole** login fail for every user (Meta: "Invalid Scopes", TikTok:
-`scope_not_authorized`). To avoid breaking account connections before App
-Review is complete, the analytics scopes are **opt-in**:
-
-- **Hosted scheduler**: set `OAUTH_ANALYTICS_SCOPES` to a comma-separated list
-  of platforms whose analytics permissions have been approved, for example
-  `OAUTH_ANALYTICS_SCOPES=facebook,instagram,threads,tiktok`. Use `all` to
-  enable every platform. Unset means no extra scopes are requested.
+- The hosted Scheduler requests extra scopes only for users with
+  `POST_ANALYTICS`. Facebook, Instagram, Threads, TikTok, and YouTube are
+  enabled by default for these users. Set `OAUTH_ANALYTICS_SCOPES` to
+  override the platform list, `all` to include every supported platform, or
+  an empty value to disable additional analytics requests. A provider can
+  reject the pilot connection when the tester lacks access to a requested scope.
 - **CLI / self-hosted**: set `SIMPLEPOST_ANALYTICS_SCOPES` the same way (or
   `all`) before running `simplepost account add`. You are an admin/tester of
   your own app, so Meta permissions work without App Review once you add them
@@ -121,8 +118,8 @@ Sources: [getPosts](https://docs.bsky.app/docs/api/app-bsky-feed-get-posts),
 2. Submit it for **App Review** with a screencast that shows SimplePost
    displaying per-post and profile metrics (the analytics page and a post's
    analytics panel). Advanced Access requires **Business Verification**.
-3. After approval, add `threads` to `OAUTH_ANALYTICS_SCOPES` and ask users to
-   reconnect Threads.
+3. Reconnect Threads as a pilot user with a Threads tester role to verify the
+   permission. After review, users with Analytics access can reconnect.
 
 **Self-hosted**: add the permission to your app's Threads use case; you (and
 anyone added as a Threads tester) can grant it without review. Then set
@@ -158,8 +155,8 @@ perform the **ANALYZE** task on the Page.
 2. Complete **Business Verification** (required for Advanced Access).
 3. Submit both permissions for **App Review** with a screencast showing the
    Page post metrics inside SimplePost; request **Advanced Access**.
-4. After approval, add `facebook` to `OAUTH_ANALYTICS_SCOPES` and ask users to
-   reconnect Facebook (the Page picker re-issues Page tokens).
+4. Reconnect Facebook as a pilot user with a role on the app. The Page picker
+   re-issues Page tokens.
 
 **Self-hosted**: add the permissions to your app's use case; as an app admin you
 can grant them for your own Pages without review. Set
@@ -207,7 +204,7 @@ accounts return insights. Personal accounts cannot be used.
    permissions → add **`instagram_business_manage_insights`**.
 2. Submit it for **App Review** (screencast of the analytics UI) and request
    **Advanced Access** (needs Business Verification).
-3. After approval, add `instagram` to `OAUTH_ANALYTICS_SCOPES`; users reconnect.
+3. Reconnect Instagram as a pilot user with access to the test account.
 
 **Self-hosted**: add `instagram_manage_insights` to the app's use case (Standard
 Access is enough for accounts you own or manage), set
@@ -239,19 +236,19 @@ Sources: [media insights](https://developers.facebook.com/docs/instagram-platfor
 - `channels.list?mine=true&part=statistics` for subscribers, total views and
   video count.
 
-**Scopes**: `youtube.readonly` (already requested) grants Analytics API access to
-non-monetary metrics. Nothing to add for most setups.
+**Scopes** include the existing `youtube.readonly` for video statistics and
+`yt-analytics.readonly` for Analytics reports. The hosted Scheduler requests
+the reports scope for the Analytics pilot.
 
 **Google Cloud console (hosted and self-hosted)**:
 
 1. **APIs & Services → Library → "YouTube Analytics API" → Enable** in the
    same project as the OAuth client. Without it SimplePost still shows views,
    likes and comments but no watch time/shares.
-2. If `reports.query` answers 403 with your tokens, add
-   `https://www.googleapis.com/auth/yt-analytics.readonly` (set
-   `OAUTH_ANALYTICS_SCOPES=youtube` / `SIMPLEPOST_ANALYTICS_SCOPES=youtube`).
-   This is a **sensitive** scope: update the OAuth consent screen and expect
-   Google re-verification (~10 business days); users must reconnect.
+2. Declare `https://www.googleapis.com/auth/yt-analytics.readonly` in the
+   Google OAuth consent settings. CLI users can include `youtube` in
+   `SIMPLEPOST_ANALYTICS_SCOPES`. Reconnect and consent with a Google account
+   that can authorize the reports scope.
 
 **Quota**: 10,000 units/day per project; analytics reads cost 1 unit per 50 videos.
 
@@ -282,8 +279,8 @@ Direct Posts whose public id was not known at publish time are resolved through
 2. **Scopes → Add scopes** → select `video.list` and `user.info.stats` → save.
 3. **Submit for review** with an explanation and a demo video of the analytics
    UI. Scopes marked "Submit for review" are unusable until approved.
-4. After approval, add `tiktok` to `OAUTH_ANALYTICS_SCOPES`
-   (self-hosted: `SIMPLEPOST_ANALYTICS_SCOPES=tiktok`); users must re-authorize.
+4. Reauthorize with an account that has access to the scopes. CLI users can set
+   `SIMPLEPOST_ANALYTICS_SCOPES=tiktok`.
 
 **Gotchas**:
 
@@ -397,9 +394,9 @@ Sources: [Bot API](https://core.telegram.org/bots/api#getchatmembercount),
 
 ## Environment variables (hosted scheduler)
 
-| Variable                              | Default        | Meaning                                                                                      |
-| ------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
-| `OAUTH_ANALYTICS_SCOPES`              | empty          | Platforms (or `all`) whose analytics OAuth scopes are requested when users connect accounts. |
-| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`         | Refresh due analytics in the scheduled dispatcher run (in addition to on-demand refreshes).  |
-| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x` | Platforms refreshed in the background. X is excluded by default because reads are billed.    |
-| `X_ANALYTICS_DAILY_POST_READS`        | `300`          | Maximum distinct X posts read per user per UTC day. `0` disables X analytics.                |
+| Variable                              | Default                                     | Meaning                                                                                          |
+| ------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `OAUTH_ANALYTICS_SCOPES`              | `facebook,instagram,threads,tiktok,youtube` | Platforms (or `all`) whose analytics OAuth scopes are requested for users with `POST_ANALYTICS`. |
+| `POST_ANALYTICS_BACKGROUND_REFRESH`   | `true`                                      | Refresh due analytics in the scheduled dispatcher run (in addition to on-demand refreshes).      |
+| `POST_ANALYTICS_BACKGROUND_PLATFORMS` | all except `x`                              | Platforms refreshed in the background. X is excluded by default because reads are billed.        |
+| `X_ANALYTICS_DAILY_POST_READS`        | `300`                                       | Maximum distinct X posts read per user per UTC day. `0` disables X analytics.                    |

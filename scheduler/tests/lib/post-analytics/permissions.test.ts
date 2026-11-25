@@ -21,8 +21,9 @@ describe("analytics permissions", () => {
     expect(withAnalyticsScopes("threads", "threads_basic,threads_content_publish")).toBe(
       "threads_basic,threads_content_publish,threads_manage_insights",
     );
-    expect(getPlatformOAuthConfig("tiktok")?.scope).toContain("video.list,user.info.stats");
-    expect(getPlatformOAuthConfig("facebook")?.scope).not.toContain("read_insights");
+    expect(getPlatformOAuthConfig("tiktok")?.scope).not.toContain("video.list");
+    expect(getPlatformOAuthConfig("tiktok", true)?.scope).toContain("video.list,user.info.stats");
+    expect(getPlatformOAuthConfig("facebook", true)?.scope).not.toContain("read_insights");
     process.env.OAUTH_ANALYTICS_SCOPES = "all";
     expect(withAnalyticsScopes("linkedin", "openid profile")).toBe(
       "openid profile r_member_postAnalytics r_member_profileAnalytics",

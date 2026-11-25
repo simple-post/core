@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
-import { canRefreshAnalytics } from "@/lib/post-analytics/access";
+import { canRefreshAnalytics, requirePostAnalytics } from "@/lib/post-analytics/access";
 import { getPostAnalyticsView } from "@/lib/post-analytics/query";
 import { AnalyticsRefreshModeSchema } from "@/lib/post-analytics/schemas";
 import { ensureAnalyticsRowsForUser, refreshAnalyticsForUser } from "@/lib/post-analytics/service";
@@ -16,6 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const session = await requireAuth(req, { action: "read_post_analytics", postId: id }, true);
+    await requirePostAnalytics(session.user.id);
     const refresh = AnalyticsRefreshModeSchema.parse(req.nextUrl.searchParams.get("refresh") ?? "auto");
 
     await ensureAnalyticsRowsForUser(session.user.id, { postIds: [id] });

@@ -126,9 +126,12 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
   },
 };
 
-export function getPlatformOAuthConfig(platform: string): PlatformOAuthConfig | undefined {
+export function getPlatformOAuthConfig(
+  platform: string,
+  postAnalyticsEnabled = false,
+): PlatformOAuthConfig | undefined {
   const config = OAUTH_CONFIGS[platform];
   // Analytics permissions are opt-in per platform (OAUTH_ANALYTICS_SCOPES) because
   // requesting an unapproved permission makes the whole authorization fail.
-  return config ? { ...config, scope: withAnalyticsScopes(platform, config.scope) } : undefined;
+  return config && postAnalyticsEnabled ? { ...config, scope: withAnalyticsScopes(platform, config.scope) } : config;
 }

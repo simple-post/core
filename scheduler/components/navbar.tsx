@@ -11,6 +11,7 @@ import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { useBillingStatus, useWorkspaceReadOnly } from "@/hooks/use-billing";
+import { useFeatures } from "@/hooks/use-features";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
+  const { hasFeature } = useFeatures();
   const showCreateCta = !readOnly && !pathname.startsWith("/schedule");
   const activeSection = pathname.startsWith("/accounts")
     ? "accounts"
@@ -61,7 +63,7 @@ export function Navbar({ actions }: NavbarProps) {
           </Link>
 
           <WorkspaceNavigation
-            showAnalytics
+            showAnalytics={hasFeature("POST_ANALYTICS")}
             active={activeSection}
             renderItem={({ id, label, className, children }) => (
               <Link

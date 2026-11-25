@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
-import { canRefreshAnalytics } from "@/lib/post-analytics/access";
+import { canRefreshAnalytics, requirePostAnalytics } from "@/lib/post-analytics/access";
 import { resolvePeriod } from "@/lib/post-analytics/periods";
 import { listPostAnalytics } from "@/lib/post-analytics/query";
 import { analyticsPostsQuerySchema, searchParamsToObject } from "@/lib/post-analytics/schemas";
@@ -11,6 +11,7 @@ import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req, { action: "list_post_analytics" }, true);
+    await requirePostAnalytics(session.user.id);
     const query = analyticsPostsQuerySchema.parse(searchParamsToObject(req.nextUrl.searchParams));
     let period;
     try {

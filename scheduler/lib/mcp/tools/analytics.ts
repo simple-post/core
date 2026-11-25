@@ -2,7 +2,7 @@ import { PlatformSchema } from "@simple-post/sdk";
 import { POST_METRIC_DEFINITIONS, type PostMetric, type PostMetrics } from "@simple-post/sdk/analytics";
 import * as z from "zod";
 
-import { canRefreshAnalytics } from "@/lib/post-analytics/access";
+import { canRefreshAnalytics, requirePostAnalytics } from "@/lib/post-analytics/access";
 import { ANALYTICS_GRANULARITIES, resolvePeriod } from "@/lib/post-analytics/periods";
 import {
   getAccountsAnalytics,
@@ -295,6 +295,7 @@ export async function getPostAnalyticsTool(
   input: z.infer<typeof getPostAnalyticsSchema>,
   options: { readOnly?: boolean } = {},
 ) {
+  await requirePostAnalytics(userId);
   const postIds = [...new Set(input.postIds)];
   await ((await shouldRefresh(userId, input.refresh, options.readOnly))
     ? refreshAnalyticsForUser(userId, {
@@ -335,6 +336,7 @@ export async function getAnalyticsSummaryTool(
   input: z.infer<typeof getAnalyticsSummarySchema>,
   options: { readOnly?: boolean } = {},
 ) {
+  await requirePostAnalytics(userId);
   const since = sinceFor(input);
   await ((await shouldRefresh(userId, input.refresh, options.readOnly))
     ? refreshAnalyticsForUser(userId, {
@@ -353,6 +355,7 @@ export async function listPostAnalyticsTool(
   input: z.infer<typeof listPostAnalyticsSchema>,
   options: { readOnly?: boolean } = {},
 ) {
+  await requirePostAnalytics(userId);
   const since = sinceFor(input);
   await ((await shouldRefresh(userId, input.refresh, options.readOnly))
     ? refreshAnalyticsForUser(userId, {
@@ -380,6 +383,7 @@ export async function getAccountAnalyticsTool(
   input: z.infer<typeof getAccountAnalyticsSchema>,
   options: { readOnly?: boolean } = {},
 ) {
+  await requirePostAnalytics(userId);
   if (await shouldRefresh(userId, input.refresh, options.readOnly)) {
     await refreshAccountAnalytics({ userId, force: input.refresh === "force", reason: "manual" });
   }

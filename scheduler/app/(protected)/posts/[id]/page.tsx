@@ -29,6 +29,7 @@ import { UiCopy } from "@/components/ui-copy";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
+import { useFeatures } from "@/hooks/use-features";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
@@ -47,6 +48,7 @@ type FailedPlatform = {
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { copy, locale } = useUiCopy();
   const { id } = use(params);
+  const { hasFeature } = useFeatures();
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const { data: post, isLoading: postLoading } = usePost(id);
@@ -349,10 +351,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
 
             <PublishedPostLinks post={post} accounts={postAccounts} />
 
-            {(isPublished ||
-              (isFailed && Object.values(post.accountResults ?? {}).some((result) => result.success))) && (
-              <PostAnalyticsPanel postId={post.id} readOnly={readOnly} />
-            )}
+            {hasFeature("POST_ANALYTICS") &&
+              (isPublished ||
+                (isFailed && Object.values(post.accountResults ?? {}).some((result) => result.success))) && (
+                <PostAnalyticsPanel postId={post.id} readOnly={readOnly} />
+              )}
 
             {/* Accounts */}
             <div className="rounded-2xl border border-border bg-card p-6">

@@ -11,7 +11,7 @@ This is **prepared, not submitted, approved or live-tested in Personal Muse**. P
 - **Read and write remains the default.** Only deployment-approved Personal Muse OAuth clients see the optional **Read only** choice. Other clients retain the original consent screen and requested-scope behavior; CLI authorization does not gain this toggle.
 - Read-only grants retain only the requested identity/account/post-read scopes. They exclude **both** `posts:write` and `posts:validate`: MCP validation and preview can import media, even without image fitting. Empty or invalid grants fail closed. Choosing access never expands a client's registered/requested scopes.
 - Existing MCP handlers enforce these scopes. Newly issued Muse grants also persist an opt-in REST enforcement flag, so a read-only Muse token cannot bypass consent through REST mutations or fall back to a broader browser session. The flag survives later allowlist changes. Existing tokens, other MCP clients, API keys, CLI tokens and normal browser sessions retain their previous behavior.
-- A reproducible review bundle exports actual registered tool descriptions, input/output JSON schemas and MCP hints, plus Muse-specific **read / write / sensitive write** classifications. All four combinations of base vs extension tools and image-fitting entitlement are separate. All 27 tools are covered; 16 are always registered and 11 depend on the workspace/editor entitlement.
+- A reproducible review bundle exports actual registered tool descriptions, input/output JSON schemas and MCP hints, plus Muse-specific **read / write / sensitive write** classifications. The bundle covers eight combinations of workspace extensions, image fitting and post analytics. Twelve tools are always registered, four require the post analytics grant, and eleven require workspace/editor access.
 - Offline tests verify catalog completeness, risk labels, exported schemas, rejected write calls, OAuth narrowing and REST enforcement. CI runs these checks; generate the review bundle locally when preparing a submission.
 
 ## Prepare the review bundle
@@ -49,7 +49,7 @@ The kit contains:
 | File                                  | Use                                                                                                  |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `connector.json`                      | Copy-ready listing, endpoints, scopes and availability restrictions                                  |
-| `tool-contracts.json`                 | Actual current tool schemas and annotations for all four entitlement profiles                        |
+| `tool-contracts.json`                 | Actual current tool schemas and annotations for all eight entitlement profiles                       |
 | `TOOL_REVIEW.md` / `tool-review.json` | Muse risk classifications, approval policy, permissions and side effects                             |
 | `REVIEW.md`                           | Reviewer account setup, complete workflows, failure/permission tests, demo and publication checklist |
 | `DATA_PROCESSING.md`                  | Evidence-based questionnaire draft and owner confirmations still needed                              |

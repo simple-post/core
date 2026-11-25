@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { lockUserForQuota } from "@/lib/billing/subscriptions";
+import { hasFeature } from "@/lib/features";
 import { serverMessage } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
@@ -191,6 +192,7 @@ export class PostsModel {
     const { page = 1, limit = 25 } = options;
     const skip = (page - 1) * limit;
 
+    const analyticsEnabled = await hasFeature(this.userId, "POST_ANALYTICS");
     const where = {
       userId: this.userId,
       status: "published",
@@ -202,7 +204,7 @@ export class PostsModel {
         include: {
           media: true,
           accounts: true,
-          analytics: { select: POST_ANALYTICS_BADGE_SELECT },
+          analytics: analyticsEnabled && { select: POST_ANALYTICS_BADGE_SELECT },
         },
         orderBy: [
           {
@@ -223,7 +225,7 @@ export class PostsModel {
     return {
       data: posts.map((post) => ({
         ...this.mapPostToSocialPost(post),
-        analytics: summarizeAnalyticsBadge(post.analytics),
+        ...(analyticsEnabled ? { analytics: summarizeAnalyticsBadge(post.analytics) } : {}),
       })),
       pagination: {
         page,

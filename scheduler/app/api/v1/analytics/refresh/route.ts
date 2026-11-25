@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { requireAuth } from "@/lib/middleware/auth";
+import { requirePostAnalytics } from "@/lib/post-analytics/access";
 import { resolvePeriod } from "@/lib/post-analytics/periods";
 import { analyticsRefreshRequestSchema } from "@/lib/post-analytics/schemas";
 import { refreshAnalyticsForUser } from "@/lib/post-analytics/service";
@@ -14,6 +15,7 @@ import { BadRequestError, handleApiError } from "@/lib/utils/errors";
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req, { action: "refresh_analytics" });
+    await requirePostAnalytics(session.user.id);
     const body = analyticsRefreshRequestSchema.parse(await req.json().catch(() => ({})));
     let since: Date | undefined;
     if (!body.postIds && body.period !== "all_time" && body.mode !== "activity") {

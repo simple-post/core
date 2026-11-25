@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { Prisma } from "@prisma/client";
+import { Prisma, Feature } from "@prisma/client";
 import { getAccountAnalytics, getPostAnalytics, type Platform } from "@simple-post/sdk";
 import {
   computeEngagements,
@@ -16,6 +16,7 @@ import {
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { isPreviewOnlyConnectedAccount } from "@/lib/accounts/account-state";
+import { usersWithFeature } from "@/lib/features";
 import { createLogger, serializeError } from "@/lib/logger";
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { persistRefreshedCredentials } from "@/lib/posting";
@@ -25,7 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import type { ConnectedAccount } from "@/types";
 
-import { startOfUtcDay, xDailyPostReadLimit } from "./config";
+import { backgroundRefreshPlatforms, startOfUtcDay, xDailyPostReadLimit } from "./config";
 import { ACCOUNT_ANALYTICS_TTL_MS, canForceRefresh, isStale, nextRefreshAt, snapshotIntervalMs } from "./freshness";
 import { analyticsAccountReadiness } from "./permissions";
 import { analyticsSeedsForPost, analyticsTargetFor, type AnalyticsSourcePost } from "./targets";
@@ -235,6 +236,7 @@ export async function refreshPostAnalytics(params: {
 
   const candidates = await prisma.postAnalytics.findMany({
     where: {
+      ...(params.reason === "background" ? { user: usersWithFeature(Feature.POST_ANALYTICS) } : {}),
       ...(params.userId ? { userId: params.userId } : {}),
       ...(params.rowIds ? { id: { in: params.rowIds } } : {}),
       ...(params.postIds ? { postId: { in: params.postIds } } : {}),
@@ -564,9 +566,20 @@ export async function refreshAccountAnalytics(params: {
   const cutoff = new Date(now.getTime() - ttl);
   // Select due accounts in the database (no snapshot newer than the TTL, or reconnected
   // after a failed read), least recently updated first, so a limit never starves others.
+  const background = params.reason === "background" ? backgroundRefreshPlatforms() : undefined;
+  const platforms = Object.keys(PLATFORM_ANALYTICS_CAPABILITIES).filter(
+    (platform) =>
+      supportsAccountAnalytics(platform) &&
+      (!params.platforms || params.platforms.includes(platform)) &&
+      (!background?.include || background.include.includes(platform)) &&
+      !background?.exclude?.includes(platform),
+  );
+  if (platforms.includes("x")) platforms.push("twitter");
   const accounts = await prisma.connectedAccount.findMany({
     where: {
+      ...(params.reason === "background" ? { user: usersWithFeature(Feature.POST_ANALYTICS) } : {}),
       ...(params.userId ? { userId: params.userId } : {}),
+      platform: { in: platforms, mode: "insensitive" },
       ...(params.accountIds ? { id: { in: params.accountIds } } : {}),
       OR: [
         { analyticsSnapshots: { none: { capturedAt: { gte: cutoff } } } },
@@ -579,9 +592,6 @@ export async function refreshAccountAnalytics(params: {
   });
 
   const due = accounts.filter((account) => {
-    const platform = mapPlatformName(account.platform);
-    if (!supportsAccountAnalytics(platform)) return false;
-    if (params.platforms && !params.platforms.includes(platform)) return false;
     const latest = account.analyticsSnapshots[0];
     if (!latest) return true;
     if (account.updatedAt > latest.capturedAt && latest.status !== "ok") return true;

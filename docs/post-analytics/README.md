@@ -9,6 +9,28 @@ TypeScript SDK.
 Platform setup (scopes, app review, console settings, costs) is covered in
 [platform-permissions.md](platform-permissions.md).
 
+## Hosted rollout
+
+Hosted post analytics requires the `POST_ANALYTICS` user feature. Keep it out of
+`GLOBAL_FEATURES` for a private pilot. Grants use the existing `user_feature`
+table. Before the first deployment, an operator can stage one verified user ID in the
+target application's database schema:
+
+```sql
+BEGIN;
+CREATE TABLE "_post_analytics_pilot" (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  "userId" text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+);
+-- psql variable containing the verified SimplePost user ID.
+INSERT INTO "_post_analytics_pilot" ("userId") VALUES (:'pilot_user_id');
+COMMIT;
+```
+
+The feature migration consumes the single staged row and drops the staging table.
+Without the table the migration grants access to nobody. Removing the user's
+grant stops future background collection while the feature is private.
+
 ## Metrics model
 
 Every platform's native statistics are mapped onto one vocabulary

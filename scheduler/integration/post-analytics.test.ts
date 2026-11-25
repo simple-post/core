@@ -28,7 +28,10 @@ jest.mock("@/lib/middleware/auth", () => {
   const authenticate = jest.fn();
   return { requireAuth: authenticate, requireReadAuth: authenticate };
 });
-jest.mock("@/lib/post-analytics/access", () => ({ canRefreshAnalytics: jest.fn().mockResolvedValue(true) }));
+jest.mock("@/lib/post-analytics/access", () => ({
+  ...jest.requireActual("@/lib/post-analytics/access"),
+  canRefreshAnalytics: jest.fn().mockResolvedValue(true),
+}));
 
 const userId = "analytics-review";
 const HOUR = 3_600_000;
@@ -94,6 +97,7 @@ beforeEach(async () => {
   delete process.env.POST_ANALYTICS_BACKGROUND_PLATFORMS;
   await prisma.user.deleteMany({ where: { id: userId } });
   await prisma.user.create({ data: { id: userId, name: "Analytics", email: "analytics@example.invalid" } });
+  await prisma.userFeature.create({ data: { userId, feature: "POST_ANALYTICS" } });
   await createAccount("x1", "x");
   await createAccount("bsky1", "bluesky");
   await createAccount("tg1", "telegram");
@@ -263,11 +267,43 @@ describe("post analytics", () => {
 
     const result = await runBackgroundAnalyticsRefresh();
 
+    expect(mockedAccountAnalytics.mock.calls.map(([call]) => call.platform)).not.toContain("x");
     expect(result.seededPosts).toBeGreaterThanOrEqual(1);
     expect(mockedPostAnalytics.mock.calls.map(([call]) => call.platform)).toEqual(["bluesky"]);
     expect(await prisma.postAnalytics.findFirstOrThrow({ where: { postId: "bg", platform: "x" } })).toEqual(
       expect.objectContaining({ status: "pending" }),
     );
+  });
+
+  it("keeps ungranted users out of reads, fresh collection and existing background work", async () => {
+    const other = "analytics-disabled-review";
+    await prisma.user.create({ data: { id: other, email: "disabled@example.invalid", name: "Disabled" } });
+    try {
+      await createPost("eligible", new Date(), { bsky1: { platform: "bluesky", postId: "eligible-remote" } });
+      await createPost("old-row", new Date(), { x1: { platform: "x", postId: "old-remote" } });
+      await ensureAnalyticsRowsForUser(userId, { postIds: ["old-row"] });
+      await prisma.postAnalytics.updateMany({ where: { postId: "old-row" }, data: { userId: other } });
+      await prisma.connectedAccount.update({ where: { id: "x1" }, data: { userId: other } });
+      await prisma.post.update({ where: { id: "old-row" }, data: { userId: other } });
+      await createPost("unseeded", new Date(), { x1: { platform: "x", postId: "unseeded-remote" } });
+      await prisma.post.update({ where: { id: "unseeded" }, data: { userId: other } });
+      jest.mocked(requireAuth).mockResolvedValue({ user: { id: other } } as never);
+      const denied = await getPostAnalyticsRoute(request("/api/v1/posts/unseeded/analytics"), {
+        params: Promise.resolve({ id: "unseeded" }),
+      });
+      expect(denied.status).toBe(403);
+      await expect(getAccountAnalyticsTool(other, { refresh: "auto" })).rejects.toThrow();
+      process.env.POST_ANALYTICS_BACKGROUND_PLATFORMS = "all";
+      respondWith({ "eligible-remote": { likes: 1 } });
+      await runBackgroundAnalyticsRefresh();
+      expect(mockedPostAnalytics.mock.calls.map(([call]) => call.platform)).toEqual(["bluesky"]);
+      expect(mockedAccountAnalytics.mock.calls.map(([call]) => call.platform)).not.toContain("x");
+      expect(await prisma.postAnalytics.count({ where: { postId: "unseeded" } })).toBe(0);
+      expect(await prisma.postAnalyticsSnapshot.count({ where: { userId: other } })).toBe(0);
+      expect(await prisma.accountAnalyticsSnapshot.count({ where: { userId: other } })).toBe(0);
+    } finally {
+      await prisma.user.delete({ where: { id: other } });
+    }
   });
 
   it("answers MCP analytics questions with structured data and readable text", async () => {

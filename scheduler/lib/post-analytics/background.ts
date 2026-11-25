@@ -1,3 +1,6 @@
+import { Feature } from "@prisma/client";
+
+import { usersWithFeature } from "@/lib/features";
 import { createLogger, serializeError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
@@ -32,6 +35,7 @@ export async function runBackgroundAnalyticsRefresh(
   try {
     const posts = await prisma.post.findMany({
       where: {
+        user: usersWithFeature(Feature.POST_ANALYTICS),
         status: "published",
         publishedAt: { gte: since },
         // Recently updated posts may have published to more accounts on a retry.

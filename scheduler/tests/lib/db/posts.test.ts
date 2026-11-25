@@ -4,6 +4,8 @@ import { PostsModel } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
 
+jest.mock("@/lib/features", () => ({ hasFeature: async () => true }));
+
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: jest.fn(),

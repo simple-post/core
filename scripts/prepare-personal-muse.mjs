@@ -26,7 +26,7 @@ for (const file of ["connector.json", "tool-review.json", "README.md", "REVIEW.m
 }
 await copyFile(join(root, "scheduler/public/simplepost-sidebar-sp-v1.svg"), join(output, "simplepost-logo.svg"));
 const profiles = JSON.parse(await readFile(join(output, "tool-contracts.json"), "utf8"));
-const tools = profiles.find((profile) => profile.profile === "extensions-and-fitting").tools;
+const tools = profiles.find((profile) => profile.profile === "extensions-and-fitting-with-analytics").tools;
 await writeFile(
   join(output, "TOOL_REVIEW.md"),
   [

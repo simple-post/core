@@ -13,6 +13,7 @@ datasource db {
 enum Feature {
   IMAGE_FITTING
   PLUGIN_EXTENSIONS
+  POST_ANALYTICS
 }
 
 model UserFeature {

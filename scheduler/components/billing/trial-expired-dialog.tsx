@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UiCopy } from "@/components/ui-copy";
+import { WorkspaceSwitcher } from "@/components/workspaces/switcher";
 import { startPlanCheckout } from "@/lib/billing/checkout-client";
 import { DEFAULT_BILLING_DISPLAY_CURRENCY, type BillingDisplayCurrency } from "@/lib/billing/display-currency";
 import { BILLING_PLANS, getBillingPlanPrice, type PlanKey } from "@/lib/billing/plans";
@@ -86,6 +87,7 @@ export function TrialExpiredDialog({
               "Posts that became due after your trial ended need your attention. After subscribing, review Failed posts and use Edit and Retry. Subscribing does not automatically send them.",
             )}{" "}
           </p>
+          <WorkspaceSwitcher />
           <HelpLink path="/billing#when-access-ends">{copy("Trial expiry and recovery help")}</HelpLink>
           {checkoutError ? (
             <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">

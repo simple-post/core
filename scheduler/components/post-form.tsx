@@ -53,6 +53,7 @@ import type {
 } from "@/types";
 
 import { AccountSelector } from "./account-selector";
+import { ComposerColumns } from "./composer-columns";
 import { CreatePostForm } from "./create-post-form";
 import { type ExistingPostMode, normalizeDelayHours } from "./edit-post-draft";
 import { ImageFitReview } from "./image-fit-review";
@@ -519,7 +520,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
     (postingMode !== "schedule" || (scheduledDate && scheduledTime && !scheduleError));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <ComposerColumns>
       <form onSubmit={handleSubmit} className="space-y-6">
         {quotePostId ? (
           <QuotePostCard
@@ -747,6 +748,6 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
         onRecover={(returnTo, accountIds) => (submittedPostId ? true : saveRecoveryDraft(returnTo, accountIds))}
         results={postingResults}
       />
-    </div>
+    </ComposerColumns>
   );
 }

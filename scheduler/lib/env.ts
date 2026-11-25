@@ -63,8 +63,8 @@ export const env = {
   get BILLING_EMAIL_MONITOR_BCC() {
     return getRuntimeEnvironmentVariable("BILLING_EMAIL_MONITOR_BCC")?.trim() || undefined;
   },
-  get ZAPIER_QA_FAILURE_ACCOUNT_ID() {
-    return getRuntimeEnvironmentVariable("ZAPIER_QA_FAILURE_ACCOUNT_ID")?.trim() || undefined;
+  get QA_PUBLISH_FAILURE_ACCOUNT_ID() {
+    return getRuntimeEnvironmentVariable("QA_PUBLISH_FAILURE_ACCOUNT_ID")?.trim() || undefined;
   },
   /**
    * Self-hosted mode: disables all billing and Stripe integration. Every user

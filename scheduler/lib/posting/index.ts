@@ -333,7 +333,7 @@ interface AccountSegment {
   mediaFiles: MediaFile[];
 }
 
-const ZAPIER_QA_FAILURE_MESSAGE = "SimplePost Zapier QA failure test.";
+const QA_PUBLISH_FAILURE_MESSAGE = "SimplePost QA failure test.";
 
 async function postSegmentsToAccount(
   segments: AccountSegment[],
@@ -344,14 +344,14 @@ async function postSegmentsToAccount(
   postId: string = randomUUID(),
   tiktokRetryApproved = false,
 ): Promise<PostingResult> {
-  if (account.id === env.ZAPIER_QA_FAILURE_ACCOUNT_ID && segments[0]?.message === ZAPIER_QA_FAILURE_MESSAGE) {
+  if (account.id === env.QA_PUBLISH_FAILURE_ACCOUNT_ID && segments[0]?.message === QA_PUBLISH_FAILURE_MESSAGE) {
     // Return a terminal result so the caller persists the failure and sends the normal webhook.
     return {
       accountId: account.id,
       platform: account.platform,
       success: false,
-      error: "ZAPIER_QA_FAILURE",
-      message: "Intentional SimplePost failure for Zapier QA.",
+      error: "QA_PUBLISH_FAILURE",
+      message: "Intentional test publish failure.",
     };
   }
 

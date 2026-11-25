@@ -45,10 +45,10 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-const qaMessage = "SimplePost Zapier QA failure test.";
+const qaMessage = "SimplePost QA failure test.";
 
-it("reports the configured Zapier QA failure without preparing media or publishing", async () => {
-  jest.replaceProperty(process, "env", { ...process.env, ZAPIER_QA_FAILURE_ACCOUNT_ID: "edmund-qa" });
+it("reports the configured QA failure without preparing media or publishing", async () => {
+  jest.replaceProperty(process, "env", { ...process.env, QA_PUBLISH_FAILURE_ACCOUNT_ID: "edmund-qa" });
   jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([{ id: "edmund-qa", platform: "bluesky" }] as never);
   const onResult = jest.fn();
 
@@ -69,8 +69,8 @@ it("reports the configured Zapier QA failure without preparing media or publishi
       accountId: "edmund-qa",
       platform: "bluesky",
       success: false,
-      error: "ZAPIER_QA_FAILURE",
-      message: "Intentional SimplePost failure for Zapier QA.",
+      error: "QA_PUBLISH_FAILURE",
+      message: "Intentional test publish failure.",
     },
   ]);
   expect(onResult).toHaveBeenCalledWith(results[0]);
@@ -85,7 +85,7 @@ it.each([
 ])(
   "publishes normally when the QA setting, account, or exact message does not match ($id, $message)",
   async ({ id, message, accountSetting }) => {
-    jest.replaceProperty(process, "env", { ...process.env, ZAPIER_QA_FAILURE_ACCOUNT_ID: accountSetting });
+    jest.replaceProperty(process, "env", { ...process.env, QA_PUBLISH_FAILURE_ACCOUNT_ID: accountSetting });
     jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([{ id, platform: "bluesky" }] as never);
     jest.mocked(sdkPost).mockResolvedValue(new Map([["bluesky", { id: "published", error: "NO_ERROR" }]]) as never);
 

@@ -1,0 +1,15 @@
+{
+	"url": "/api/v1/accounts",
+	"method": "GET",
+	"response": {
+		"limit": 500,
+		"iterate": {
+			"container": "{{body.accounts}}",
+			"condition": "{{item.previewOnly != true}}"
+		},
+		"output": {
+			"label": "{{ifempty(item.displayName, item.username)}} ({{capitalize(item.platform)}})",
+			"value": "{{item.id}}"
+		}
+	}
+}

@@ -1,0 +1,28 @@
+{
+	"url": "/api/v1/posts",
+	"method": "POST",
+	"body": {
+		"{{...}}": "{{omit(parameters, 'repost')}}",
+		"repost": "{{if(parameters.repost.enabled != undefined || parameters.repost.delayHours != undefined, parameters.repost, undefined)}}"
+	},
+	"response": {
+		"temp": {
+			"trialWarning": {
+				"{{...}}": "{{omit(body.warnings[1], 'trialExpiresAt')}}",
+				"trialExpiresAt": "{{if(body.warnings[1].trialExpiresAt, parseDate(body.warnings[1].trialExpiresAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.warnings[1].trialExpiresAt)}}"
+			}
+		},
+		"output": {
+			"{{...}}": "{{omit(body, 'post', 'warnings')}}",
+			"post": {
+				"{{...}}": "{{omit(body.post, 'scheduledFor', 'publishedAt', 'createdAt', 'repostDueAt', 'repostedAt')}}",
+				"scheduledFor": "{{if(body.post.scheduledFor, parseDate(body.post.scheduledFor, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.scheduledFor)}}",
+				"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.publishedAt)}}",
+				"createdAt": "{{if(body.post.createdAt, parseDate(body.post.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.createdAt)}}",
+				"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostDueAt)}}",
+				"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostedAt)}}"
+			},
+			"warnings": "{{if(body.warnings[1].trialExpiresAt, merge(add(emptyarray, temp.trialWarning), slice(body.warnings, 1)), body.warnings)}}"
+		}
+	}
+}

@@ -1,0 +1,37 @@
+[
+	{
+		"label": "Triggers",
+		"modules": [
+			"watchPublishedPosts",
+			"watchFailedPosts"
+		]
+	},
+	{
+		"label": "Posts",
+		"modules": [
+			"searchPosts",
+			"getPost",
+			"createPost",
+			"validatePost",
+			"deletePost"
+		]
+	},
+	{
+		"label": "Accounts",
+		"modules": [
+			"listAccounts"
+		]
+	},
+	{
+		"label": "Media",
+		"modules": [
+			"uploadMediaFile"
+		]
+	},
+	{
+		"label": "Other",
+		"modules": [
+			"makeApiCall"
+		]
+	}
+]

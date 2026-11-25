@@ -1,0 +1,44 @@
+[
+	{
+		"name": "event",
+		"type": "text",
+		"label": "Event"
+	},
+	{
+		"name": "createdAt",
+		"type": "date",
+		"label": "Event created at"
+	},
+	{
+		"name": "post",
+		"type": "collection",
+		"label": "Post",
+		"spec": [
+			{
+				"name": "id",
+				"type": "text",
+				"label": "Post ID"
+			},
+			{
+				"name": "status",
+				"type": "text",
+				"label": "Status"
+			},
+			{
+				"name": "message",
+				"type": "text",
+				"label": "Message"
+			},
+			{
+				"name": "publishedAt",
+				"type": "date",
+				"label": "Published at"
+			},
+			{
+				"name": "accountResults",
+				"type": "any",
+				"label": "Account results"
+			}
+		]
+	}
+]

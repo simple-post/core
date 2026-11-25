@@ -1,0 +1,17 @@
+{
+	"url": "/api/v1/posts",
+	"method": "GET",
+	"qs": {
+		"type": "past",
+		"page": 1,
+		"limit": 100
+	},
+	"response": {
+		"limit": 100,
+		"iterate": "{{body.posts}}",
+		"output": {
+			"label": "[{{capitalize(item.status)}}] {{substring(ifempty(item.message, item.id), 0, 70)}} ({{item.id}})",
+			"value": "{{item.id}}"
+		}
+	}
+}

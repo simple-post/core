@@ -1,0 +1,11 @@
+[
+	{
+		"name": "postId",
+		"type": "select",
+		"label": "Post ID",
+		"required": true,
+		"help": "ID of the SimplePost post.",
+		"options": "rpc://listPosts",
+		"mode": "edit"
+	}
+]

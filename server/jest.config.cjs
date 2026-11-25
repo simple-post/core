@@ -6,6 +6,7 @@ module.exports = {
   moduleNameMapper: {
     "^@simple-post/sdk$": "<rootDir>/../sdk/src/index.ts",
     "^@simple-post/sdk/platform-names$": "<rootDir>/../sdk/src/platform-names.ts",
+    "^@simple-post/sdk/analytics$": "<rootDir>/../sdk/src/analytics.ts",
     "^@simple-post/sdk/media-types$": "<rootDir>/../sdk/src/media-types.ts",
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },

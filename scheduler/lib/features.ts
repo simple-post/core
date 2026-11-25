@@ -24,6 +24,11 @@ function globallyEnabledFeatures(): Set<Feature> {
   );
 }
 
+/** User relation predicate for background jobs that run without an authenticated session. */
+export function usersWithFeature(feature: Feature) {
+  return globallyEnabledFeatures().has(feature) ? {} : { features: { some: { feature } } };
+}
+
 export async function hasFeature(userId: string, feature: Feature): Promise<boolean> {
   if (globallyEnabledFeatures().has(feature)) return true;
 

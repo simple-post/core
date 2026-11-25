@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
+import { PostAnalyticsPanel } from "@/components/analytics/post-analytics-panel";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
@@ -28,6 +29,7 @@ import { UiCopy } from "@/components/ui-copy";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
+import { useFeatures } from "@/hooks/use-features";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
@@ -46,6 +48,7 @@ type FailedPlatform = {
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { copy, locale } = useUiCopy();
   const { id } = use(params);
+  const { hasFeature } = useFeatures();
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();
   const { data: post, isLoading: postLoading } = usePost(id);
@@ -347,6 +350,12 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
             />
 
             <PublishedPostLinks post={post} accounts={postAccounts} />
+
+            {hasFeature("POST_ANALYTICS") &&
+              (isPublished ||
+                (isFailed && Object.values(post.accountResults ?? {}).some((result) => result.success))) && (
+                <PostAnalyticsPanel postId={post.id} readOnly={readOnly} />
+              )}
 
             {/* Accounts */}
             <div className="rounded-2xl border border-border bg-card p-6">

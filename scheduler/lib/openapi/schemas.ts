@@ -111,6 +111,21 @@ export const PostSchema = z
     threadResults: z.record(z.string(), z.array(ThreadSegmentResultSchema)).optional(),
     accountResults: z.record(z.string(), JsonValueSchema).nullable().optional(),
     quotePostId: z.string().nullable().optional(),
+    analytics: z
+      .object({
+        views: z.number().nullable(),
+        likes: z.number().nullable(),
+        comments: z.number().nullable(),
+        shares: z.number().nullable(),
+        engagements: z.number().nullable(),
+        updatedAt: z.iso.datetime().nullable(),
+        hasData: z.boolean(),
+      })
+      .nullable()
+      .optional()
+      .describe(
+        "Cached metric totals across accounts (published post lists only). Use /api/v1/posts/{id}/analytics for details.",
+      ),
   })
   .meta({ id: "Post" });
 

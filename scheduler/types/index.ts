@@ -116,6 +116,18 @@ export interface SocialPost {
   accountResults?: AccountResultsMap | null;
   quotePostId?: string | null;
   idempotencyKey?: string | null;
+  /** Cross-account metric totals for published posts (lists only). */
+  analytics?: PostAnalyticsBadge | null;
+}
+
+export interface PostAnalyticsBadge {
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  engagements: number | null;
+  updatedAt: string | null;
+  hasData: boolean;
 }
 
 // Outcome of publishing to a single connected account, persisted on the post

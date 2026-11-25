@@ -1,8 +1,8 @@
-import { useUiTranslation } from "@/lib/i18n/client";
 import type { ReactNode } from "react";
 
-import { LayoutGrid, Users } from "lucide-react";
+import { BarChart3, LayoutGrid, Users } from "lucide-react";
 
+import { useUiTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 
 export function SimplePostBrand({ logoSrc }: { logoSrc: string }) {
@@ -13,22 +13,26 @@ export function SimplePostBrand({ logoSrc }: { logoSrc: string }) {
     </span>
   );
 }
+export type WorkspaceSection = "posts" | "analytics" | "accounts";
+
 export function WorkspaceNavigation({
   active,
   renderItem,
+  showAnalytics = false,
 }: {
-  active: "posts" | "accounts" | null;
-  renderItem: (props: { id: "posts" | "accounts"; label: string; className: string; children: ReactNode }) => ReactNode;
+  active: WorkspaceSection | null;
+  renderItem: (props: { id: WorkspaceSection; label: string; className: string; children: ReactNode }) => ReactNode;
+  /** The analytics dashboard exists only in the web app, not inside assistant workspaces. */
+  showAnalytics?: boolean;
 }) {
   const { t } = useUiTranslation();
   return (
     <nav className="simplepost-visual ms-1 flex items-center gap-1 sm:ms-3" aria-label={t("workspaceSections")}>
-      {(
-        [
-          { id: "posts", label: t("posts"), Icon: LayoutGrid },
-          { id: "accounts", label: t("accounts"), Icon: Users },
-        ] as const
-      ).map(({ id, label, Icon }) => (
+      {[
+        { id: "posts" as const, label: t("posts"), Icon: LayoutGrid },
+        ...(showAnalytics ? [{ id: "analytics" as const, label: t("analytics"), Icon: BarChart3 }] : []),
+        { id: "accounts" as const, label: t("accounts"), Icon: Users },
+      ].map(({ id, label, Icon }) => (
         <span key={id}>
           {renderItem({
             id,

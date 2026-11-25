@@ -26,13 +26,14 @@ it("never turns empty consent into a legacy full-access grant", () => {
   expect(applyMcpAccessMode("", "read_write")).toBeNull();
 });
 
-function register(scope = DEFAULT_MCP_SCOPE, extensions = true, fitting = true) {
+function register(scope = DEFAULT_MCP_SCOPE, extensions = true, fitting = true, analytics = true) {
   jest.mocked(registerAppTool).mockClear();
   registerTools(new McpServer({ name: "offline-muse-review", version: "1" }), {
     userId: "offline-muse-review",
     scope,
     pluginExtensionsEnabled: extensions,
     imageFittingEnabled: fitting,
+    postAnalyticsEnabled: analytics,
   });
   return jest.mocked(registerAppTool).mock.calls;
 }
@@ -88,26 +89,35 @@ it("exports the actual registered schemas for every entitlement profile without 
     { name: "base-with-fitting", extensions: false, fitting: true },
     { name: "extensions", extensions: true, fitting: false },
     { name: "extensions-and-fitting", extensions: true, fitting: true },
-  ].map((profile) => ({
-    profile: profile.name,
-    tools: register(DEFAULT_MCP_SCOPE, profile.extensions, profile.fitting).map(([, name, config]) => ({
-      name,
-      title: config.title,
-      description: config.description,
-      inputSchema: jsonSchema(config.inputSchema, "input"),
-      outputSchema: jsonSchema(config.outputSchema, "output"),
-      annotations: config.annotations,
-      museReview: {
-        ...reviews[name],
-        approval: reviews[name].class === "sensitive_write" ? "ask_every_use" : "ask_first_use",
-      },
-    })),
-  }));
-  expect(profiles[0].tools).toHaveLength(12);
-  expect(profiles[1].tools).toHaveLength(12);
-  expect(profiles[2].tools).toHaveLength(23);
-  expect(profiles[3].tools).toHaveLength(23);
+  ]
+    .flatMap((profile) =>
+      [false, true].map((analytics) => ({
+        ...profile,
+        analytics,
+        name: profile.name + (analytics ? "-with-analytics" : ""),
+      })),
+    )
+    .map((profile) => ({
+      profile: profile.name,
+      tools: register(DEFAULT_MCP_SCOPE, profile.extensions, profile.fitting, profile.analytics).map(
+        ([, name, config]) => ({
+          name,
+          title: config.title,
+          description: config.description,
+          inputSchema: jsonSchema(config.inputSchema, "input"),
+          outputSchema: jsonSchema(config.outputSchema, "output"),
+          annotations: config.annotations,
+          museReview: {
+            ...reviews[name],
+            approval: reviews[name].class === "sensitive_write" ? "ask_every_use" : "ask_first_use",
+          },
+        }),
+      ),
+    }));
   for (const profile of profiles) {
+    expect(profile.tools).toHaveLength(
+      12 + (profile.profile.startsWith("extensions") ? 11 : 0) + (profile.profile.includes("analytics") ? 4 : 0),
+    );
     const validation = profile.tools.find((tool) => tool.name === "validate_post")!;
     if (profile.profile.includes("fitting")) expect(validation.inputSchema).toHaveProperty("properties.imageFit");
     else expect(validation.inputSchema).not.toHaveProperty("properties.imageFit");

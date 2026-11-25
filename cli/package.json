@@ -68,6 +68,9 @@
     "topics": {
       "account": {
         "description": "List, add, and remove connected accounts."
+      },
+      "analytics": {
+        "description": "Read post and account analytics (views, likes, replies, reposts, followers)."
       }
     },
     "commands": {

@@ -46,6 +46,7 @@ try {
       "@simple-post/sdk/platform-names": path.join(core, "sdk/src/platform-names.ts"),
       "@simple-post/sdk/validation": path.join(core, "sdk/src/validation.ts"),
       "@simple-post/sdk/media-types": path.join(core, "sdk/src/media-types.ts"),
+      "@simple-post/sdk/analytics": path.join(core, "sdk/src/analytics.ts"),
     },
     define: {
       "process.env.NEXT_PUBLIC_APP_URL": JSON.stringify("https://app.simplepost.social"),

@@ -1,0 +1,29 @@
+{
+	"node": "n8n-nodes-simplepost.simplePost",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Marketing & Content"],
+	"alias": [
+		"social media",
+		"schedule",
+		"publish",
+		"LinkedIn",
+		"Instagram",
+		"TikTok",
+		"YouTube",
+		"Bluesky",
+		"Threads"
+	],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/simple-post/core/tree/main/integrations/n8n#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/simple-post/core/tree/main/integrations/n8n#readme"
+			}
+		]
+	}
+}

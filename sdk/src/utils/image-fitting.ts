@@ -1,9 +1,3 @@
-import {
-  displayMessage,
-  canonicalDisplayMessage,
-  describeDisplayMessage,
-  type DisplayMessage,
-} from "../validation/display-message";
 import { randomUUID } from "node:crypto";
 import { readFile, stat, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -22,6 +16,12 @@ import { MAX_INSPECTABLE_IMAGE_BYTES } from "../media-types";
 import { mapPlatformName } from "../platform-names";
 import { isThreadCapablePlatform } from "../types/api";
 import { getValidationRulesForPlatform, validateContentForPlatform } from "../validation";
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { ImageFit } from "../image-fit";

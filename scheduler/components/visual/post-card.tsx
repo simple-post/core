@@ -1,10 +1,10 @@
 "use client";
 
-import { useUiTranslation } from "@/lib/i18n/client";
 import type { ReactNode, ReactEventHandler } from "react";
 
 import { AlertCircle, FileText, Quote } from "lucide-react";
 
+import { useUiTranslation } from "@/lib/i18n/client";
 import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
 
 import { PlatformIconBadge } from "../platform-icons";
@@ -23,6 +23,7 @@ export function PostCardView({
   accountLabels,
   actions,
   selection,
+  metrics,
   onImageError,
 }: {
   post: PostCardData;
@@ -31,6 +32,8 @@ export function PostCardView({
   accountLabels: string[];
   actions?: ReactNode;
   selection?: ReactNode;
+  /** Optional analytics row for published posts. */
+  metrics?: ReactNode;
   onImageError?: ReactEventHandler<HTMLImageElement>;
 }) {
   const { locale, t } = useUiTranslation();
@@ -162,6 +165,7 @@ export function PostCardView({
                   </span>
                 ))}
               </div>
+              {metrics}
             </div>
 
             {actions}

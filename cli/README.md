@@ -84,10 +84,28 @@ simplepost account add      Connect an account with your own developer app
 simplepost account remove   Remove a locally connected account
 simplepost post             Publish a post (interactive when run without flags)
 simplepost repost           Repost previously published content
+simplepost analytics        Summarize post performance for a period
+simplepost analytics posts  Rank posts by views, likes, engagements, …
+simplepost analytics post   Show analytics for one post
+simplepost analytics accounts  Show followers per account
 simplepost setup            Choose how local secrets are stored
 ```
 
 Run `simplepost <command> --help` for all flags.
+
+## Analytics
+
+With a connected SimplePost account, `simplepost analytics` summarizes a period
+(`--period 24h|7d|30d|90d|12m|ytd|all`, calendar periods such as `last_month`,
+or `--from`/`--to`) with changes vs the previous period, platforms, top posts,
+followers and the best time to post. `analytics posts` ranks posts by any metric
+and `analytics post <id>` shows one post. Add `--json` for scripting.
+
+Local accounts can read any platform post directly:
+`simplepost analytics post --account x:main --post-id <tweet id>`. Set
+`SIMPLEPOST_ANALYTICS_SCOPES=all` (or a platform list) before
+`simplepost account add` to request analytics permissions from your own
+developer apps; see the [permissions guide](https://github.com/simple-post/core/blob/main/docs/post-analytics/platform-permissions.md).
 
 ## Posting
 

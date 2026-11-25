@@ -120,6 +120,62 @@
         "idempotent_justification": "Repeated calls only refresh the requested schedule period from current stored data without side effects."
       }
     },
+    "get_analytics_summary": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Only reads performance analytics of the user's published SimplePost posts for a period. It may refresh cached numbers from the connected social platforms' analytics APIs, which never changes any post or account.",
+        "open_world_justification": "Reads analytics from external social platforms (X, Instagram, YouTube and others) for the user's connected accounts.",
+        "destructive_justification": "Does not create, delete, overwrite, publish, or revoke anything.",
+        "idempotent_justification": "Repeated calls return the same or newer numbers and have no side effects beyond refreshing SimplePost's analytics cache."
+      }
+    },
+    "list_post_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Only reads the user's published SimplePost posts ranked by performance metrics. It may refresh cached numbers from the connected social platforms' analytics APIs, which never changes any post or account.",
+        "open_world_justification": "Reads analytics from external social platforms (X, Instagram, YouTube and others) for the user's connected accounts.",
+        "destructive_justification": "Does not create, delete, overwrite, publish, or revoke anything.",
+        "idempotent_justification": "Repeated calls return the same or newer numbers and have no side effects beyond refreshing SimplePost's analytics cache."
+      }
+    },
+    "get_post_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Only reads analytics for specific published SimplePost posts. It may refresh cached numbers from the connected social platforms' analytics APIs, which never changes any post or account.",
+        "open_world_justification": "Reads analytics from external social platforms (X, Instagram, YouTube and others) for the user's connected accounts.",
+        "destructive_justification": "Does not create, delete, overwrite, publish, or revoke anything.",
+        "idempotent_justification": "Repeated calls return the same or newer numbers and have no side effects beyond refreshing SimplePost's analytics cache."
+      }
+    },
+    "get_account_analytics": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Only reads follower counts and analytics availability for the user's connected accounts. It may refresh cached numbers from the connected social platforms' analytics APIs, which never changes any post or account.",
+        "open_world_justification": "Reads analytics from external social platforms (X, Instagram, YouTube and others) for the user's connected accounts.",
+        "destructive_justification": "Does not create, delete, overwrite, publish, or revoke anything.",
+        "idempotent_justification": "Repeated calls return the same or newer numbers and have no side effects beyond refreshing SimplePost's analytics cache."
+      }
+    },
     "show_schedule": {
       "annotations": {
         "readOnlyHint": true,

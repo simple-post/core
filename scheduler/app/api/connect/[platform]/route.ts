@@ -4,6 +4,7 @@ import { handoffSource } from "@/lib/accounts/assistant-handoff";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
+import { hasFeature } from "@/lib/features";
 import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -26,7 +27,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
-    const config = getPlatformOAuthConfig(platform);
+    const config = getPlatformOAuthConfig(
+      platform,
+      Boolean(process.env.OAUTH_ANALYTICS_SCOPES?.trim()) && (await hasFeature(session.user.id, "POST_ANALYTICS")),
+    );
     if (!config || !config.clientId) {
       throw new BadRequestError(serverMessage("Platform not supported or not configured"));
     }

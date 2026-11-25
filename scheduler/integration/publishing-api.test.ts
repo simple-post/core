@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 
 import { post as sdkPost, PostErrorType } from "@simple-post/sdk";
 
+import { POST as createPabblyPost } from "@/app/api/v1/integrations/pabbly/posts/route";
 import { GET as getProgress, POST as reconcile } from "@/app/api/v1/posts/[id]/reconcile/route";
 import { PATCH as retry } from "@/app/api/v1/posts/[id]/route";
 import { POST as create } from "@/app/api/v1/posts/route";
@@ -28,6 +29,7 @@ jest.mock("@/lib/oauth/credential-health", () => ({
 jest.mock("@/lib/webhooks", () => ({ dispatchPostWebhooks: jest.fn() }));
 
 const userId = "api-review-user";
+const pabblyPostsUrl = "http://localhost/api/v1/integrations/pabbly/posts";
 const context = (id: string) => ({ params: Promise.resolve({ id }) });
 function request(id: string, method: string, body?: unknown) {
   return new NextRequest(`http://localhost/api/v1/posts/${id}${method === "PATCH" ? "" : "/reconcile"}`, {
@@ -57,6 +59,60 @@ beforeEach(async () => {
 });
 afterAll(async () => {
   await prisma.$disconnect();
+});
+
+it.each([
+  ["draft", "draft"],
+  ["schedule", "scheduled"],
+] as const)("creates and replays a form-encoded %s post", async (postingMode, status) => {
+  const message = 'Approved "spring" text\nNew arrivals + 10% off & shipping 🚀';
+  const fields = new URLSearchParams({
+    message,
+    postingMode,
+    accountId: "account",
+    idempotencyKey: `pabbly:content:${postingMode}:rec123`,
+  });
+  if (postingMode === "schedule") fields.set("scheduledFor", new Date(Date.now() + 600_000).toISOString());
+  const createFromForm = () => createPabblyPost(new NextRequest(pabblyPostsUrl, { method: "POST", body: fields }));
+
+  const first = await createFromForm();
+  expect(first.status).toBe(201);
+  const { post } = await first.json();
+  expect(post).toMatchObject({ message, status, accountIds: ["account"] });
+
+  const replay = await createFromForm();
+  expect(replay.status).toBe(200);
+  expect(await replay.json()).toMatchObject({ post: { id: post.id }, replayed: true });
+  expect(await prisma.post.count({ where: { userId } })).toBe(1);
+  expect(sdkPost).not.toHaveBeenCalled();
+});
+
+it("keeps JSON and Pabbly form requests on their own routes", async () => {
+  const json = { accountIds: ["account"], message: "Existing JSON draft", postingMode: "draft" };
+  const jsonRequest = (url: string) =>
+    new NextRequest(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(json),
+    });
+  const form = new URLSearchParams({
+    accountId: "account",
+    message: "Form draft",
+    postingMode: "draft",
+    idempotencyKey: "pabbly:legacy-route:1",
+  });
+
+  const legacyUrl = "http://localhost/api/v1/posts";
+  const legacyForm = await create(new NextRequest(legacyUrl, { method: "POST", body: form }));
+  expect(legacyForm.ok).toBe(false);
+
+  const pabblyJson = await createPabblyPost(jsonRequest(pabblyPostsUrl));
+  expect(pabblyJson.status).toBe(415);
+
+  const existingJson = await create(jsonRequest(legacyUrl));
+  expect(existingJson.status).toBe(201);
+  expect(await existingJson.json()).toMatchObject({ post: { status: "draft", message: json.message } });
+  expect(await prisma.post.count({ where: { userId } })).toBe(1);
 });
 
 async function failedPost() {

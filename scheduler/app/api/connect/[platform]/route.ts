@@ -9,8 +9,9 @@ import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getPlatformOAuthConfig, createOAuthState, generatePkce, setPkceCookie } from "@/lib/oauth";
+import { withAnalyticsScopes } from "@/lib/post-analytics/permissions";
 import { prisma } from "@/lib/prisma";
-import { approvedInboxScopes } from "@/lib/social/permissions";
+import { enabledInboxScopes } from "@/lib/social/permissions";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
@@ -29,10 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       throw new BadRequestError(serverMessage("Social platform is not enabled in this environment"));
     }
 
-    const config = getPlatformOAuthConfig(
-      platform,
-      Boolean(process.env.OAUTH_ANALYTICS_SCOPES?.trim()) && (await hasFeature(session.user.id, "POST_ANALYTICS")),
-    );
+    const config = getPlatformOAuthConfig(platform);
     if (!config || !config.clientId) {
       throw new BadRequestError(serverMessage("Platform not supported or not configured"));
     }
@@ -41,27 +39,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
     const inboxAccountId = request.nextUrl.searchParams.get("inboxAccountId");
-    let scope = config.scope;
+    const inboxScopes = enabledInboxScopes(platform);
     if (inboxAccountId) {
       await requireSocialInbox(session.user.id);
       const account = await prisma.connectedAccount.findFirst({
         where: { id: inboxAccountId, userId: session.user.id, platform },
         select: { id: true },
       });
-      const extra = approvedInboxScopes(platform);
-      if (!account || extra.length === 0)
+      if (!account || inboxScopes.length === 0)
         throw new BadRequestError("Inbox permissions are unavailable for this connection.");
-      const separator = platform === "facebook" || platform === "instagram" || platform === "threads" ? "," : " ";
-      scope = [...new Set([...config.scope.split(/[\s,]+/u), ...extra])].join(separator);
     }
-    const state = createOAuthState(session.user.id, platform, source, inboxAccountId ?? undefined);
+
+    const analyticsScope = withAnalyticsScopes(platform, config.scope);
+    const [analytics, inbox] = await Promise.all([
+      analyticsScope !== config.scope && hasFeature(session.user.id, "POST_ANALYTICS"),
+      Boolean(inboxAccountId) || (inboxScopes.length > 0 && hasFeature(session.user.id, "SOCIAL_INBOX")),
+    ]);
+    const scopeWithAnalytics = analytics ? analyticsScope : config.scope;
+    const scope = inbox
+      ? [...new Set([...scopeWithAnalytics.split(/[\s,]+/u), ...inboxScopes])].join(
+          config.scope.includes(",") ? "," : " ",
+        )
+      : scopeWithAnalytics;
+    const state = createOAuthState(
+      session.user.id,
+      platform,
+      source,
+      inboxAccountId ?? undefined,
+      analytics || inbox ? { scope, analytics, inbox } : undefined,
+    );
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
     authUrl.searchParams.set("client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scope);
-    if (inboxAccountId && platform === "facebook") authUrl.searchParams.set("auth_type", "rerequest");
+    if ((analytics || inbox) && platform === "facebook") authUrl.searchParams.set("auth_type", "rerequest");
     authUrl.searchParams.set("state", state);
     authUrl.searchParams.set("response_type", config.responseType);
 

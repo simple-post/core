@@ -9,6 +9,7 @@ import { exchangeCodeForToken, handlePlatformCallback } from "@/lib/oauth";
 import { createOAuthState, verifyOAuthState } from "@/lib/oauth/state";
 
 jest.mock("@/lib/middleware/auth", () => ({ requireAuth: jest.fn() }));
+jest.mock("@/lib/features", () => ({ hasFeature: async () => false }));
 jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn(), measurementFailure: () => "test_error" }));
 jest.mock("@/lib/oauth", () => ({
   ...jest.requireActual("@/lib/oauth/state"),

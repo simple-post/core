@@ -60,9 +60,11 @@ Live pagination still needs a thread with enough activity to return a continuati
 
 ## Private rollout
 
-Deploy the additive Prisma migration using the normal scheduler release process. Individual `SOCIAL_INBOX` grants in `UserFeature` control access to the page, API, MCP discovery and execution, and provider refresh. The migration creates zero grants. Use the [existing administrative grant pattern](../image-fitting.md#private-hosted-rollout) with `Feature.SOCIAL_INBOX` and the verified internal user ID. Remove the row to revoke access.
+Deploy the additive Prisma migration using the normal scheduler release process. Individual `SOCIAL_INBOX` grants in `UserFeature` control access to the page, API, MCP discovery and execution, and provider refresh. The migration creates zero grants. After deploying the scheduler, use the [existing administrative grant pattern](../image-fitting.md#private-hosted-rollout) with `Feature.SOCIAL_INBOX` and the verified internal user ID. Remove the row to revoke access.
 
-Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to a comma-separated list of platforms whose incremental permissions the provider has approved for this installation. An invited user can select **Grant inbox permissions** on an existing connection. This starts a per-account consent flow. If consent is incomplete or the provider returns a different account, SimplePost keeps the original connection. A standard account connection uses the publishing scopes.
+Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to a comma-separated list of platforms whose incremental permissions the provider has approved for this installation. An invited user can select **Grant inbox permissions** on an existing connection. This starts a per-account consent flow. If consent is incomplete or the provider returns a different account, SimplePost keeps the original connection.
+
+`POST_ANALYTICS` and `SOCIAL_INBOX` are independent grants. Standard account connections request publishing scopes and any approved analytics scopes for users with the analytics grant. **Grant inbox permissions** adds the approved inbox scopes to that request. For a user with both grants, complete the inbox consent flow after enabling both sets of scopes.
 
 ## SDK and clients
 

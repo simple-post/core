@@ -139,7 +139,13 @@ async function createMcpServer(authContext: McpToolAuthContext, locale: Locale):
     hasFeature(authContext.userId, Feature.POST_ANALYTICS),
     hasFeature(authContext.userId, Feature.SOCIAL_INBOX),
   ]);
-  authContext = { ...authContext, imageFittingEnabled, pluginExtensionsEnabled, postAnalyticsEnabled, socialInboxEnabled };
+  authContext = {
+    ...authContext,
+    imageFittingEnabled,
+    pluginExtensionsEnabled,
+    postAnalyticsEnabled,
+    socialInboxEnabled,
+  };
   const copy = createServerCopy(locale);
   const server = new McpServer(
     {

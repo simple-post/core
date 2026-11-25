@@ -10,19 +10,31 @@ import { Navbar } from "@/components/navbar";
 import { PostForm } from "@/components/post-form";
 import { Button } from "@/components/ui/button";
 import { UiCopy } from "@/components/ui-copy";
+import { TeamScreen } from "@/components/workspaces/team-screen";
 import { usePost } from "@/hooks/use-posts";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
+  const workspace = useWorkspaceScope().id;
+  const { id } = use(params);
+  return workspace ? (
+    <TeamScreen key={workspace + id} id={workspace} postId={id} view="edit" />
+  ) : (
+    <PersonalPostPage params={params} />
+  );
+}
+function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
   const { copy } = useUiCopy();
   const { id } = use(params);
   const router = useRouter();
   const { data: post, isLoading: loading } = usePost(id);
-  const canEdit = post?.status === "scheduled" || post?.status === "draft" || post?.status === "failed";
+  const canEdit =
+    !post?.workspaceReviewId && (post?.status === "scheduled" || post?.status === "draft" || post?.status === "failed");
 
   useEffect(() => {
     if (post && !canEdit) {
-      router.replace("/?tab=past");
+      router.replace(post.workspaceReviewId ? `/posts/${post.id}` : "/?tab=past");
     }
   }, [canEdit, post, router]);
 

@@ -4,109 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { format } from "date-fns";
-
 import { HelpLink } from "@/components/help-link";
-import { useScheduleCalendarState, type CalendarView } from "@/components/schedule-calendar-context";
+import { useScheduleCalendarState } from "@/components/schedule-calendar-context";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { usePostingSlots } from "@/hooks/use-posting-slots";
 import { useCalendarPosts } from "@/hooks/use-posts";
+import { addDays, addMonths, dayKey, getCalendarRange, getPeriodLabel } from "@/lib/calendar-range";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { getSlotOccurrencesInRange, slotOccurrenceKey } from "@/lib/posting-slots/occurrences";
 
 import { ScheduleCalendarView, type CalendarActionProps, type DayEntry } from "./visual/schedule-calendar";
-
-interface CalendarRange {
-  fetchStart: Date;
-  fetchEnd: Date;
-  periodStart: Date;
-  periodEnd: Date;
-  days: Date[];
-}
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function startOfWeek(date: Date): Date {
-  const start = startOfDay(date);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  return start;
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function addMonths(date: Date, months: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + months, 1);
-}
-
-function getDaysInRange(start: Date, end: Date): Date[] {
-  const days: Date[] = [];
-  for (let cursor = new Date(start); cursor < end; cursor = addDays(cursor, 1)) {
-    days.push(cursor);
-  }
-  return days;
-}
-
-// Monday-first month grid covering the visible month in full weeks.
-function getMonthGridRange(date: Date): { gridStart: Date; gridEnd: Date } {
-  const monthStart = startOfMonth(date);
-  const gridStart = startOfWeek(monthStart);
-  const monthEnd = addMonths(monthStart, 1);
-  const gridEnd = startOfWeek(addDays(monthEnd, 6));
-  return { gridStart, gridEnd };
-}
-
-function getCalendarRange(view: CalendarView, anchorDate: Date): CalendarRange {
-  if (view === "month") {
-    const periodStart = startOfMonth(anchorDate);
-    const periodEnd = addMonths(periodStart, 1);
-    const { gridStart, gridEnd } = getMonthGridRange(anchorDate);
-    return {
-      fetchStart: gridStart,
-      fetchEnd: gridEnd,
-      periodStart,
-      periodEnd,
-      days: getDaysInRange(gridStart, gridEnd),
-    };
-  }
-
-  const periodStart = view === "week" ? startOfWeek(anchorDate) : startOfDay(anchorDate);
-  const periodEnd = addDays(periodStart, view === "week" ? 7 : 1);
-  return {
-    fetchStart: periodStart,
-    fetchEnd: periodEnd,
-    periodStart,
-    periodEnd,
-    days: getDaysInRange(periodStart, periodEnd),
-  };
-}
-
-function getPeriodLabel(view: CalendarView, range: CalendarRange): string {
-  if (view === "month") return format(range.periodStart, "MMMM yyyy");
-  if (view === "day") return format(range.periodStart, "EEEE, MMMM d, yyyy");
-
-  const lastDay = addDays(range.periodEnd, -1);
-  if (range.periodStart.getMonth() === lastDay.getMonth()) {
-    return `${format(range.periodStart, "MMM d")}–${format(lastDay, "d, yyyy")}`;
-  }
-  if (range.periodStart.getFullYear() === lastDay.getFullYear()) {
-    return `${format(range.periodStart, "MMM d")} – ${format(lastDay, "MMM d, yyyy")}`;
-  }
-  return `${format(range.periodStart, "MMM d, yyyy")} – ${format(lastDay, "MMM d, yyyy")}`;
-}
-
-function dayKey(date: Date): string {
-  return format(date, "yyyy-MM-dd");
-}
 
 /**
  * Responsive calendar for posting slots and scheduled posts. Week is the

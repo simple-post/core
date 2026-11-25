@@ -20,9 +20,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "@/components/visual/account-card";
+import { TeamScreen } from "@/components/workspaces/team-screen";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
@@ -81,6 +83,10 @@ function TelegramHelpLink({
 }
 
 export default function AccountsPage() {
+  const workspace = useWorkspaceScope().id;
+  return workspace ? <TeamScreen key={workspace} id={workspace} view="accounts" /> : <PersonalAccountsPage />;
+}
+function PersonalAccountsPage() {
   const { locale, t } = useUiTranslation();
   const readOnly = useWorkspaceReadOnly();
   const router = useRouter();

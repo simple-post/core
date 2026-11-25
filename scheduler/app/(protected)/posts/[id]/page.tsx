@@ -26,12 +26,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { UiCopy } from "@/components/ui-copy";
+import { TeamScreen } from "@/components/workspaces/team-screen";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useFeatures } from "@/hooks/use-features";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
@@ -46,6 +48,15 @@ type FailedPlatform = {
 };
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const workspace = useWorkspaceScope().id;
+  const { id } = use(params);
+  return workspace ? (
+    <TeamScreen key={workspace + id} id={workspace} postId={id} view="detail" />
+  ) : (
+    <PersonalPostPage params={params} />
+  );
+}
+function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
   const { copy, locale } = useUiCopy();
   const { id } = use(params);
   const { hasFeature } = useFeatures();
@@ -206,6 +217,11 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
+            {post.workspaceReviewId && hasFeature("TEAM_WORKSPACES") && (
+              <Link href={`/workspaces?delivery=${encodeURIComponent(post.id)}`} className="text-sm underline">
+                Managed by team workspace
+              </Link>
+            )}
             {!readOnly && (
               <div className="flex items-center gap-2" aria-label={copy("Post actions")}>
                 {isDraft && (
@@ -214,7 +230,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                   </Button>
                 )}
-                {(isScheduled || isDraft) && (
+                {!post.workspaceReviewId && (isScheduled || isDraft) && (
                   <Button
                     size="sm"
                     variant={isDraft ? "outline" : "default"}
@@ -224,7 +240,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                     {isScheduled ? copy("Reschedule") : copy("Schedule")}
                   </Button>
                 )}
-                {(isScheduled || isDraft || isFailed) && (
+                {!post.workspaceReviewId && (isScheduled || isDraft || isFailed) && (
                   <Button asChild variant={isFailed ? "default" : "outline"} size="sm">
                     <Link href={`/posts/${id}/edit`}>
                       <Edit className="h-4 w-4" />
@@ -415,7 +431,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         </AlertDialogContent>
       </AlertDialog>
 
-      {(isScheduled || isDraft) && (
+      {!post.workspaceReviewId && (isScheduled || isDraft) && (
         <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
       )}
     </>

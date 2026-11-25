@@ -142,6 +142,12 @@ it.each(["pending", "scheduled"])("rejects an edit when a %s row changed during 
   expect(current.message).toBe("original");
 });
 
+it("preserves the missing-post error for an unversioned personal edit", async () => {
+  const error = missingRow();
+  postMock.update.mockRejectedValue(error);
+  await expect(new PostsModel("u1").updatePost("missing", { message: "edit" })).rejects.toBe(error);
+});
+
 it("updates an unchanged snapshot with its ownership and version conditions", async () => {
   const original = row();
   postMock.update.mockResolvedValue({ ...original, message: "replacement" } as never);
@@ -153,7 +159,7 @@ it("updates an unchanged snapshot with its ownership and version conditions", as
   expect(result.message).toBe("replacement");
   expect(postMock.update).toHaveBeenCalledWith(
     expect.objectContaining({
-      where: { id: "p1", userId: "u1", status: "scheduled", updatedAt: snapshotTime },
+      where: { id: "p1", userId: "u1", status: "scheduled", updatedAt: snapshotTime, workspaceReviewId: null },
     }),
   );
 });

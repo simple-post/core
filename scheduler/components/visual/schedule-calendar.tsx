@@ -21,6 +21,7 @@ export type CalendarPostData = {
   status: string;
   platforms?: string[];
   errorMessage?: string | null;
+  details?: ReactNode;
 };
 export interface DayEntry {
   key: string;
@@ -30,11 +31,16 @@ export interface DayEntry {
   isSlot: boolean;
   posts: CalendarPostData[];
 }
-export type CalendarAction = { kind: "post" | "slot"; id: string } | { kind: "settings" | "create" };
+export type CalendarAction =
+  | { kind: "post" | "slot"; id: string }
+  | { kind: "settings" }
+  | { kind: "create"; day?: Date };
 export type CalendarActionProps = { target: CalendarAction; children: ReactNode; className?: string; title?: string };
-const Actions = createContext<{ renderAction: (props: CalendarActionProps) => ReactNode; slotHint: string } | null>(
-  null,
-);
+const Actions = createContext<{
+  renderAction: (props: CalendarActionProps) => ReactNode;
+  slotHint: string;
+  allowCreate: boolean;
+} | null>(null);
 function useCalendarActions() {
   const value = useContext(Actions);
   if (!value) throw new Error("Calendar actions missing");
@@ -82,7 +88,7 @@ export interface ScheduleCalendarViewProps {
   anchorDate: Date;
   now: Date;
   entriesByDay: Map<string, DayEntry[]>;
-  summary: { open: number; scheduled: number; posted: number; failed?: number };
+  summary?: { open: number; scheduled: number; posted: number; failed?: number };
   isLoading?: boolean;
   showEmptySlots?: boolean;
   help?: ReactNode;
@@ -92,12 +98,18 @@ export interface ScheduleCalendarViewProps {
   onToday: () => void;
   renderAction: (props: CalendarActionProps) => ReactNode;
   slotHint?: string;
+  allowCreate?: boolean;
   onOpenDay?: (date: Date) => void;
 }
 export function ScheduleCalendarView(props: ScheduleCalendarViewProps) {
   const { t } = useUiTranslation();
   return (
-    <Actions.Provider value={{ renderAction: props.renderAction, slotHint: props.slotHint ?? t("createAndSchedule") }}>
+    <Actions.Provider
+      value={{
+        allowCreate: props.allowCreate ?? true,
+        renderAction: props.renderAction,
+        slotHint: props.slotHint ?? t("createAndSchedule"),
+      }}>
       <div className="simplepost-visual">
         <CalendarBody {...props} />
       </div>
@@ -190,18 +202,20 @@ function CalendarBody({
           </ToggleGroup>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-muted-foreground sm:text-xs">
-          <SummaryItem tone="open" count={summary.open} label={locale === "en" ? "open" : t("openSlots")} />
-          <SummaryItem
-            tone="scheduled"
-            count={summary.scheduled}
-            label={locale === "en" ? "scheduled" : t("postScheduled")}
-          />
-          <SummaryItem tone="posted" count={summary.posted} label={locale === "en" ? "posted" : t("postPublished")} />
-          {summary.failed ? (
-            <SummaryItem tone="failed" count={summary.failed} label={locale === "en" ? "failed" : t("postFailed")} />
-          ) : null}
-        </div>
+        {summary && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-muted-foreground sm:text-xs">
+            <SummaryItem tone="open" count={summary.open} label={locale === "en" ? "open" : t("openSlots")} />
+            <SummaryItem
+              tone="scheduled"
+              count={summary.scheduled}
+              label={locale === "en" ? "scheduled" : t("postScheduled")}
+            />
+            <SummaryItem tone="posted" count={summary.posted} label={locale === "en" ? "posted" : t("postPublished")} />
+            {summary.failed ? (
+              <SummaryItem tone="failed" count={summary.failed} label={locale === "en" ? "failed" : t("postFailed")} />
+            ) : null}
+          </div>
+        )}
       </div>
 
       {showEmptySlots ? (
@@ -572,6 +586,8 @@ function DayAgenda({
 }) {
   const { date, number, t } = useCalendarCopy();
   const { copy } = useUiCopy();
+  const { allowCreate } = useCalendarActions();
+  const showCreate = emptyAction && allowCreate;
   const isToday = isSameDay(day, now);
   const itemCount = entries.reduce((count, entry) => count + Math.max(1, entry.posts.length), 0);
 
@@ -625,11 +641,11 @@ function DayAgenda({
           )}>
           <div>
             <p className="text-sm font-medium text-foreground/80">{t("nothingPlanned")}</p>
-            {emptyAction ? <p className="mt-0.5 text-xs text-muted-foreground">{t("readyForNewPost")}</p> : null}
+            {showCreate ? <p className="mt-0.5 text-xs text-muted-foreground">{t("readyForNewPost")}</p> : null}
           </div>
-          {emptyAction ? (
+          {showCreate ? (
             <Button asChild variant="outline" size="sm" className="h-9 shrink-0 px-3 text-xs">
-              <Action target={{ kind: "create" }}>
+              <Action target={{ kind: "create", day }}>
                 <Plus className="h-3.5 w-3.5" />
                 {copy("Add post")}
               </Action>
@@ -762,6 +778,7 @@ function CalendarPost({
         <span className="mt-1 block truncate text-[10px] opacity-75" dir="auto">
           {message}
         </span>
+        {post.details}
       </Action>
     );
   }
@@ -804,7 +821,7 @@ function CalendarPost({
           {message}
         </span>
         <span className={cn("mt-0.5 block text-[11px]", isFailed ? "text-destructive" : "text-muted-foreground")}>
-          {statusLabel}
+          {post.details ?? statusLabel}
         </span>
         {post.platforms?.length ? (
           <span className="mt-1 flex gap-1" aria-label={t("platforms")}>

@@ -10,10 +10,18 @@ import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { normalizePreviewPlatform, type PreviewPlatform } from "@/lib/platform-preview";
 import type { AccountOptionsMap, ConnectedAccount, MediaFile, ThreadSegment } from "@/types";
 
+type PreviewAccount = Pick<
+  ConnectedAccount,
+  "id" | "platform" | "username" | "displayName" | "profilePicture" | "email" | "platformAccountId"
+> &
+  Partial<Pick<ConnectedAccount, "updatedAt">>;
+
 interface PlatformPostPreviewProps {
+  activePlatform?: PreviewPlatform;
+  onPlatformChange?: (platform: PreviewPlatform) => void;
   message: string;
   media: MediaFile[];
-  selectedAccounts: ConnectedAccount[];
+  selectedAccounts: PreviewAccount[];
   accountOptions?: AccountOptionsMap;
   accountOverrides?: PreviewAccountOverridesMap;
   thread?: ThreadSegment[];
@@ -32,10 +40,11 @@ type PreviewAccountOverridesMap = Record<string, PreviewAccountOverride>;
 
 interface PlatformAccount {
   platform: PreviewPlatform;
-  account: ConnectedAccount;
+  account: PreviewAccount;
 }
 
-function previewProfilePicture(account: ConnectedAccount, platform: string): string | null {
+function previewProfilePicture(account: PreviewAccount, platform: string): string | null {
+  if (!account.updatedAt) return account.profilePicture;
   if (platform === "linkedin" || platform === "threads" || (platform === "x" && account.profilePicture)) {
     return `/api/v1/accounts/${encodeURIComponent(account.id)}/avatar?v=${encodeURIComponent(String(account.updatedAt))}`;
   }
@@ -59,6 +68,8 @@ function toPreviewMedia(media: MediaFile[]): PreviewMedia[] {
  * around the render.
  */
 export function PlatformPostPreview({
+  activePlatform,
+  onPlatformChange,
   message,
   media,
   selectedAccounts,
@@ -85,7 +96,8 @@ export function PlatformPostPreview({
   const [now] = useState(() => new Date());
   const previewDate = publishDate ?? now;
 
-  const active = platformAccounts.find((entry) => entry.platform === selectedPlatform) ?? platformAccounts[0];
+  const active =
+    platformAccounts.find((entry) => entry.platform === (activePlatform ?? selectedPlatform)) ?? platformAccounts[0];
   const platform = active?.platform;
   const activeAccount = active?.account;
   const platformConfig = platform ? getPlatformById(platform) : undefined;
@@ -147,7 +159,11 @@ export function PlatformPostPreview({
           data: entry.platform === platform ? previewData : undefined,
         }))}
         selectedId={platform ?? null}
-        onSelect={(id) => setSelectedPlatform(id as PreviewPlatform)}
+        onSelect={(id) => {
+          const platform = id as PreviewPlatform;
+          setSelectedPlatform(platform);
+          onPlatformChange?.(platform);
+        }}
       />
     </section>
   );

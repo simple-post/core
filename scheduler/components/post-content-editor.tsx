@@ -28,6 +28,10 @@ interface PostContentEditorProps {
     onMediaChange: (index: number, media: MediaFile[]) => void;
     maxThreadSegments?: number | null;
   };
+  uploadProps?: Pick<
+    React.ComponentProps<typeof MediaUpload>,
+    "storeFile" | "maxFiles" | "maxFileSize" | "acceptedTypes" | "onUploadingChange"
+  >;
   maxTextLength?: number;
   charCounter?: CharCounterState;
   placeholder?: string;
@@ -51,6 +55,7 @@ export function PostContentEditor({
   charCounter,
   placeholder,
   onPasteMedia,
+  uploadProps,
 }: PostContentEditorProps) {
   const { copy, locale } = useUiCopy();
   const mediaUploadRef = useRef<MediaUploadHandle | null>(null);
@@ -75,7 +80,9 @@ export function PostContentEditor({
         placeholder={placeholder ?? copy("What's on your mind?")}
         onPaste={handlePaste}
         maxLength={maxTextLength}
-        media={<MediaUpload ref={mediaUploadRef} media={media} onMediaChange={onMediaChange} compact />}
+        media={
+          <MediaUpload {...uploadProps} ref={mediaUploadRef} media={media} onMediaChange={onMediaChange} compact />
+        }
         counter={
           maxTextLength && charCounter ? (
             <>

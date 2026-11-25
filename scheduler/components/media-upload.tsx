@@ -31,6 +31,8 @@ interface MediaUploadProps {
   maxFiles?: number;
   maxFileSize?: number; // in bytes
   acceptedTypes?: string[];
+  storeFile?: (file: File) => Promise<MediaFile>;
+  onUploadingChange?: (busy: boolean) => void;
   compact?: boolean;
 }
 
@@ -231,6 +233,8 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
     maxFileSize = WEB_UPLOAD_MAX_BYTES,
     acceptedTypes = ["image/*", "video/*"],
     compact = false,
+    storeFile,
+    onUploadingChange,
   },
   ref,
 ) {
@@ -284,6 +288,11 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
       setUploading((prev) => [...prev, { id, filename: file.name, progress: 0, type: mediaType }]);
 
       try {
+        if (storeFile) {
+          const result = await storeFile(file);
+          setUploading((prev) => prev.filter((u) => u.id !== id));
+          return result;
+        }
         let publicUrl: string;
         let thumbnailUrl: string | undefined;
 
@@ -361,11 +370,13 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         throw error;
       }
     },
-    [copy],
+    [copy, storeFile],
   );
 
+  const privateUploadInFlight = useRef(false);
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
+      if (storeFile && privateUploadInFlight.current) return;
       const newErrors: string[] = [];
       const filesToUpload: File[] = [];
 
@@ -391,31 +402,38 @@ export const MediaUpload = forwardRef<MediaUploadHandle, MediaUploadProps>(funct
         return;
       }
 
-      // Upload files in parallel
-      const uploadPromises = filesToUpload.map(async (file) => {
-        try {
-          return await uploadFile(file);
-        } catch (error) {
-          logClientError(error, "Failed to upload media file", { filename: file.name, size: file.size });
-          setErrors((prev) => [
-            ...prev,
-            copy("Failed to upload {{filename}}: {{reason}}", {
-              filename: file.name,
-              reason: error instanceof Error ? error.message : copy("Unknown error"),
-            }),
-          ]);
-          return null;
+      if (storeFile) privateUploadInFlight.current = true;
+      onUploadingChange?.(true);
+      try {
+        // Upload files in parallel
+        const uploadPromises = filesToUpload.map(async (file) => {
+          try {
+            return await uploadFile(file);
+          } catch (error) {
+            logClientError(error, "Failed to upload media file", { filename: file.name, size: file.size });
+            setErrors((prev) => [
+              ...prev,
+              copy("Failed to upload {{filename}}: {{reason}}", {
+                filename: file.name,
+                reason: error instanceof Error ? error.message : copy("Unknown error"),
+              }),
+            ]);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(uploadPromises);
+        const successfulUploads = results.filter((r): r is MediaFile => r !== null);
+
+        if (successfulUploads.length > 0) {
+          onMediaChange([...media, ...successfulUploads]);
         }
-      });
-
-      const results = await Promise.all(uploadPromises);
-      const successfulUploads = results.filter((r): r is MediaFile => r !== null);
-
-      if (successfulUploads.length > 0) {
-        onMediaChange([...media, ...successfulUploads]);
+      } finally {
+        privateUploadInFlight.current = false;
+        onUploadingChange?.(false);
       }
     },
-    [media, uploading.length, maxFiles, onMediaChange, uploadFile, validateFile, copy],
+    [media, uploading.length, maxFiles, onMediaChange, uploadFile, validateFile, copy, onUploadingChange, storeFile],
   );
 
   useImperativeHandle(ref, () => ({ processFiles }), [processFiles]);

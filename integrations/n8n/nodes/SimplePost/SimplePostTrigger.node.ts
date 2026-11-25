@@ -31,7 +31,7 @@ export class SimplePostTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'SimplePost Trigger',
 		name: 'simplePostTrigger',
-		icon: { light: 'file:simplePost.svg', dark: 'file:simplePost.dark.svg' },
+		icon: { light: 'file:simplePost.svg', dark: 'file:simplePost.svg' },
 		group: ['trigger'],
 		version: 1,
 		subtitle: '={{$parameter["events"].join(", ")}}',

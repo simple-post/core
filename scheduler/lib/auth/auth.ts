@@ -15,11 +15,23 @@ import { prisma } from "../prisma";
 import { sendEmail } from "../resend";
 import { otpEmail, OTP_EXPIRY_SECONDS } from "../resend/otp-email";
 
-import { isTestUserEmail } from "./test-users";
+import { isMuseReviewPassword, isMuseReviewUserEmail, isTestUserEmail } from "./test-users";
 
 const measurementLog = createLogger("auth:ads-measurement");
 function reportMeasurementFailure() {
   measurementLog.warn({ errorCode: "measurement_enrollment_failed" }, "Could not update ad measurement");
+}
+
+function museReviewPassword() {
+  const password = process.env.MUSE_REVIEW_LOGIN_PASSWORD;
+  return isMuseReviewPassword(password) ? password : undefined;
+}
+
+function testLoginPassword(email: string, type: string) {
+  if (type !== "sign-in") return undefined;
+  if (isMuseReviewUserEmail(email)) return museReviewPassword();
+  if (env.ENABLE_OPENAI_TEST_LOGIN && isTestUserEmail(email)) return "123456";
+  return undefined;
 }
 
 function demoLoginConfig() {
@@ -42,6 +54,7 @@ function demoLoginConfig() {
                         type: "object",
                         properties: {
                           enabled: { type: "boolean" },
+                          museReviewEnabled: { type: "boolean" },
                         },
                         required: ["enabled"],
                       },
@@ -53,7 +66,10 @@ function demoLoginConfig() {
           },
         },
         async (ctx) => {
-          return ctx.json({ enabled: env.ENABLE_OPENAI_TEST_LOGIN });
+          return ctx.json({
+            enabled: env.ENABLE_OPENAI_TEST_LOGIN,
+            museReviewEnabled: Boolean(museReviewPassword()),
+          });
         },
       ),
     },
@@ -88,7 +104,7 @@ export const auth = betterAuth({
           return {
             data: {
               ...user,
-              analyticsExcluded: isTestUserEmail(user.email),
+              analyticsExcluded: isTestUserEmail(user.email) || Boolean(testLoginPassword(user.email, "sign-in")),
               acquisition: {
                 ...touch,
                 ...(previewOffer ? { trialOffer: "preview_30d_v1" } : {}),
@@ -142,11 +158,10 @@ export const auth = betterAuth({
       allowedAttempts: 5,
       storeOTP: "hashed",
       generateOTP({ email, type }) {
-        if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return "123456";
-        return undefined;
+        return testLoginPassword(email, type);
       },
       async sendVerificationOTP({ email, otp, type }, ctx) {
-        if (env.ENABLE_OPENAI_TEST_LOGIN && type === "sign-in" && isTestUserEmail(email)) return;
+        if (testLoginPassword(email, type)) return;
         const locale = localeFromRequestHeaders(ctx?.headers ?? ctx?.request?.headers);
         const message = otpEmail(otp, type, env.NEXT_PUBLIC_APP_URL, locale, await loadMessages(locale));
         try {

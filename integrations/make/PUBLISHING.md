@@ -65,9 +65,9 @@ For a safer workflow, also create a second, empty app named `simplepost-testing`
 [Deploy changes to Make](https://developers.make.com/custom-apps-documentation/get-started/make-apps-editor/apps-sdk/local-development-for-apps/deploy-changes-from-local-app-to-make-app)
 
 1. Right-click `src/makecomapp.json` → **Deploy to Make (beta)** and pick the origin (testing first).
-2. The app is empty, so the extension asks how to pair each local component. Choose to **create** each new remote component: 1 connection, 2 webhooks, 1 RPC, 10 modules. The extension records the pairings in `origins[].idMapping`.
+2. The extension asks how to pair components. Match components to their existing counterparts when updating an app, and create only missing components. The extension records the pairings in `origins[].idMapping`.
 3. Commit the updated `makecomapp.json` so the pairings are versioned. It contains no secrets.
-4. In Make, check that the app now has Base, Readme, one connection, two webhooks, one RPC, and ten modules in three groups (Triggers, Posts, Other).
+4. In Make, check for Base, Readme, one connection, two webhooks, three RPCs, and ten modules across Triggers, Posts, Accounts, Media, and Other.
 
 To bring later edits made in the Make UI back into git, right-click `makecomapp.json` → **Pull changes from Make**. To see differences first, right-click a file → **Compare with Make**.
 

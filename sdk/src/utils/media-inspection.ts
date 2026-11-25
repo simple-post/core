@@ -1,9 +1,3 @@
-import {
-  displayMessage,
-  canonicalDisplayMessage,
-  describeDisplayMessage,
-  type DisplayMessage,
-} from "../validation/display-message";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 
@@ -19,6 +13,12 @@ import {
   MAX_INSPECTABLE_IMAGE_BYTES,
   normalizeContentType,
 } from "../media-types";
+import {
+  displayMessage,
+  canonicalDisplayMessage,
+  describeDisplayMessage,
+  type DisplayMessage,
+} from "../validation/display-message";
 
 import type { Readable } from "node:stream";
 

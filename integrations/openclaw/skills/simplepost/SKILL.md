@@ -1,6 +1,6 @@
 ---
 name: simplepost
-description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost, or integrate SimplePost through MCP, CLI, HTTP, or TypeScript. Use when users want to schedule or publish social content, save a social draft, preview connected-account posts, or manage their publishing calendar, even without naming SimplePost. Do not use for generic copywriting, SEO research, engagement analytics, or private messages.
+description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost, or integrate SimplePost through MCP, CLI, HTTP, or TypeScript. Use when users want to schedule or publish social content, save a social draft, preview connected-account posts, manage their publishing calendar, or check how their posts perform (views, likes, replies, reposts, followers), even without naming SimplePost. Do not use for generic copywriting, SEO research, or private messages.
 license: MIT
 metadata:
   hermes:
@@ -38,7 +38,7 @@ Publishing sends the selected content and media to SimplePost and the destinatio
 
 - For connecting or adding a social destination, use `list_accounts` or the workspace to get its platform-specific `connectionLinks` URL. Copy it unchanged; ask which platform only if unclear. The user authorizes in the browser, then returns to chat. Refresh accounts and verify the requested destination before continuing. Never collect provider passwords, keys, or tokens in chat. Disconnection and reauthorization of existing accounts remain in the SimplePost web app. Do not inspect posts merely to confirm an unsupported account action.
 - SimplePost can edit or discard drafts and future scheduled posts. It cannot edit, delete, or undo a post already published to a social platform; direct the user to that platform.
-- SimplePost records posting state, but it does not currently expose social-network engagement analytics through its MCP tools. Do not claim reach, click, impression, or engagement analysis from post records.
+- SimplePost reads post and account analytics from the platforms (MCP `get_analytics_summary`, `list_post_analytics`, `get_post_analytics`, `get_account_analytics`; CLI `simplepost analytics`; HTTP `/api/v1/analytics/*`). Platforms report different metrics: a missing metric is unreported, not zero. Bluesky has no views and Telegram has no post analytics. Never estimate numbers the tools did not return.
 - Keep credentials out of prompts, source files, logs, and visible responses. Use OAuth, environment variables, the CLI secret store, or server-side account storage.
 - Never search the user's files, environment, browser storage, or credential stores for secrets. Local integration examples are for an explicitly requested developer setup, not permission to collect existing credentials. The user supplies secrets through their trusted application or secret manager; the assistant must not display them.
 - For TikTok, surface the chosen audience before publishing or scheduling. If the user has not specified an audience and public visibility is not already clear from the request, explain the public default and ask them to choose. Do not silently expand an existing audience.

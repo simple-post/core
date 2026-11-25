@@ -36,6 +36,10 @@ const SAVED_DATA_TOOLS = new Set([
   "get_schedule",
   "show_schedule",
   "show_post_preview",
+  "get_analytics_summary",
+  "list_post_analytics",
+  "get_post_analytics",
+  "get_account_analytics",
 ]);
 /** Preserve the SDK's schema-derived callbacks and forward both supported schema forms unchanged. */
 export function registerMeasuredTool<Input extends StandardSchemaWithJSON, Output extends StandardSchemaWithJSON>(

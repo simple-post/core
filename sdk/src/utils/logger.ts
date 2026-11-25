@@ -9,6 +9,11 @@ export class Logger {
     this.logLevel = logLevel;
   }
 
+  /** Human-readable publisher name, e.g. "X" or "Instagram". */
+  get name(): string {
+    return this.prefix;
+  }
+
   private getMessageWithPrefix(message: string | Error) {
     return `[${this.prefix}] ${message instanceof Error ? message.stack : message}`;
   }

@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { relayOpenAiMilestones } from "@/lib/analytics/openai-ads";
 import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
+import { runBackgroundAnalyticsRefresh } from "@/lib/post-analytics/background";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
 
 const log = createLogger("api:internal:scheduled-dispatch");
@@ -45,6 +46,14 @@ export async function POST(req: NextRequest) {
         { errorCode: "measurement_database_failure" },
         "OpenAI measurement relay failed; publishing results are preserved",
       );
+    }
+    // Analytics upkeep runs last and can never turn a successful dispatch into a failure.
+    try {
+      const analytics = await runBackgroundAnalyticsRefresh();
+      if (!analytics.skipped && (analytics.posts.refreshed > 0 || analytics.accounts > 0))
+        log.info({ analytics }, "Refreshed post analytics");
+    } catch (error) {
+      log.warn({ err: serializeError(error) }, "Background analytics refresh failed; publishing results are preserved");
     }
     return NextResponse.json(result, { status: 200 });
   } catch (error) {

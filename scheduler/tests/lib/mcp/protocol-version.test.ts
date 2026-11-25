@@ -17,6 +17,10 @@ const TOOL_NAMES = [
   "create_post",
   "inspect_posts",
   "get_schedule",
+  "get_analytics_summary",
+  "list_post_analytics",
+  "get_post_analytics",
+  "get_account_analytics",
   "show_schedule",
   "update_scheduled_post",
   "discard_scheduled_post",
@@ -45,7 +49,11 @@ jest.mock("@/lib/mcp/review-logging", () => ({ shouldLogReviewMcpExchange: () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.mocked(hasFeature).mockImplementation(async (_user, feature) => feature === Feature.IMAGE_FITTING);
+  jest
+    .mocked(hasFeature)
+    .mockImplementation(
+      async (_user, feature) => feature === Feature.IMAGE_FITTING || feature === Feature.POST_ANALYTICS,
+    );
   jest.mocked(assertActiveSubscription).mockResolvedValue(undefined as never);
   jest.mocked(authenticateMcpToken).mockResolvedValue({
     user: { id: "user", email: "test@example.com" },
@@ -97,6 +105,15 @@ function legacyRequest(method: string): NextRequest {
 function expectToolSurface(body: { result: { tools: Array<{ name: string }> } }): void {
   expect(body.result.tools.map((tool) => tool.name)).toEqual(TOOL_NAMES);
 }
+
+it("omits all analytics tools without the account grant", async () => {
+  jest.mocked(hasFeature).mockResolvedValue(false);
+  const response = await POST(modernRequest("tools/list"));
+  const body = await response.json();
+  expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
+    TOOL_NAMES.filter((name) => !name.includes("analytics")),
+  );
+});
 
 it("publishes the complete tool surface over MCP 2026-07-28", async () => {
   const response = await POST(modernRequest("tools/list"));

@@ -4,6 +4,8 @@ import { PostsModel } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { ConflictError } from "@/lib/utils/errors";
 
+jest.mock("@/lib/features", () => ({ hasFeature: async () => true }));
+
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     $transaction: jest.fn(),
@@ -73,6 +75,11 @@ it.each([
   {
     method: "getPastPosts" as const,
     status: "published",
+    include: {
+      media: true,
+      accounts: true,
+      analytics: { select: expect.objectContaining({ views: true, likes: true }) },
+    },
     orderBy: [
       { publishedAt: { sort: "desc", nulls: "last" } },
       { scheduledFor: { sort: "desc", nulls: "last" } },
@@ -85,7 +92,7 @@ it.each([
     status: "failed",
     orderBy: [{ scheduledFor: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }, { id: "desc" }],
   },
-])("$method orders by the post timestamp before pagination", async ({ method, status, orderBy }) => {
+])("$method orders by the post timestamp before pagination", async ({ method, status, orderBy, include }) => {
   postMock.findMany.mockResolvedValue([]);
   postMock.count.mockResolvedValue(60);
 
@@ -93,7 +100,7 @@ it.each([
 
   expect(postMock.findMany).toHaveBeenCalledWith({
     where: { userId: "u1", status },
-    include: { media: true, accounts: true },
+    include: include ?? { media: true, accounts: true },
     orderBy,
     skip: 25,
     take: 25,

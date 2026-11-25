@@ -185,7 +185,8 @@ const ACCOUNT_PLATFORM_CONFIGS = {
       developerPortalUrl: "https://developers.pinterest.com/apps",
       pkce: false,
       redirectUri: DEFAULT_OAUTH_REDIRECT_URI,
-      scopes: ["pins:write", "boards:read", "user_accounts:read"],
+      // pins:read is required to read pin analytics.
+      scopes: ["pins:read", "pins:write", "boards:read", "user_accounts:read"],
       tokenAuthMethod: "basic",
       tokenUrl: "https://api.pinterest.com/v5/oauth/token",
     },
@@ -203,8 +204,37 @@ const ACCOUNT_PLATFORM_CONFIGS = {
   },
 } satisfies Record<AccountPlatform, AccountPlatformConfig>;
 
+/**
+ * Extra permissions for reading analytics with your own developer app. They
+ * are opt-in through SIMPLEPOST_ANALYTICS_SCOPES (a platform list or "all")
+ * because requesting a permission your app has not enabled makes the whole
+ * login fail. See docs/post-analytics/platform-permissions.md.
+ */
+export const ANALYTICS_SCOPES: Partial<Record<AccountPlatform, string[]>> = {
+  facebook: ["pages_read_engagement", "read_insights"],
+  instagram: ["instagram_manage_insights"],
+  threads: ["threads_manage_insights"],
+  tiktok: ["video.list", "user.info.stats"],
+  youtube: ["https://www.googleapis.com/auth/yt-analytics.readonly"],
+  linkedin: ["r_member_postAnalytics", "r_member_profileAnalytics"],
+};
+
+export function analyticsScopesEnabled(platform: AccountPlatform): boolean {
+  const raw = (process.env.SIMPLEPOST_ANALYTICS_SCOPES ?? "").trim().toLowerCase();
+  if (!raw) return false;
+  if (raw === "all" || raw === "true" || raw === "1") return true;
+  return raw.split(/[\s,]+/).includes(platform);
+}
+
 export function getAccountPlatformConfig(platform: AccountPlatform): AccountPlatformConfig {
-  return ACCOUNT_PLATFORM_CONFIGS[platform];
+  const config: AccountPlatformConfig = ACCOUNT_PLATFORM_CONFIGS[platform];
+  const app = config.oauthApp;
+  const extra = ANALYTICS_SCOPES[platform];
+  if (!app || !extra || !analyticsScopesEnabled(platform)) return config;
+  return {
+    ...config,
+    oauthApp: { ...app, scopes: [...app.scopes, ...extra.filter((scope) => !app.scopes.includes(scope))] },
+  };
 }
 
 export function getAccountPlatformOptions(): Array<{

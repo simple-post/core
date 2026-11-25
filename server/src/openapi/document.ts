@@ -30,6 +30,7 @@ export function createServerOpenApiDocument() {
         { name: "Upload", description: "Server-side media upload." },
         { name: "Validation", description: "Platform validation for draft posts." },
         { name: "Posts", description: "Immediate publishing through configured accounts." },
+        { name: "Analytics", description: "Post and account analytics read through configured accounts." },
       ],
       paths: buildPaths(serverOpenApiRoutes),
       components: {

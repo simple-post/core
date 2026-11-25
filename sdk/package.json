@@ -55,6 +55,11 @@
       "types": "./dist/image-fit.d.ts",
       "import": "./dist/image-fit.js",
       "require": "./dist/image-fit.cjs"
+    },
+    "./analytics": {
+      "types": "./dist/analytics.d.ts",
+      "import": "./dist/analytics.js",
+      "require": "./dist/analytics.cjs"
     }
   },
   "main": "./dist/index.cjs",

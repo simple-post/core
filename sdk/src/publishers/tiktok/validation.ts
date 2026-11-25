@@ -1,5 +1,5 @@
-import { displayMessage, withDisplayMessage, type DisplayMessage } from "../../validation/display-message";
 import { TikTokOptionsSchema } from "../../types/post";
+import { displayMessage, withDisplayMessage, type DisplayMessage } from "../../validation/display-message";
 import { countMedia, hasMediaSource, validateMediaSizes } from "../validation-utils";
 
 import type { Content, TikTokOptions } from "../../types/post";

@@ -13,7 +13,7 @@ function replaceRequired(text, before, after) {
 export async function claudeSkillFiles() {
   let skill = await readFile(path.join(root, "skills/simplepost/SKILL.md"), "utf8");
   if (!/^description: .+$/m.test(skill)) throw new Error("Canonical description missing");
-  skill = skill.replace(/^description: .+$/m, "description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing and calendar tasks; not generic copywriting, engagement analytics, private messages, or local credential setup.");
+  skill = skill.replace(/^description: .+$/m, "description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing, calendar and post analytics tasks; not generic copywriting, private messages, or local credential setup.");
   const start = skill.indexOf("## Choose the interface\n");
   const end = skill.indexOf("## Posting workflow\n");
   if (start < 0 || end <= start) throw new Error("Canonical interface routing changed");

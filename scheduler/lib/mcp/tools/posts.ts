@@ -1,5 +1,3 @@
-import { validationMessage, joinedValidationMessages } from "@/lib/i18n/validation-display";
-import type { AuthoredMessage } from "@/lib/i18n/server";
 import { Feature, Prisma } from "@prisma/client";
 import {
   ImageFitSchema,
@@ -19,7 +17,9 @@ import {
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
 import { hasFeature } from "@/lib/features";
+import type { AuthoredMessage } from "@/lib/i18n/server";
 import { authoredError, canonicalMessage, serverMessage, serverT } from "@/lib/i18n/server";
+import { validationMessage, joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { getConnectAccountsUrl } from "@/lib/mcp/connect-guidance";
 import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -339,6 +339,21 @@ const managedPostSchema = z.object({
   quotePostId: z.string().nullable(),
   mediaCount: z.number(),
   threadSegmentCount: z.number(),
+  analytics: z
+    .object({
+      views: z.number().nullable(),
+      likes: z.number().nullable(),
+      comments: z.number().nullable(),
+      shares: z.number().nullable(),
+      engagements: z.number().nullable(),
+      updatedAt: z.string().nullable(),
+      hasData: z.boolean(),
+    })
+    .nullable()
+    .optional()
+    .describe(
+      "Cached totals across accounts for posted posts (may be stale). Use get_post_analytics for fresh, per-platform numbers.",
+    ),
 });
 
 const paginationSchema = z
@@ -547,6 +562,7 @@ function mapManagedPost(
     quotePostId: post.quotePostId ?? null,
     mediaCount: post.media.length,
     threadSegmentCount: thread.length,
+    ...(post.analytics === undefined ? {} : { analytics: post.analytics }),
   };
 }
 

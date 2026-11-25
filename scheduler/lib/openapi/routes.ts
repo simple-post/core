@@ -21,11 +21,16 @@ import accountTikTokCreatorInfoRoutes from "@/app/api/v1/accounts/[id]/tiktok/cr
 import youtubeLibraryRoutes from "@/app/api/v1/accounts/[id]/youtube/library/openapi";
 import youtubeVideoRoutes from "@/app/api/v1/accounts/[id]/youtube/videos/[videoId]/openapi";
 import accountsRoutes from "@/app/api/v1/accounts/openapi";
+import analyticsAccountsRoutes from "@/app/api/v1/analytics/accounts/openapi";
+import analyticsPostsRoutes from "@/app/api/v1/analytics/posts/openapi";
+import analyticsRefreshRoutes from "@/app/api/v1/analytics/refresh/openapi";
+import analyticsSummaryRoutes from "@/app/api/v1/analytics/summary/openapi";
 import apiKeyRoute from "@/app/api/v1/api-keys/[id]/openapi";
 import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
 import apiKeyRoutes from "@/app/api/v1/api-keys/openapi";
 import featureRoutes from "@/app/api/v1/features/openapi";
 import postingSlotsRoutes from "@/app/api/v1/posting-slots/openapi";
+import postAnalyticsRoutes from "@/app/api/v1/posts/[id]/analytics/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
 import reconcilePostRoutes from "@/app/api/v1/posts/[id]/reconcile/openapi";
 import repostPostRoutes from "@/app/api/v1/posts/[id]/repost/openapi";
@@ -76,6 +81,11 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   repostPostRoutes,
   reconcilePostRoutes,
   retryPostRoutes,
+  postAnalyticsRoutes,
+  analyticsSummaryRoutes,
+  analyticsPostsRoutes,
+  analyticsAccountsRoutes,
+  analyticsRefreshRoutes,
   repostSettingsRoutes,
   postingSlotsRoutes,
   uploadRoutes,

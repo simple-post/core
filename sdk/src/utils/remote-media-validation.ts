@@ -1,12 +1,16 @@
-import { displayMessage, getDisplayMessage, withDisplayMessage } from "../validation/display-message";
-import { copyDisplayMessage } from "../validation/display-message";
-import { describeDisplayMessage } from "../validation/display-message";
 import { mediaFormatFailure } from "./media-format-validation";
 import { inspectRemoteMedia, MediaInspectionError } from "./media-inspection";
 
 import { mapPlatformName } from "../platform-names";
 import { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES } from "../publishers/youtube/validation";
 import { isThreadCapablePlatform } from "../types/api";
+import {
+  describeDisplayMessage,
+  copyDisplayMessage,
+  displayMessage,
+  getDisplayMessage,
+  withDisplayMessage,
+} from "../validation/display-message";
 import { validateInspectedMedia } from "../validation/media-rules";
 
 import type { AccountOptionsMap, AccountOverridesMap, MediaFile, ThreadSegment } from "../types/api";

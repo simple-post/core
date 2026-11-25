@@ -1,11 +1,27 @@
 import fs from "node:fs";
 
+import { getAnalyticsCapability } from "../../analytics";
 import { PostError, PostErrorType } from "../../types";
 import { checkAccountReadiness, readinessFailure } from "../../utils/account-readiness";
+import {
+  AnalyticsError,
+  chunk,
+  classifyAnalyticsError,
+  mapWithConcurrency,
+  postAnalyticsResult,
+} from "../../utils/analytics";
 import { Logger } from "../../utils/logger";
 import { getMetaCredentialRejection, isMetaCredentialPlatform } from "../../utils/meta-credential-rejection";
 import { validatePostMedia, type MediaInspectionCache } from "../../utils/post-media-validation";
 
+import type {
+  AccountAnalytics,
+  AccountAnalyticsResponse,
+  AnalyticsTarget,
+  PostAnalytics,
+  PostAnalyticsResponse,
+  RefreshedAnalyticsCredentials,
+} from "../../analytics";
 import type { PostResult, QuoteResult, RepostResult } from "../../types";
 import type {
   Content,
@@ -18,6 +34,9 @@ import type {
 import type { ValidationIssue } from "../../types/validation";
 
 export type MediaRequirement = "path" | "url" | "either";
+
+/** Parallel provider requests per analytics call; keeps per-post APIs well below rate limits. */
+const ANALYTICS_CONCURRENCY = 3;
 
 export abstract class Publisher {
   readonly logger: Logger;
@@ -235,5 +254,100 @@ export abstract class Publisher {
         return { error: PostErrorType.OTHER, message: `Error quoting: ${message}`, details: data };
       }
     }
+  }
+
+  /**
+   * Reads analytics for posts the connected account published. Override
+   * `fetchPostAnalytics` to support a platform. Never throws: every target
+   * gets a result with a status, and a failing batch does not affect others.
+   */
+  async getPostAnalytics(
+    targets: AnalyticsTarget[],
+    options?: PostOptionsWithCredentials,
+  ): Promise<PostAnalyticsResponse> {
+    const platform = this.requirePlatform();
+    const capability = getAnalyticsCapability(platform);
+    options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
+
+    if (!capability.posts) {
+      return {
+        platform,
+        results: targets.map((target) =>
+          postAnalyticsResult(platform, target.postId, "unsupported", { message: capability.notes[0] }),
+        ),
+      };
+    }
+
+    const batches = chunk(targets, capability.batchSize);
+    const batchResults = await mapWithConcurrency(batches, ANALYTICS_CONCURRENCY, async (batch) => {
+      try {
+        const results = await this.fetchPostAnalytics(batch, options);
+        // Guarantee one result per requested target, in request order.
+        return batch.map(
+          (target) =>
+            results.find((result) => result.postId === target.postId) ??
+            postAnalyticsResult(platform, target.postId, "not_found", {
+              message: `${this.logger.name} did not return this post.`,
+            }),
+        );
+      } catch (error) {
+        const { status, message } = classifyAnalyticsError(error, this.logger.name);
+        if (status === "error") this.logger.warn(`Analytics request failed: ${message}`);
+        return batch.map((target) => postAnalyticsResult(platform, target.postId, status, { message }));
+      }
+    });
+
+    const refreshedCredentials = this.getRefreshedAnalyticsCredentials();
+    return { platform, results: batchResults.flat(), ...(refreshedCredentials ? { refreshedCredentials } : {}) };
+  }
+
+  /** Reads account-level analytics (followers, …). Never throws. */
+  async getAccountAnalytics(options?: PostOptionsWithCredentials): Promise<AccountAnalyticsResponse> {
+    const platform = this.requirePlatform();
+    const capability = getAnalyticsCapability(platform);
+    options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
+    let result: AccountAnalytics;
+
+    if (capability.account) {
+      try {
+        result = await this.fetchAccountAnalytics(options);
+      } catch (error) {
+        const { status, message } = classifyAnalyticsError(error, this.logger.name);
+        result = { platform, status, metrics: {}, message, fetchedAt: new Date().toISOString() };
+      }
+    } else {
+      result = {
+        platform,
+        status: "unsupported",
+        metrics: {},
+        message: `${this.logger.name} does not provide account analytics.`,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
+
+    const refreshedCredentials = this.getRefreshedAnalyticsCredentials();
+    return { ...result, ...(refreshedCredentials ? { refreshedCredentials } : {}) };
+  }
+
+  /** Reads one batch (at most `batchSize` targets). May throw; errors apply to the whole batch. */
+  protected async fetchPostAnalytics(
+    _targets: AnalyticsTarget[],
+    _options?: PostOptionsWithCredentials,
+  ): Promise<PostAnalytics[]> {
+    throw new AnalyticsError("unsupported", `${this.logger.name} does not provide post analytics.`);
+  }
+
+  protected async fetchAccountAnalytics(_options?: PostOptionsWithCredentials): Promise<AccountAnalytics> {
+    throw new AnalyticsError("unsupported", `${this.logger.name} does not provide account analytics.`);
+  }
+
+  /** Publishers that refresh tokens themselves return the new credentials here so callers can persist them. */
+  protected getRefreshedAnalyticsCredentials(): RefreshedAnalyticsCredentials | undefined {
+    return undefined;
+  }
+
+  private requirePlatform(): Platform {
+    if (!this.platform) throw new PostError(PostErrorType.OTHER, "Publisher platform is not configured.");
+    return this.platform;
   }
 }

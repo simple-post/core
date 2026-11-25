@@ -25,6 +25,7 @@ import { logReviewMcpExchange, shouldLogReviewMcpExchange } from "@/lib/mcp/revi
 import {
   registerTools,
   SERVER_INSTRUCTIONS,
+  POST_ANALYTICS_INSTRUCTIONS,
   IMAGE_FITTING_INSTRUCTIONS,
   type McpToolAuthContext,
 } from "@/lib/mcp/server";
@@ -132,11 +133,12 @@ async function getAuthContextOrResponse(req: Request): Promise<McpToolAuthContex
 }
 
 async function createMcpServer(authContext: McpToolAuthContext, locale: Locale): Promise<McpServer> {
-  const [imageFittingEnabled, pluginExtensionsEnabled] = await Promise.all([
+  const [imageFittingEnabled, pluginExtensionsEnabled, postAnalyticsEnabled] = await Promise.all([
     hasFeature(authContext.userId, Feature.IMAGE_FITTING),
     hasFeature(authContext.userId, Feature.PLUGIN_EXTENSIONS),
+    hasFeature(authContext.userId, Feature.POST_ANALYTICS),
   ]);
-  authContext = { ...authContext, imageFittingEnabled, pluginExtensionsEnabled };
+  authContext = { ...authContext, imageFittingEnabled, pluginExtensionsEnabled, postAnalyticsEnabled };
   const copy = createServerCopy(locale);
   const server = new McpServer(
     {
@@ -146,6 +148,7 @@ async function createMcpServer(authContext: McpToolAuthContext, locale: Locale):
     {
       instructions:
         copy(SERVER_INSTRUCTIONS) +
+        (postAnalyticsEnabled ? "\n\n" + copy(POST_ANALYTICS_INSTRUCTIONS) : "") +
         (pluginExtensionsEnabled ? "\n\n" + copy(EXTENSION_INSTRUCTIONS) : "") +
         (authContext.imageFittingEnabled ? "\n\n" + copy(IMAGE_FITTING_INSTRUCTIONS) : ""),
     },

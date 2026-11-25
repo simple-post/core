@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type AxiosInstance } from "axios";
 
+import { fetchInstagramAccountAnalytics, fetchInstagramPostAnalytics } from "./analytics";
 import { INSTAGRAM_MAX_MEDIA_COUNT, INSTAGRAM_VALIDATION_RULES } from "./validation";
 
 import { PostError, PostErrorType } from "../../types";
@@ -9,6 +10,7 @@ import { isTransientError, withTransientRetry } from "../../utils/transient-retr
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -595,5 +597,20 @@ export class InstagramPublisher extends Publisher {
     } finally {
       await this.cleanupS3Files();
     }
+  }
+
+  /** Instagram Login tokens travel in the Authorization header; Facebook Login tokens as a query parameter. */
+  private analyticsAuthParams(): Record<string, string> {
+    return this.graphApi === "facebook"
+      ? { access_token: this.refreshedCredentials?.accessToken ?? this.accessToken }
+      : {};
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchInstagramPostAnalytics(this.client, this.analyticsAuthParams(), targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchInstagramAccountAnalytics(this.client, this.analyticsAuthParams(), this.businessAccountId);
   }
 }

@@ -8,6 +8,7 @@ import { PlanSelection } from "@/components/billing/plan-selection";
 import { TrialExpiredDialog } from "@/components/billing/trial-expired-dialog";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
+import { useWorkspaceIndex } from "@/components/workspaces/switcher";
 import { useBillingStatus } from "@/hooks/use-billing";
 import { trackOnce } from "@/lib/analytics/plausible";
 import { useSession } from "@/lib/auth/auth-client";
@@ -21,11 +22,18 @@ export function useSelfHosted(): boolean {
   return useContext(SelfHostedContext);
 }
 
-const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans"]);
+const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans", "/workspaces"]);
 
 export function SubscriptionGate({ children }: { children: ReactNode }) {
   const { copy } = useUiCopy();
   const pathname = usePathname();
+  const { current, requested, pending } = useWorkspaceIndex();
+  const teamRoute =
+    current &&
+    (pathname === "/" ||
+      pathname === "/schedule" ||
+      pathname === "/accounts" ||
+      /^\/posts\/[^/]+(?:\/edit)?$/.test(pathname));
   // Shared with the trial banner and compose-form allowance, so
   // the whole app reads one cached copy of the billing status per page load.
   const { data: billing, error, isPending } = useBillingStatus();
@@ -42,11 +50,11 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
 
   const selfHosted = billing?.selfHosted === true;
 
-  if (UNGATED_PATHS.has(pathname)) {
+  if (teamRoute || UNGATED_PATHS.has(pathname)) {
     return <SelfHostedContext.Provider value={selfHosted}>{children}</SelfHostedContext.Provider>;
   }
 
-  if (isPending) {
+  if (isPending || (requested && pending)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-muted-foreground">{copy("Loading...")}</div>

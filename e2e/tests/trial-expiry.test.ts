@@ -61,7 +61,8 @@ test.beforeAll(async () => {
         name: "offline-chrome",
         setup(builder) {
           const mocks: Record<string, string> = {
-            "next/navigation": "export const usePathname = () => location.pathname;",
+            "next/navigation":
+              "export const usePathname = () => location.pathname; export const useSearchParams = () => new URLSearchParams(location.search); export const useRouter = () => ({push: url => location.assign(url)});",
             "next/link":
               "import React from 'react'; export default function Link(props) { return React.createElement('a', props); }",
             "@/components/user-menu": "export const UserMenu = () => null;",

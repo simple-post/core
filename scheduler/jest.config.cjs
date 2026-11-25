@@ -17,6 +17,7 @@ module.exports = {
     "^@simple-post/sdk/media-types$": "<rootDir>/../sdk/src/media-types.ts",
     "^@simple-post/sdk/image-fit$": "<rootDir>/../sdk/src/image-fit.ts",
     "^@simple-post/sdk/platform-names$": "<rootDir>/../sdk/src/platform-names.ts",
+    "^@simple-post/sdk/analytics$": "<rootDir>/../sdk/src/analytics.ts",
   },
   transform: {
     "^.+\\.tsx?$": [

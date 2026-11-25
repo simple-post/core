@@ -6,6 +6,7 @@ import { fitPostImages } from "./utils/image-fitting";
 import { MediaResolver } from "./utils/media-resolver";
 import { validatePostMedia, type MediaInspectionCache } from "./utils/post-media-validation";
 
+import type { AccountAnalyticsResponse, AnalyticsTarget, PostAnalyticsResponse } from "./analytics";
 import type { PostResult, QuoteResult, RepostResult } from "./types";
 import type { PostOptions, Content, Platform, Post, Quote, Repost } from "./types/post";
 import type { ValidationIssue } from "./types/validation";
@@ -190,6 +191,75 @@ export async function quote(quoteRequest: Quote): Promise<Map<Platform, QuoteRes
   return results;
 }
 
+export interface PostAnalyticsRequest {
+  platform: Platform;
+  /** Posts to read, identified by the ids returned when they were published. */
+  targets: AnalyticsTarget[];
+  /** Credentials for the account that published the posts (merged over environment credentials). */
+  options?: PostOptions;
+}
+
+export interface AccountAnalyticsRequest {
+  platform: Platform;
+  options?: PostOptions;
+}
+
+function analyticsCredentialFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Could not create the platform client.";
+}
+
+/**
+ * Reads unified analytics (views, likes, comments, shares, …) for published
+ * posts. Never throws: every target gets a result whose `status` says whether
+ * metrics were read. Platforms that refresh tokens themselves return
+ * `refreshedCredentials`, which callers should persist.
+ *
+ * @example
+ * ```typescript
+ * const { results } = await getPostAnalytics({
+ *   platform: "x",
+ *   targets: [{ postId: "1790000000000000000" }],
+ *   options: { x: { credentials: { accessToken } } },
+ * });
+ * console.log(results[0].metrics.views, results[0].metrics.likes);
+ * ```
+ */
+export async function getPostAnalytics(request: PostAnalyticsRequest): Promise<PostAnalyticsResponse> {
+  const options = mergeOptions(getCredentialsFromEnv(), request.options);
+  try {
+    return await getPublisher(request.platform, options).getPostAnalytics(request.targets, options);
+  } catch (error) {
+    const fetchedAt = new Date().toISOString();
+    return {
+      platform: request.platform,
+      results: request.targets.map((target) => ({
+        platform: request.platform,
+        postId: target.postId,
+        status: "credentials_error" as const,
+        metrics: {},
+        message: analyticsCredentialFailureMessage(error),
+        fetchedAt,
+      })),
+    };
+  }
+}
+
+/** Reads account-level analytics such as follower counts. Never throws. */
+export async function getAccountAnalytics(request: AccountAnalyticsRequest): Promise<AccountAnalyticsResponse> {
+  const options = mergeOptions(getCredentialsFromEnv(), request.options);
+  try {
+    return await getPublisher(request.platform, options).getAccountAnalytics(options);
+  } catch (error) {
+    return {
+      platform: request.platform,
+      status: "credentials_error",
+      metrics: {},
+      message: analyticsCredentialFailureMessage(error),
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+}
+
 // Export publisher classes - use static methods for validation
 export { XPublisher } from "./publishers/x";
 export { BlueskyPublisher } from "./publishers/bluesky";
@@ -237,6 +307,11 @@ export type {
 } from "./types/post";
 
 export type { PostResult, QuoteResult, RepostResult } from "./types";
+
+// Unified analytics model (also available as the browser-safe subpath export
+// @simple-post/sdk/analytics).
+export * from "./analytics";
+export { AnalyticsError } from "./utils/analytics";
 export { PostError, PostErrorType } from "./types";
 export type { PlatformValidationRules, ValidationIssue, ValidationResult } from "./types/validation";
 

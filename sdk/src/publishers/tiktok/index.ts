@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 
 import axios from "axios";
 
+import { fetchTikTokAccountAnalytics, fetchTikTokPostAnalytics } from "./analytics";
 import { uploadInitError } from "./errors";
 import { TIKTOK_MAX_PHOTO_SIZE, TIKTOK_MAX_VIDEO_SIZE, TIKTOK_VALIDATION_RULES, getTikTokPostText } from "./validation";
 
@@ -15,6 +16,7 @@ import { inspectRemoteMedia } from "../../utils/media-inspection";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Media, PostOptionsWithCredentials, TikTokPrivacyLevel } from "../../types/post";
 import type { ValidationIssue, PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -730,5 +732,13 @@ export class TikTokPublisher extends Publisher {
     } finally {
       await tempFileManager.cleanup();
     }
+  }
+
+  protected async fetchPostAnalytics(targets: AnalyticsTarget[]): Promise<PostAnalytics[]> {
+    return fetchTikTokPostAnalytics(this.client, targets);
+  }
+
+  protected async fetchAccountAnalytics(): Promise<AccountAnalytics> {
+    return fetchTikTokAccountAnalytics(this.client);
   }
 }

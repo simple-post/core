@@ -1,6 +1,6 @@
 ---
 name: simplepost
-description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing and calendar tasks; not generic copywriting, engagement analytics, private messages, or local credential setup.
+description: Publish, schedule, draft, preview, inspect, or manage social posts with SimplePost through its hosted OAuth MCP connector. Use for connected-account publishing, calendar and post analytics tasks; not generic copywriting, private messages, or local credential setup.
 license: MIT
 metadata:
   hermes:
@@ -34,7 +34,7 @@ Publishing sends the selected content and media to SimplePost and the destinatio
 
 - For connecting or adding a social destination, use `list_accounts` or the workspace to get its platform-specific `connectionLinks` URL. Copy it unchanged; ask which platform only if unclear. The user authorizes in the browser, then returns to chat. Refresh accounts and verify the requested destination before continuing. Never collect provider passwords, keys, or tokens in chat. Disconnection and reauthorization of existing accounts remain in the SimplePost web app. Do not inspect posts merely to confirm an unsupported account action.
 - SimplePost can edit or discard drafts and future scheduled posts. It cannot edit, delete, or undo a post already published to a social platform; direct the user to that platform.
-- SimplePost records posting state, but it does not currently expose social-network engagement analytics through its MCP tools. Do not claim reach, click, impression, or engagement analysis from post records.
+- SimplePost reads post and account analytics from the platforms (MCP `get_analytics_summary`, `list_post_analytics`, `get_post_analytics`, `get_account_analytics`; CLI `simplepost analytics`; HTTP `/api/v1/analytics/*`). Platforms report different metrics: a missing metric is unreported, not zero. Bluesky has no views and Telegram has no post analytics. Never estimate numbers the tools did not return.
 - Keep credentials out of prompts, source files, logs, and visible responses. Use only the client's normal OAuth UI and SimplePost's server-side account storage.
 - Never search the user's files, environment, browser storage, or credential stores for secrets. This plugin needs no user-supplied API keys or local secrets.
 - For TikTok, surface the chosen audience before publishing or scheduling. If the user has not specified an audience and public visibility is not already clear from the request, explain the public default and ask them to choose. Do not silently expand an existing audience.

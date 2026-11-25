@@ -1,4 +1,3 @@
-import { describeDisplayMessage, getDisplayMessage } from "./validation/display-message";
 import { BLUESKY_VALIDATION_RULES, validateBlueskyContent } from "./publishers/bluesky/validation";
 import { FACEBOOK_VALIDATION_RULES, validateFacebookContent } from "./publishers/facebook/validation";
 import { FOREM_VALIDATION_RULES, validateForemContent } from "./publishers/forem/validation";
@@ -10,6 +9,7 @@ import { THREADS_VALIDATION_RULES, validateThreadsContent } from "./publishers/t
 import { TIKTOK_VALIDATION_RULES, validateTikTokContent } from "./publishers/tiktok/validation";
 import { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation";
 import { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
+import { describeDisplayMessage, getDisplayMessage } from "./validation/display-message";
 import { validateFinalOptions } from "./validation/final-options";
 
 import type { Content, Platform, PostOptions } from "./types/post";

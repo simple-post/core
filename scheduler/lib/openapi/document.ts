@@ -30,6 +30,10 @@ export function createSchedulerOpenApiDocument() {
         { name: "Accounts", description: "Connected social account management." },
         { name: "API Keys", description: "User-managed API keys for direct Scheduler API access." },
         { name: "Posts", description: "Post listing, creation, publishing, scheduling, and mutation." },
+        {
+          name: "Analytics",
+          description: "Post and account analytics (views, likes, comments, shares, followers) and summaries.",
+        },
         { name: "Upload", description: "Media upload and presigned upload URL endpoints." },
         { name: "Validation", description: "Platform validation for draft posts." },
         { name: "Internal", description: "Trusted infrastructure endpoints." },

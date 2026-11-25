@@ -242,3 +242,79 @@ export const ValidationResponseSchema = z
     missingAccountIds: z.array(z.string()),
   })
   .meta({ id: "ServerValidationResponse" });
+
+const metricNumber = z.number().optional();
+const PostMetricsSchema = z
+  .object({
+    views: metricNumber,
+    reach: metricNumber,
+    likes: metricNumber,
+    comments: metricNumber,
+    shares: metricNumber,
+    quotes: metricNumber,
+    saves: metricNumber,
+    clicks: metricNumber,
+    profileVisits: metricNumber,
+    follows: metricNumber,
+    watchTimeSeconds: metricNumber,
+    averageWatchTimeSeconds: metricNumber,
+  })
+  .describe("Comparable metrics. A missing metric is not reported by the platform; 0 means none yet.")
+  .meta({ id: "ServerPostMetrics" });
+
+const AnalyticsStatusSchema = z
+  .enum(["ok", "not_found", "unsupported", "missing_permission", "rate_limited", "credentials_error", "error"])
+  .describe("Whether metrics could be read for this target.");
+
+export const AnalyticsPostsRequestSchema = z
+  .object({
+    targets: z
+      .array(
+        z.object({
+          accountId: z.string().describe("Configured account that published the post."),
+          postId: z.string().min(1).describe("Platform post ID returned when publishing (Bluesky: the at:// URI)."),
+          uri: z.string().optional().describe("Bluesky record URI when postId is not one."),
+          mediaType: z.enum(["text", "image", "video", "carousel"]).optional(),
+        })
+      )
+      .min(1)
+      .max(100),
+  })
+  .meta({ id: "ServerAnalyticsPostsRequest" });
+
+export const AnalyticsPostResultSchema = z
+  .object({
+    accountId: z.string(),
+    platform: PlatformSchema,
+    postId: z.string(),
+    status: AnalyticsStatusSchema,
+    metrics: PostMetricsSchema,
+    engagements: z.number().nullable().describe("likes + comments + shares + quotes + saves"),
+    platformMetrics: z.record(z.string(), z.number()).optional(),
+    url: z.string().optional(),
+    publishedAt: z.string().optional(),
+    resolvedPostId: z.string().optional(),
+    message: z.string().optional(),
+    fetchedAt: z.string(),
+  })
+  .meta({ id: "ServerAnalyticsPostResult" });
+
+export const AnalyticsPostsResponseSchema = z
+  .object({ results: z.array(AnalyticsPostResultSchema) })
+  .meta({ id: "ServerAnalyticsPostsResponse" });
+
+export const AnalyticsAccountsResponseSchema = z
+  .object({
+    accounts: z.array(
+      z.object({
+        accountId: z.string(),
+        platform: PlatformSchema,
+        status: AnalyticsStatusSchema,
+        metrics: z.record(z.string(), z.number()),
+        platformMetrics: z.record(z.string(), z.number()).optional(),
+        message: z.string().optional(),
+        fetchedAt: z.string(),
+      })
+    ),
+  })
+  .meta({ id: "ServerAnalyticsAccountsResponse" });

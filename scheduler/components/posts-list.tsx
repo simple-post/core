@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Trash2, Edit, CalendarClock, ChevronLeft, ChevronRight, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
 
+import { PostMetricsInline } from "@/components/analytics/post-metrics-inline";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
 import { TikTokRecoveryNotice } from "@/components/tiktok-recovery-notice";
 import {
@@ -341,6 +342,7 @@ function PostCard({
           }}
           post={post}
           platforms={uniquePlatforms}
+          metrics={<PostMetricsInline analytics={post.analytics} />}
           dateLabel={
             isScheduled && post.scheduledFor
               ? formatDate(post.scheduledFor, locale)

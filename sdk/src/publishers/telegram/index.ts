@@ -4,6 +4,7 @@ import path from "node:path";
 import axios from "axios";
 import FormData from "form-data";
 
+import { fetchTelegramAccountAnalytics } from "./analytics";
 import {
   TELEGRAM_VALIDATION_RULES,
   TELEGRAM_MAX_UPLOAD_PHOTO_SIZE_BYTES,
@@ -16,6 +17,7 @@ import { withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
 
+import type { AccountAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
 import type { PostOptions, Content, Media, PostOptionsWithCredentials } from "../../types/post";
 import type { PlatformValidationRules, ValidationResult } from "../../types/validation";
@@ -369,5 +371,11 @@ export class TelegramPublisher extends Publisher {
     // Otherwise send as text message
     const messageId = await this.sendMessage(chatId, content.text!, parseMode, replyTo);
     return { id: messageId, error: PostErrorType.NO_ERROR };
+  }
+
+  protected async fetchAccountAnalytics(options?: PostOptionsWithCredentials): Promise<AccountAnalytics> {
+    const chatId = options?.telegram?.chatId;
+    if (!chatId) throw new PostError(PostErrorType.CREDENTIALS_ERROR, "Telegram chatId is required for analytics.");
+    return fetchTelegramAccountAnalytics(this.client, chatId, (text) => this.redact(text));
   }
 }

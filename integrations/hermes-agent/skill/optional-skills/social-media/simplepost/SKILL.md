@@ -14,7 +14,7 @@ metadata:
 
 # SimplePost Skill
 
-Use SimplePost to preview, draft, schedule, publish, inspect, edit, or discard posts through social accounts the user connected at `app.simplepost.social`. This skill preserves supplied copy, resolves real account IDs, and makes every write auditable; it does not connect accounts, invent social content, or provide engagement analytics.
+Use SimplePost to preview, draft, schedule, publish, inspect, edit, or discard posts through social accounts the user connected at `app.simplepost.social`. This skill preserves supplied copy, resolves real account IDs, and makes every write auditable; it can also report how posts perform (views, likes, replies, reposts, followers), but it does not connect accounts or invent social content.
 
 ## When to Use
 
@@ -22,6 +22,7 @@ Use SimplePost to preview, draft, schedule, publish, inspect, edit, or discard p
 - The user wants to preview, validate, save, inspect, edit, or discard a SimplePost draft or scheduled post.
 - The user wants the same root post sent to multiple connected accounts, with optional account-specific overrides.
 - The user asks about a prior SimplePost delivery result or queued post.
+- The user asks how their posts perform over a period, which posts or platforms do best, or how their follower counts changed.
 - Do not use this skill for generic copywriting without a SimplePost action.
 - Do not use it to connect, disconnect, or reauthorize a social account; those actions happen in the SimplePost web app.
 

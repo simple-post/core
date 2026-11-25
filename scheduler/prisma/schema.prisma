@@ -13,6 +13,7 @@ datasource db {
 enum Feature {
   IMAGE_FITTING
   PLUGIN_EXTENSIONS
+  POST_ANALYTICS
 }
 
 model UserFeature {
@@ -61,6 +62,8 @@ model User {
   postingSlots                 PostingSlot[]
   publishingPreferences        UserPublishingPreferences?
   editorSessions               PostEditorSession[]
+  postAnalytics                PostAnalytics[]
+  accountAnalyticsSnapshots    AccountAnalyticsSnapshot[]
   activationMilestone          ActivationMilestone?
   openAiAdsMeasurement         OpenAiAdsMeasurement?
 
@@ -285,6 +288,8 @@ model ConnectedAccount {
   // Relations
   posts                   Post[]
   disconnectNotifications AccountDisconnectNotification[]
+  postAnalytics           PostAnalytics[]
+  analyticsSnapshots      AccountAnalyticsSnapshot[]
 
   @@unique([userId, platform, platformAccountId])
   @@index([userId])
@@ -412,8 +417,9 @@ model Post {
   idempotencyKey String?
 
   // Relations
-  accounts ConnectedAccount[]
-  media    MediaFile[]
+  accounts  ConnectedAccount[]
+  media     MediaFile[]
+  analytics PostAnalytics[]
 
   @@unique([userId, idempotencyKey])
   @@index([userId, status])
@@ -764,4 +770,111 @@ model FunnelEvent {
   @@index([kind, occurredAt])
   @@index([occurredAt])
   @@map("funnel_event")
+}
+
+// Cached analytics for one published post on one connected account. Metric
+// columns hold the comparable values from @simple-post/sdk/analytics; NULL
+// means the platform does not report that metric (not zero). Rows are created
+// lazily when analytics are first requested and refreshed on a schedule that
+// slows down as the post ages (see lib/post-analytics/freshness.ts).
+model PostAnalytics {
+  id                      String                  @id @default(cuid())
+  userId                  String
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId                  String
+  post                    Post                    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  accountId               String
+  account                 ConnectedAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  platform                String
+  // Post id from the publish result; platformPostId can later be resolved to another id.
+  sourcePostId            String
+  platformPostId          String
+  publishedAt             DateTime
+  // "pending" until the first read, then an AnalyticsStatus from the SDK.
+  status                  String                  @default("pending")
+  message                 String?
+  views                   Int?
+  reach                   Int?
+  likes                   Int?
+  comments                Int?
+  shares                  Int?
+  quotes                  Int?
+  saves                   Int?
+  clicks                  Int?
+  profileVisits           Int?
+  follows                 Int?
+  watchTimeSeconds        Float?
+  averageWatchTimeSeconds Float?
+  // Derived: likes + comments + shares + quotes + saves (NULL when none reported).
+  engagements             Int?
+  platformMetrics         Json?
+  fetchedAt               DateTime?
+  nextRefreshAt           DateTime                @default(now())
+  failureCount            Int                     @default(0)
+  leaseToken              String?
+  leaseUntil              DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+  snapshots               PostAnalyticsSnapshot[]
+
+  @@unique([postId, accountId])
+  @@index([userId, publishedAt])
+  @@index([userId, platform, publishedAt])
+  @@index([nextRefreshAt])
+  @@index([accountId])
+  @@map("post_analytics")
+}
+
+// Point-in-time copies of PostAnalytics metrics (at most hourly while a post is
+// young, daily afterwards). Differences between snapshots give the activity
+// within a period ("engagement gained in the last 24 hours").
+model PostAnalyticsSnapshot {
+  id                      String        @id @default(cuid())
+  analyticsId             String
+  analytics               PostAnalytics @relation(fields: [analyticsId], references: [id], onDelete: Cascade)
+  userId                  String
+  capturedAt              DateTime      @default(now())
+  views                   Int?
+  reach                   Int?
+  likes                   Int?
+  comments                Int?
+  shares                  Int?
+  quotes                  Int?
+  saves                   Int?
+  clicks                  Int?
+  profileVisits           Int?
+  follows                 Int?
+  watchTimeSeconds        Float?
+  averageWatchTimeSeconds Float?
+  engagements             Int?
+
+  @@index([analyticsId, capturedAt])
+  @@index([userId, capturedAt])
+  @@map("post_analytics_snapshot")
+}
+
+// One row per connected account per UTC day with account-level analytics
+// (followers, following, total posts, …). Updated in place during the day so
+// follower growth can be charted over time.
+model AccountAnalyticsSnapshot {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId       String
+  account         ConnectedAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  platform        String
+  day             DateTime         @db.Date
+  status          String
+  message         String?
+  followers       Int?
+  following       Int?
+  posts           Int?
+  totalViews      Int?
+  totalLikes      Int?
+  platformMetrics Json?
+  capturedAt      DateTime         @default(now())
+
+  @@unique([accountId, day])
+  @@index([userId, day])
+  @@map("account_analytics_snapshot")
 }

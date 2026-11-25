@@ -18,6 +18,8 @@ If you want scheduling, OAuth-based account connection, multi-user accounts, or 
 
 All `/api/v1/*` endpoints require an API key in the `x-api-key` header. `/health` and `/media/*` are public.
 
+Analytics: `POST /api/v1/analytics/posts` with `{ "targets": [{ "accountId": "x-main", "postId": "<platform post id>" }] }` reads views, likes, comments, shares and more per post, and `GET /api/v1/analytics/accounts` returns follower counts. Nothing is cached server-side. See [post analytics](../post-analytics/README.md).
+
 | Method | Path                     | Purpose                                                                 |
 | ------ | ------------------------ | ----------------------------------------------------------------------- |
 | GET    | `/health`                | Liveness check                                                          |

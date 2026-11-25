@@ -8,6 +8,9 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Added
 
+- Post analytics across platforms: views, reach, likes, comments, shares, quotes, saves, clicks, profile visits, follows and watch time mapped onto one model (`getPostAnalytics`, `getAccountAnalytics`, `@simple-post/sdk/analytics`). Unreported metrics stay absent, never zero. See `docs/post-analytics/`.
+- Scheduler Analytics dashboard (periods, previous-period comparison, platform drill-down, top posts, best time to post, follower growth, sortable post table) and a Performance panel on every published post, backed by cached analytics with age-based refresh and snapshots.
+- Analytics HTTP endpoints (`/api/v1/posts/{id}/analytics`, `/api/v1/analytics/{summary,posts,accounts,refresh}`), MCP tools (`get_analytics_summary`, `list_post_analytics`, `get_post_analytics`, `get_account_analytics`), CLI `simplepost analytics` commands and self-hosted server analytics endpoints.
 - Bluesky clickable links, hashtags and resolvable mentions, with UTF-8 facet ranges on posts and thread replies. Unresolved mentions remain plain text.
 - Bluesky external link cards for text posts without explicit media or quotes. Metadata and optional thumbnails use bounded public-only requests; failures fall back to the original clickable link.
 
@@ -17,6 +20,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Release notes
 
+- Post analytics add a database migration (`20261121120000_post_analytics`). Analytics OAuth scopes are opt-in per platform (`OAUTH_ANALYTICS_SCOPES` / `SIMPLEPOST_ANALYTICS_SCOPES`) until the platforms approve them; existing users must reconnect to grant them. See `docs/post-analytics/platform-permissions.md`.
 - These additions are pending an SDK minor release and deployment of hosted consumers. Marketing and public documentation must retain the current rich-text limitation until the hosted publishing path is verified. No package release or deployment is triggered by this change.
 
 ## [1.4.0] - 2026-09-24

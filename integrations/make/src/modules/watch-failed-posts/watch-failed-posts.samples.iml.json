@@ -1,0 +1,18 @@
+{
+	"event": "post.failed",
+	"createdAt": "2026-10-05T09:00:04.000Z",
+	"post": {
+		"id": "cmabc123post",
+		"status": "failed",
+		"message": "We just shipped scheduled reposts. Try them today!",
+		"errorMessage": "Reconnect Instagram before publishing.",
+		"accountResults": {
+			"cmabc123account": {
+				"platform": "instagram",
+				"success": false,
+				"error": "reauth_required",
+				"message": "Reconnect Instagram before publishing."
+			}
+		}
+	}
+}

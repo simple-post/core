@@ -8,6 +8,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 
 ### Added
 
+- Make custom app in `integrations/make`, in the Make Apps Editor local-development format. It adds instant triggers for published and failed posts, post search, get, create, validate and delete modules, media upload, an account list and selector, and a universal **Make an API call** module. See the [publishing guide](integrations/make/PUBLISHING.md).
 - Post analytics across platforms: views, reach, likes, comments, shares, quotes, saves, clicks, profile visits, follows and watch time mapped onto one model (`getPostAnalytics`, `getAccountAnalytics`, `@simple-post/sdk/analytics`). Unreported metrics stay absent, never zero. See `docs/post-analytics/`.
 - Scheduler Analytics dashboard (periods, previous-period comparison, platform drill-down, top posts, best time to post, follower growth, sortable post table) and a Performance panel on every published post, backed by cached analytics with age-based refresh and snapshots.
 - Analytics HTTP endpoints (`/api/v1/posts/{id}/analytics`, `/api/v1/analytics/{summary,posts,accounts,refresh}`), MCP tools (`get_analytics_summary`, `list_post_analytics`, `get_post_analytics`, `get_account_analytics`), CLI `simplepost analytics` commands and self-hosted server analytics endpoints.

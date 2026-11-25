@@ -1,0 +1,22 @@
+{
+	"url": "/api/v1/upload",
+	"method": "POST",
+	"type": "multipart/form-data",
+	"body": {
+		"file": {
+			"value": "{{parameters.data}}",
+			"options": {
+				"filename": "{{parameters.fileName}}",
+				"contentType": "{{mime(parameters.fileName)}}"
+			}
+		}
+	},
+	"response": {
+		"output": {
+			"{{...}}": "{{body}}",
+			"id": "{{body.key}}",
+			"type": "{{if(contains(body.type, 'video/'), 'video', 'image')}}",
+			"contentType": "{{body.type}}"
+		}
+	}
+}

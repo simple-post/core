@@ -1,0 +1,11 @@
+{
+	"condition": "{{body.event = 'post.published'}}",
+	"output": {
+		"{{...}}": "{{omit(body, 'createdAt', 'post')}}",
+		"createdAt": "{{if(body.createdAt, parseDate(body.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.createdAt)}}",
+		"post": {
+			"{{...}}": "{{omit(body.post, 'publishedAt')}}",
+			"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.publishedAt)}}"
+		}
+	}
+}

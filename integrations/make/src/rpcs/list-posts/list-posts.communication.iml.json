@@ -1,0 +1,61 @@
+[
+	{
+		"url": "/api/v1/posts",
+		"method": "GET",
+		"qs": {
+			"type": "drafts",
+			"page": 1,
+			"limit": 25
+		},
+		"response": {
+			"temp": {
+				"drafts": "{{body.posts}}"
+			}
+		}
+	},
+	{
+		"url": "/api/v1/posts",
+		"method": "GET",
+		"qs": {
+			"type": "scheduled",
+			"page": 1,
+			"limit": 25
+		},
+		"response": {
+			"temp": {
+				"scheduled": "{{body.posts}}"
+			}
+		}
+	},
+	{
+		"url": "/api/v1/posts",
+		"method": "GET",
+		"qs": {
+			"type": "failed",
+			"page": 1,
+			"limit": 25
+		},
+		"response": {
+			"temp": {
+				"failed": "{{body.posts}}"
+			}
+		}
+	},
+	{
+		"url": "/api/v1/posts",
+		"method": "GET",
+		"qs": {
+			"type": "past",
+			"page": 1,
+			"limit": 25
+		},
+		"response": {
+			"limit": 100,
+			"iterate": "{{merge(temp.drafts, temp.scheduled, temp.failed, body.posts)}}",
+			"output": {
+				"label": "[{{capitalize(item.status)}}] {{substring(ifempty(item.message, item.id), 0, 70)}} ({{item.id}})",
+				"value": "{{item.id}}"
+			}
+		}
+	}
+]

@@ -1,0 +1,27 @@
+{
+	"url": "/api/v1/posts",
+	"method": "GET",
+	"qs": {
+		"type": "{{parameters.status}}",
+		"page": 1,
+		"limit": 100
+	},
+	"response": {
+		"iterate": "{{body.posts}}",
+		"output": {
+			"{{...}}": "{{omit(item, 'scheduledFor', 'publishedAt', 'createdAt', 'repostDueAt', 'repostedAt')}}",
+			"scheduledFor": "{{if(item.scheduledFor, parseDate(item.scheduledFor, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.scheduledFor)}}",
+			"publishedAt": "{{if(item.publishedAt, parseDate(item.publishedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.publishedAt)}}",
+			"createdAt": "{{if(item.createdAt, parseDate(item.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.createdAt)}}",
+			"repostDueAt": "{{if(item.repostDueAt, parseDate(item.repostDueAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.repostDueAt)}}",
+			"repostedAt": "{{if(item.repostedAt, parseDate(item.repostedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.repostedAt)}}"
+		},
+		"limit": "{{parameters.limit}}"
+	},
+	"pagination": {
+		"qs": {
+			"page": "{{pagination.page}}"
+		},
+		"condition": "{{body.pagination.hasNextPage}}"
+	}
+}

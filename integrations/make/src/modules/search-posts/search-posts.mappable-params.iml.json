@@ -1,0 +1,35 @@
+[
+	{
+		"name": "status",
+		"type": "select",
+		"label": "Status",
+		"required": true,
+		"default": "scheduled",
+		"options": [
+			{
+				"label": "Scheduled",
+				"value": "scheduled"
+			},
+			{
+				"label": "Drafts",
+				"value": "drafts"
+			},
+			{
+				"label": "Published",
+				"value": "past"
+			},
+			{
+				"label": "Failed",
+				"value": "failed"
+			}
+		],
+		"help": "Which posts to return. Scheduled posts are ordered by their publish time."
+	},
+	{
+		"name": "limit",
+		"type": "uinteger",
+		"label": "Limit",
+		"default": 10,
+		"help": "Maximum number of results to return and work with during one execution cycle. For information about setting limits, see our [Help Center](https://help.make.com/types-of-modules#b3ZEQ)."
+	}
+]

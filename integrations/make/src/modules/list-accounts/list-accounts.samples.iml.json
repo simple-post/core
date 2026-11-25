@@ -1,0 +1,17 @@
+{
+	"id": "cmabc123account",
+	"platform": "linkedin",
+	"displayName": "SimplePost",
+	"username": "simplepost",
+	"profilePicture": "https://media.simplepost.social/avatars/cmabc123account.jpg",
+	"platformAccountId": "urn:li:person:abc123",
+	"previewOnly": false,
+	"credentialStatus": {
+		"state": "healthy",
+		"label": "Connected",
+		"action": "none",
+		"canRefresh": true
+	},
+	"createdAt": "2026-09-01T08:00:00.000Z",
+	"updatedAt": "2026-10-01T08:00:00.000Z"
+}

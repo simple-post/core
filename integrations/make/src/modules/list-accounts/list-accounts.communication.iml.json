@@ -1,0 +1,17 @@
+{
+	"url": "/api/v1/accounts",
+	"method": "GET",
+	"response": {
+		"iterate": "{{body.accounts}}",
+		"output": {
+			"{{...}}": "{{omit(item, 'createdAt', 'updatedAt', 'credentialStatus')}}",
+			"createdAt": "{{if(item.createdAt, parseDate(item.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.createdAt)}}",
+			"updatedAt": "{{if(item.updatedAt, parseDate(item.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.updatedAt)}}",
+			"credentialStatus": {
+				"{{...}}": "{{omit(item.credentialStatus, 'expiresAt')}}",
+				"expiresAt": "{{if(item.credentialStatus.expiresAt, parseDate(item.credentialStatus.expiresAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.credentialStatus.expiresAt)}}"
+			}
+		},
+		"limit": "{{parameters.limit}}"
+	}
+}

@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 
 import { GET } from "@/app/api/connect/[platform]/route";
 import { hasFeature, requireSocialInbox } from "@/lib/features";
-import { withAnalyticsScopes } from "@/lib/post-analytics/permissions";
+import { createOAuthState } from "@/lib/oauth";
+import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/utils/errors";
 
@@ -11,21 +12,15 @@ jest.mock("@/lib/features", () => ({ hasFeature: jest.fn(), requireSocialInbox: 
 jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findFirst: jest.fn() } } }));
 jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn(), measurementFailure: () => "test_error" }));
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: () => true }));
-jest.mock("@/lib/oauth", () => ({
-  getPlatformOAuthConfig: (platform: string, analytics: boolean) => ({
-    authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-    clientId: "google-client",
-    scope: analytics
-      ? withAnalyticsScopes(
-          platform,
-          "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload",
-        )
-      : "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload",
-    responseType: "code",
-    requiresPkce: false,
-  }),
-  createOAuthState: () => "signed-state",
-}));
+jest.mock("@/lib/oauth", () => {
+  const config = jest.requireActual<typeof import("@/lib/oauth/config")>("@/lib/oauth/config");
+  return {
+    getPlatformOAuthConfig: (platform: string) => ({ ...config.getPlatformOAuthConfig(platform), clientId: "client" }),
+    createOAuthState: jest.fn(() => "signed-state"),
+    generatePkce: () => ({ codeVerifier: "verifier", codeChallenge: "challenge" }),
+    setPkceCookie: jest.fn(),
+  };
+});
 
 it("requests account selection and consent while retaining offline access and state", async () => {
   const response = await GET(new NextRequest("https://app.simplepost.social/api/connect/youtube"), {
@@ -41,11 +36,11 @@ it("requests account selection and consent while retaining offline access and st
   expect(url.searchParams.get("redirect_uri")).toMatch(/\/api\/connect\/callback\/youtube$/);
 });
 
-it.each([false, true])("includes the configured analytics scope only for a granted user (%s)", async (granted) => {
+it.each([false, true])("requests analytics without inbox scopes for an analytics grant (%s)", async (granted) => {
   const previous = process.env.OAUTH_ANALYTICS_SCOPES;
   try {
     process.env.OAUTH_ANALYTICS_SCOPES = "youtube";
-    jest.mocked(hasFeature).mockResolvedValue(granted);
+    jest.mocked(hasFeature).mockImplementation(async (_user, feature) => granted && feature === "POST_ANALYTICS");
     const response = await GET(new NextRequest("https://app.simplepost.social/api/connect/youtube"), {
       params: Promise.resolve({ platform: "youtube" }),
     });
@@ -57,6 +52,69 @@ it.each([false, true])("includes the configured analytics scope only for a grant
     if (previous === undefined) delete process.env.OAUTH_ANALYTICS_SCOPES;
     else process.env.OAUTH_ANALYTICS_SCOPES = previous;
   }
+});
+
+describe("default pilot OAuth scopes", () => {
+  const originalEnv = process.env;
+  const pilotScopes = [
+    [
+      "youtube",
+      ["https://www.googleapis.com/auth/yt-analytics.readonly", "https://www.googleapis.com/auth/youtube.force-ssl"],
+    ],
+    ["threads", ["threads_manage_insights", "threads_read_replies"]],
+    ["facebook", ["pages_read_engagement", "read_insights", "pages_read_user_content", "pages_manage_engagement"]],
+    ["instagram", ["instagram_business_manage_insights", "instagram_business_manage_comments"]],
+    ["tiktok", ["video.list", "user.info.stats"]],
+    ["x", ["like.write"]],
+    ["bluesky", []],
+    ["linkedin", []],
+  ] as const;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv };
+    delete process.env.OAUTH_ANALYTICS_SCOPES;
+    delete process.env.SOCIAL_INBOX_OAUTH_PLATFORMS;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it.each(pilotScopes)("adds the expected scopes on %s only with grants", async (platform, extra) => {
+    const base = getPlatformOAuthConfig(platform)!.scope;
+    const request = new NextRequest(`https://app.simplepost.social/api/connect/${platform}`);
+    const params = { params: Promise.resolve({ platform }) };
+    for (const granted of [false, true]) {
+      jest.mocked(hasFeature).mockResolvedValue(granted);
+      const response = await GET(request, params);
+      expect(response.status).toBe(307);
+      const scope = new URL(response.headers.get("location")!).searchParams.get("scope");
+      const separator = base.includes(",") ? "," : " ";
+      expect(scope).toBe(granted ? [...base.split(separator), ...extra].join(separator) : base);
+      if (granted && extra.length > 0) {
+        expect(createOAuthState).toHaveBeenLastCalledWith(
+          "user-1",
+          platform,
+          undefined,
+          undefined,
+          expect.objectContaining({ scope }),
+        );
+      }
+    }
+  });
+
+  it("honors explicit empty settings for both sets of scopes", async () => {
+    process.env.OAUTH_ANALYTICS_SCOPES = "";
+    process.env.SOCIAL_INBOX_OAUTH_PLATFORMS = "";
+    jest.mocked(hasFeature).mockResolvedValue(true);
+    const response = await GET(new NextRequest("https://app.simplepost.social/api/connect/youtube"), {
+      params: Promise.resolve({ platform: "youtube" }),
+    });
+    expect(new URL(response.headers.get("location")!).searchParams.get("scope")).toBe(
+      getPlatformOAuthConfig("youtube")?.scope,
+    );
+  });
 });
 
 describe("YouTube inbox consent alongside analytics", () => {
@@ -85,8 +143,8 @@ describe("YouTube inbox consent alongside analytics", () => {
     expect(response.status).toBe(307);
     const scopes = new URL(response.headers.get("location")!).searchParams.get("scope")!.split(" ");
     expect(scopes).toEqual([
-      "https://www.googleapis.com/auth/youtube.readonly",
       "https://www.googleapis.com/auth/youtube.upload",
+      "https://www.googleapis.com/auth/youtube.readonly",
       ...(analytics ? ["https://www.googleapis.com/auth/yt-analytics.readonly"] : []),
       "https://www.googleapis.com/auth/youtube.force-ssl",
     ]);

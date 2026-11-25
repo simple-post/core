@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
-import { requireSocialInbox } from "@/lib/features";
+import { hasFeature, requireSocialInbox } from "@/lib/features";
 import { authLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import {
@@ -20,7 +20,7 @@ import {
 import { getRefreshTokenExpiresAt } from "@/lib/oauth/credential-health";
 import { OAuthStateError } from "@/lib/oauth/state";
 import { prisma } from "@/lib/prisma";
-import { approvedInboxScopes, hasInboxScopes } from "@/lib/social/permissions";
+import { enabledInboxScopes, hasInboxScopes } from "@/lib/social/permissions";
 
 import type { Prisma } from "@prisma/client";
 
@@ -131,10 +131,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(errorRedirect("unknown_error"));
     }
 
+    const { pilotScopes } = stateData;
+    if (pilotScopes?.analytics && !(await hasFeature(userId, "POST_ANALYTICS"))) {
+      return NextResponse.redirect(errorRedirect("invalid_state"));
+    }
+    if (stateData.inboxAccountId || pilotScopes?.inbox) await requireSocialInbox(userId);
+
     let inboxIdentity: string | undefined;
-    const inboxScopes = stateData.inboxAccountId ? approvedInboxScopes(platform) : [];
+    const inboxScopes = stateData.inboxAccountId ? enabledInboxScopes(platform) : [];
     if (stateData.inboxAccountId) {
-      await requireSocialInbox(userId);
       const account = await prisma.connectedAccount.findFirst({
         where: { id: stateData.inboxAccountId, userId, platform },
         select: { platformAccountId: true },
@@ -181,7 +186,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       await failure("token_exchange_failed");
       return NextResponse.redirect(errorRedirect("token_exchange_failed"));
     }
-    if (inboxIdentity) {
+    if (inboxIdentity || pilotScopes) {
       if (platform === "facebook") {
         const response = await fetch("https://graph.facebook.com/v25.0/me/permissions", {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -208,9 +213,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         tokenData.scope = data?.is_valid === true && Array.isArray(data.scopes) ? data.scopes.join(" ") : undefined;
       } else if (platform !== "instagram") {
         // OAuth permits omitting scope when it matches the authorization request.
-        tokenData.scope ??= [...config.scope.split(/[\s,]+/u), ...inboxScopes].join(" ");
+        tokenData.scope ??= pilotScopes?.scope ?? [...config.scope.split(/[\s,]+/u), ...inboxScopes].join(" ");
       }
-      if (!hasInboxScopes(tokenData.scope, [...config.scope.split(/[\s,]+/u), ...inboxScopes])) {
+      if (inboxIdentity && !hasInboxScopes(tokenData.scope, [...config.scope.split(/[\s,]+/u), ...inboxScopes])) {
         return NextResponse.redirect(`${baseURL}/inbox?connection=permissions`);
       }
     }

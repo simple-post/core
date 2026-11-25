@@ -2,10 +2,7 @@ import { supportsAccountAnalytics, supportsPostAnalytics, type AnalyticsStatus }
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 /**
- * Extra OAuth scopes each platform needs before it returns analytics. They are
- * only requested for platforms listed in OAUTH_ANALYTICS_SCOPES, because
- * asking for a permission that the platform has not approved for the app makes
- * the whole login fail (see docs/post-analytics/platform-permissions.md).
+ * Extra OAuth scopes requested for users granted post analytics.
  */
 export const ANALYTICS_OAUTH_SCOPES: Partial<Record<string, string[]>> = {
   facebook: ["pages_read_engagement", "read_insights"],
@@ -33,10 +30,11 @@ const REQUIRED_POST_SCOPES: Partial<Record<string, string[]>> = {
 const RECOMMENDED_POST_SCOPES: Partial<Record<string, string[]>> = {
   facebook: ["read_insights"],
   instagram: ["instagram_business_manage_insights", "instagram_manage_insights"],
+  youtube: ["https://www.googleapis.com/auth/yt-analytics.readonly"],
 };
 
 function enabledPlatforms(): Set<string> {
-  const raw = (process.env.OAUTH_ANALYTICS_SCOPES ?? "").trim().toLowerCase();
+  const raw = (process.env.OAUTH_ANALYTICS_SCOPES ?? "facebook,instagram,threads,tiktok,youtube").trim().toLowerCase();
   if (!raw) return new Set();
   if (raw === "all" || raw === "true") return new Set(Object.keys(ANALYTICS_OAUTH_SCOPES));
   return new Set(raw.split(/[\s,]+/).filter(Boolean));

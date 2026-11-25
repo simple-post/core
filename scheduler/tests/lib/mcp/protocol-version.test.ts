@@ -106,12 +106,26 @@ function expectToolSurface(body: { result: { tools: Array<{ name: string }> } })
   expect(body.result.tools.map((tool) => tool.name)).toEqual(TOOL_NAMES);
 }
 
-it("omits all analytics tools without the account grant", async () => {
-  jest.mocked(hasFeature).mockResolvedValue(false);
+it.each([
+  { analytics: false, inbox: false },
+  { analytics: true, inbox: false },
+  { analytics: false, inbox: true },
+  { analytics: true, inbox: true },
+])("discovers private tools independently (analytics=$analytics, inbox=$inbox)", async ({ analytics, inbox }) => {
+  jest
+    .mocked(hasFeature)
+    .mockImplementation(
+      async (_user, feature) =>
+        (analytics && feature === Feature.POST_ANALYTICS) || (inbox && feature === Feature.SOCIAL_INBOX),
+    );
   const response = await POST(modernRequest("tools/list"));
   const body = await response.json();
-  expect(body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(
-    TOOL_NAMES.filter((name) => !name.includes("analytics")),
+  const names = body.result.tools.map((tool: { name: string }) => tool.name);
+  expect(names.filter((name: string) => name.includes("analytics"))).toEqual(
+    analytics ? TOOL_NAMES.filter((name) => name.includes("analytics")) : [],
+  );
+  expect(names.filter((name: string) => name.includes("inbox"))).toEqual(
+    inbox ? ["list_inbox_items", "refresh_inbox", "reply_to_inbox_item", "like_inbox_item"] : [],
   );
 });
 
@@ -146,7 +160,7 @@ it("keeps JSON responses and the complete tool surface for MCP 2025-11-25 client
 it.each([modernRequest, legacyRequest])(
   "adds extensions without removing legacy tools or resource URIs",
   async (request) => {
-    jest.mocked(hasFeature).mockResolvedValue(true);
+    jest.mocked(hasFeature).mockImplementation(async (_user, feature) => feature !== Feature.SOCIAL_INBOX);
     const toolResponse = await POST(request("tools/list"));
     const toolBody = await toolResponse.json();
     const tools = toolBody.result.tools;

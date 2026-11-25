@@ -9,6 +9,7 @@ import type { MessageKey } from "@/lib/i18n/translate";
 import { createLogger, serializeError } from "@/lib/logger";
 import { mcpText, mcpUiTranslation } from "@/lib/mcp/locale";
 import { registerMeasuredTool } from "@/lib/mcp/registration";
+import { registerInboxTools } from "@/lib/mcp/tools/inbox";
 import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
@@ -202,6 +203,7 @@ export interface McpToolAuthContext {
   onboardingTrialDays?: number | null;
   imageFittingEnabled?: boolean;
   postAnalyticsEnabled?: boolean;
+  socialInboxEnabled?: boolean;
   pluginExtensionsEnabled?: boolean;
   clientId?: string;
   userEmail?: string | null;
@@ -661,6 +663,14 @@ function formatManagedPosts(posts: Array<Parameters<typeof formatManagedPostDeta
 export function registerTools(server: McpServer, context: McpToolAuthContext): void {
   registerMcpUiResources(server, context.pluginExtensionsEnabled);
   if (context.pluginExtensionsEnabled) registerExtensionTools(server, context, errorResult);
+  if (context.socialInboxEnabled) {
+    registerInboxTools(
+      server,
+      context,
+      (scope) => requireScope(context, scope),
+      (error) => errorResult(error, context),
+    );
+  }
 
   registerMeasuredTool(
     context,

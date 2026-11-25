@@ -15,7 +15,7 @@ function globallyEnabledFeatures(): Set<Feature> {
   const configured = process.env.GLOBAL_FEATURES;
   if (!configured) return new Set();
 
-  const known = new Set<string>(Object.values(Feature));
+  const known = new Set<string>(Object.values(Feature).filter((feature) => feature !== Feature.SOCIAL_INBOX));
   return new Set(
     configured
       .split(",")
@@ -52,5 +52,11 @@ export async function getUserFeatures(userId: string): Promise<Feature[]> {
 export async function requireImageFitting(userId: string): Promise<void> {
   if (!(await hasFeature(userId, Feature.IMAGE_FITTING))) {
     throw new ForbiddenError(serverMessage("Image fitting is not enabled for this account."));
+  }
+}
+
+export async function requireSocialInbox(userId: string): Promise<void> {
+  if (!(await hasFeature(userId, Feature.SOCIAL_INBOX))) {
+    throw new ForbiddenError(serverMessage("Social inbox is not enabled for this account."));
   }
 }

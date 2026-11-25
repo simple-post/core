@@ -8,8 +8,16 @@ const READ_ONLY_WORKSPACE_PATHS = new Set([
   "/api/v1/publishing-preferences",
 ]);
 
+export function socialInboxRestScope(req: NextRequest): McpScope | undefined {
+  const path = req.nextUrl.pathname;
+  if (!path.startsWith("/api/v1/social/")) return undefined;
+  return path === "/api/v1/social/inbox" && ["GET", "HEAD"].includes(req.method) ? "posts:read" : "posts:write";
+}
+
 /** REST accepts MCP credentials too; it must not bypass narrowed MCP consent. */
 export async function allowsMcpRestRequest(req: NextRequest, scope: string): Promise<boolean> {
+  const inboxScope = socialInboxRestScope(req);
+  if (inboxScope) return hasMcpScope(scope, inboxScope);
   const path = req.nextUrl.pathname;
   const required: McpScope[] = [];
   const isRead = ["GET", "HEAD"].includes(req.method);

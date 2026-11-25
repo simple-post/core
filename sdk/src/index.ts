@@ -378,6 +378,7 @@ export { YOUTUBE_MAX_THUMBNAIL_SIZE_BYTES } from "./publishers/youtube/validatio
 
 // Export utility functions
 export { derToRaw } from "./utils/crypto";
+export { createDpopProof } from "./utils/dpop";
 export {
   S3MediaUploader,
   uploadFromBuffer,
@@ -454,3 +455,13 @@ export {
   withDisplayMessage,
 } from "./validation/display-message";
 export type { DisplayMessage, DisplayValues } from "./validation/display-message";
+
+export {
+  getSocialActivityCapabilities,
+  getSocialActivityProvider,
+  listSocialPostComments,
+  listSocialPostQuotes,
+  likeSocialItem,
+  replyToSocialComment,
+} from "./social";
+export type * from "./types/social";

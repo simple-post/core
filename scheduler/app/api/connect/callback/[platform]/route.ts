@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
+import { requireSocialInbox } from "@/lib/features";
 import { authLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import {
@@ -18,6 +19,8 @@ import {
 } from "@/lib/oauth";
 import { getRefreshTokenExpiresAt } from "@/lib/oauth/credential-health";
 import { OAuthStateError } from "@/lib/oauth/state";
+import { prisma } from "@/lib/prisma";
+import { approvedInboxScopes, hasInboxScopes } from "@/lib/social/permissions";
 
 import type { Prisma } from "@prisma/client";
 
@@ -128,6 +131,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(errorRedirect("unknown_error"));
     }
 
+    let inboxIdentity: string | undefined;
+    const inboxScopes = stateData.inboxAccountId ? approvedInboxScopes(platform) : [];
+    if (stateData.inboxAccountId) {
+      await requireSocialInbox(userId);
+      const account = await prisma.connectedAccount.findFirst({
+        where: { id: stateData.inboxAccountId, userId, platform },
+        select: { platformAccountId: true },
+      });
+      if (!account || inboxScopes.length === 0) return NextResponse.redirect(errorRedirect("invalid_state"));
+      inboxIdentity = account.platformAccountId;
+    }
+
     // Read PKCE verifier from encrypted cookie
     let codeVerifier: string | undefined;
     if (config.requiresPkce) {
@@ -166,6 +181,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       await failure("token_exchange_failed");
       return NextResponse.redirect(errorRedirect("token_exchange_failed"));
     }
+    if (inboxIdentity) {
+      if (platform === "facebook") {
+        const response = await fetch("https://graph.facebook.com/v25.0/me/permissions", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          redirect: "error",
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) return NextResponse.redirect(errorRedirect("token_exchange_failed"));
+        const permissions = (await response.json()) as { data?: Array<{ status: string; permission: string }> };
+        tokenData.scope = permissions.data
+          ?.filter((row) => row.status === "granted")
+          .map((row) => row.permission)
+          .join(",");
+      } else if (platform === "threads") {
+        const url = new URL("https://graph.threads.com/v1.0/debug_token");
+        url.searchParams.set("input_token", accessToken);
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer TH|${config.clientId}|${config.clientSecret}` },
+          redirect: "error",
+          cache: "no-store",
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!response.ok) return NextResponse.redirect(errorRedirect("token_exchange_failed"));
+        const { data } = await response.json();
+        tokenData.scope = data?.is_valid === true && Array.isArray(data.scopes) ? data.scopes.join(" ") : undefined;
+      } else if (platform !== "instagram") {
+        // OAuth permits omitting scope when it matches the authorization request.
+        tokenData.scope ??= [...config.scope.split(/[\s,]+/u), ...inboxScopes].join(" ");
+      }
+      if (!hasInboxScopes(tokenData.scope, [...config.scope.split(/[\s,]+/u), ...inboxScopes])) {
+        return NextResponse.redirect(`${baseURL}/inbox?connection=permissions`);
+      }
+    }
     tokenMetadata = mergeTokenMetadata(tokenMetadata, tokenData);
 
     // Dispatch to platform-specific handler
@@ -180,6 +228,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       scope: tokenData.scope,
       tokenMetadata,
       source,
+      inboxIdentity,
     });
 
     // A provider can return a selection screen or an error; neither is a completed connection.

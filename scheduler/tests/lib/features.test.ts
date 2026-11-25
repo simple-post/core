@@ -74,3 +74,15 @@ describe("GLOBAL_FEATURES", () => {
     expect(await hasFeature("user-a", Feature.IMAGE_FITTING)).toBe(false);
   });
 });
+
+it("requires an individual social inbox grant even when the global variable names it", async () => {
+  const original = process.env.GLOBAL_FEATURES;
+  process.env.GLOBAL_FEATURES = "SOCIAL_INBOX";
+  try {
+    jest.mocked(prisma.userFeature.findUnique).mockResolvedValueOnce(null);
+    expect(await hasFeature("user-a", Feature.SOCIAL_INBOX)).toBe(false);
+  } finally {
+    if (original === undefined) delete process.env.GLOBAL_FEATURES;
+    else process.env.GLOBAL_FEATURES = original;
+  }
+});

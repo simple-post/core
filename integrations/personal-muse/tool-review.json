@@ -19,6 +19,26 @@
     "scopes": ["posts:read"],
     "effect": "Returns posting slots and calendar data without modifying schedules."
   },
+  "get_analytics_summary": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Returns period totals, comparisons, platform and account breakdowns, best times and follower growth; may refresh stale numbers from the platforms but never changes posts."
+  },
+  "list_post_analytics": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Ranks owned posts by a performance metric for a period with pagination; may refresh stale numbers from the platforms but never changes posts."
+  },
+  "get_post_analytics": {
+    "class": "read",
+    "scopes": ["posts:read"],
+    "effect": "Returns per-platform and combined metrics and growth history for exact owned posts; may refresh stale numbers from the platforms but never changes posts."
+  },
+  "get_account_analytics": {
+    "class": "read",
+    "scopes": ["accounts:read"],
+    "effect": "Returns follower counts and analytics availability per owned account; cannot connect, reconnect or disconnect accounts."
+  },
   "show_schedule": {
     "class": "read",
     "scopes": ["posts:read"],

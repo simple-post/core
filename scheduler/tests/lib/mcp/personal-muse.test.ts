@@ -103,10 +103,10 @@ it("exports the actual registered schemas for every entitlement profile without 
       },
     })),
   }));
-  expect(profiles[0].tools).toHaveLength(12);
-  expect(profiles[1].tools).toHaveLength(12);
-  expect(profiles[2].tools).toHaveLength(23);
-  expect(profiles[3].tools).toHaveLength(23);
+  expect(profiles[0].tools).toHaveLength(16);
+  expect(profiles[1].tools).toHaveLength(16);
+  expect(profiles[2].tools).toHaveLength(27);
+  expect(profiles[3].tools).toHaveLength(27);
   for (const profile of profiles) {
     const validation = profile.tools.find((tool) => tool.name === "validate_post")!;
     if (profile.profile.includes("fitting")) expect(validation.inputSchema).toHaveProperty("properties.imageFit");

@@ -1,0 +1,39 @@
+name: Check n8n node
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "integrations/n8n/**"
+      - ".github/workflows/check-n8n.yml"
+      - ".github/workflows/publish-n8n.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/n8n
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: integrations/n8n/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint with the n8n community node rules
+        run: npm run lint
+
+      - name: Build and test
+        run: npm test
+
+      - name: Check package contents
+        run: npm pack --dry-run

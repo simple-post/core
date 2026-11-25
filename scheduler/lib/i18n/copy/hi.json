@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "n8n से पोस्ट प्रकाशित करना स्वचालित करें",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost कम्युनिटी नोड इंस्टॉल करें, फिर प्रमाणीकरण के लिए इस पेज की API कुंजी का उपयोग करें।",
   "Setup reminder scheduled.": "सेटअप रिमाइंडर शेड्यूल हो गया है।",
   "Cancel setup reminder": "सेटअप रिमाइंडर रद्द करें",
   "Email me once if I haven’t connected an account two days after signup.": "साइन अप करने के दो दिन बाद भी मेरा खाता जुड़ा न हो, तो मुझे एक बार ईमेल भेजें।",
@@ -1014,6 +1016,7 @@
   "Video limit for this creator: {{duration}}": "इस क्रिएटर की वीडियो अवधि की सीमा: {{duration}}",
   "Video title": "वीडियो का शीर्षक",
   "View connected social accounts": "जुड़े हुए सोशल खाते देखना",
+  "View n8n node": "n8n नोड देखें",
   "View post": "पोस्ट देखें",
   "View post and results": "पोस्ट और नतीजे देखें",
   "Violate any applicable laws or regulations": "किसी भी लागू कानून या नियम का उल्लंघन करना",

@@ -13,7 +13,7 @@ export class SimplePostApi implements ICredentialType {
 
 	icon: Icon = {
 		light: 'file:../nodes/SimplePost/simplePost.svg',
-		dark: 'file:../nodes/SimplePost/simplePost.dark.svg',
+		dark: 'file:../nodes/SimplePost/simplePost.svg',
 	};
 
 	documentationUrl = 'https://github.com/simple-post/core/tree/main/integrations/n8n#credentials';

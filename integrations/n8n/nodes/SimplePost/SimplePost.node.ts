@@ -327,7 +327,7 @@ export class SimplePost implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'SimplePost',
 		name: 'simplePost',
-		icon: { light: 'file:simplePost.svg', dark: 'file:simplePost.dark.svg' },
+		icon: { light: 'file:simplePost.svg', dark: 'file:simplePost.svg' },
 		group: ['output'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',

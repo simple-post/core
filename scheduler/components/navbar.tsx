@@ -24,6 +24,7 @@ interface NavbarProps {
 
 export function Navbar({ actions }: NavbarProps) {
   const { locale, t } = useUiTranslation();
+  const { hasFeature } = useFeatures();
   const readOnly = useWorkspaceReadOnly();
   const { data: billing } = useBillingStatus();
   const pathname = usePathname() ?? "/";
@@ -37,15 +38,16 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
-  const { hasFeature } = useFeatures();
   const showCreateCta = !readOnly && !pathname.startsWith("/schedule");
   const activeSection = pathname.startsWith("/accounts")
     ? "accounts"
     : pathname.startsWith("/analytics")
       ? "analytics"
-      : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
-        ? "posts"
-        : null;
+      : pathname.startsWith("/inbox")
+        ? "inbox"
+        : pathname === "/" || pathname.startsWith("/posts") || pathname.startsWith("/schedule")
+          ? "posts"
+          : null;
 
   return (
     <>
@@ -65,6 +67,7 @@ export function Navbar({ actions }: NavbarProps) {
           <WorkspaceNavigation
             showAnalytics={hasFeature("POST_ANALYTICS")}
             active={activeSection}
+            includeInbox={!readOnly && hasFeature("SOCIAL_INBOX")}
             renderItem={({ id, label, className, children }) => (
               <Link
                 href={id === "posts" ? "/" : `/${id}`}

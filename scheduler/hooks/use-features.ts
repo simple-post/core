@@ -20,6 +20,7 @@ export function useFeatures() {
     },
   });
   return {
+    isPending: query.isPending,
     hasFeature: (feature: Feature) => !!session?.user.id && query.isSuccess && query.data.includes(feature),
   };
 }

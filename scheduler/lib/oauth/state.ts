@@ -9,6 +9,7 @@ export interface OAuthStatePayload {
   platform: string;
   timestamp: number;
   source?: "assistant_handoff";
+  inboxAccountId?: string;
 }
 
 function getSigningKey(): Buffer {
@@ -19,12 +20,18 @@ function hmacSign(data: string): string {
   return crypto.createHmac("sha256", getSigningKey()).update(data).digest("base64url");
 }
 
-export function createOAuthState(userId: string, platform: string, source?: "assistant_handoff"): string {
+export function createOAuthState(
+  userId: string,
+  platform: string,
+  source?: "assistant_handoff",
+  inboxAccountId?: string,
+): string {
   const payload: OAuthStatePayload = {
     userId,
     platform,
     timestamp: Date.now(),
     ...(source && { source }),
+    ...(inboxAccountId && { inboxAccountId }),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = hmacSign(encoded);

@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "Автоматизирайте публикуването с n8n",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "Инсталирайте общностния възел SimplePost и използвайте API ключ от тази страница за удостоверяване.",
   "Setup reminder scheduled.": "Напомнянето за настройка е насрочено.",
   "Cancel setup reminder": "Отмени напомнянето за настройка",
   "Email me once if I haven’t connected an account two days after signup.": "Изпратете ми един имейл, ако не съм свързал профил два дни след регистрацията.",
@@ -1014,6 +1016,7 @@
   "Video limit for this creator: {{duration}}": "Максимална дължина на видеото за този създател: {{duration}}",
   "Video title": "Заглавие на видеото",
   "View connected social accounts": "Преглед на свързаните акаунти в социални мрежи",
+  "View n8n node": "Вижте възела за n8n",
   "View post": "Преглед на публикацията",
   "View post and results": "Преглед на публикацията и резултатите",
   "Violate any applicable laws or regulations": "Да нарушавате приложими закони или разпоредби",

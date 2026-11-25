@@ -14,6 +14,7 @@ For hosted onboarding and product help, start at [docs.simplepost.social](https:
 | Give humans a web UI for writing, previewing, posting, and scheduling | Scheduler app      | [Scheduler app](scheduler-app/README.md)                                                           |
 | Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                                                                               |
 | Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)                                                                 |
+| Publish, schedule, or save drafts from an n8n workflow                | n8n node           | [n8n node](../integrations/n8n/README.md)                                                          |
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 
@@ -85,21 +86,22 @@ Use the canonical [provider guides](https://docs.simplepost.social/platforms) fo
 You have three common options:
 
 - Use environment variables or explicit credentials with the SDK; use an accounts JSON file with the stateless HTTP server.
-- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, and Scheduler API keys use them.
+- Store accounts in the Scheduler app and let the web UI, MCP server, scheduler-connected CLI, n8n node, and other Scheduler API key clients use them.
 - Store accounts locally in the CLI for terminal-only workflows.
 
 Ownership matters here: you can set up your own apps on each social platform and run the code yourself. SimplePost should simplify the setup, not make you dependent on a hosted account you cannot inspect or replace.
 
 ## Repository Map
 
-| Path                            | Purpose                                                              |
-| ------------------------------- | -------------------------------------------------------------------- |
-| [`sdk/`](../sdk/)               | TypeScript SDK and platform publishers                               |
-| [`server/`](../server/)         | Express HTTP API wrapper around the SDK                              |
-| [`scheduler/`](../scheduler/)   | Next.js scheduler app, connected accounts, hosted UI, and MCP server |
-| [`cli/`](../cli/)               | oclif command line tool                                              |
-| [`examples/`](../examples/)     | Per-platform SDK examples                                            |
-| [`docs/platforms/`](platforms/) | Platform credential and behavior notes                               |
+| Path                                | Purpose                                                              |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| [`sdk/`](../sdk/)                   | TypeScript SDK and platform publishers                               |
+| [`server/`](../server/)             | Express HTTP API wrapper around the SDK                              |
+| [`scheduler/`](../scheduler/)       | Next.js scheduler app, connected accounts, hosted UI, and MCP server |
+| [`cli/`](../cli/)                   | oclif command line tool                                              |
+| [`integrations/`](../integrations/) | Automation and agent-platform integrations, including n8n            |
+| [`examples/`](../examples/)         | Per-platform SDK examples                                            |
+| [`docs/platforms/`](platforms/)     | Platform credential and behavior notes                               |
 
 ## Support
 

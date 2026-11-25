@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "n8n で投稿を自動化",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost のコミュニティノードをインストールし、このページの API キーで認証します。",
   "Setup reminder scheduled.": "設定リマインダーを予約しました。",
   "Cancel setup reminder": "設定リマインダーをキャンセル",
   "Email me once if I haven’t connected an account two days after signup.": "登録から2日経ってもアカウントを連携していなければ、メールで一度だけ知らせてください。",
@@ -1000,6 +1002,7 @@
   "Video limit for this creator: {{duration}}": "このクリエイターの動画の長さの上限: {{duration}}",
   "Video title": "動画のタイトル",
   "View connected social accounts": "接続済み SNS アカウントを表示する",
+  "View n8n node": "n8n ノードを表示",
   "View post": "投稿を表示",
   "View post and results": "投稿と結果を表示",
   "Violate any applicable laws or regulations": "適用される法令や規則に違反すること",

@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "使用 n8n 自動發布貼文",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "安裝 SimplePost 社群節點，然後使用此頁面的 API 金鑰進行驗證。",
   "Setup reminder scheduled.": "設定提醒已排程。",
   "Cancel setup reminder": "取消設定提醒",
   "Email me once if I haven’t connected an account two days after signup.": "如果我註冊兩天後還沒連結帳號，請寄一封提醒郵件給我。",
@@ -1000,6 +1002,7 @@
   "Video limit for this creator: {{duration}}": "此創作者的影片長度上限：{{duration}}",
   "Video title": "影片標題",
   "View connected social accounts": "查看已連結的社群帳號",
+  "View n8n node": "查看 n8n 節點",
   "View post": "檢視貼文",
   "View post and results": "檢視貼文和結果",
   "Violate any applicable laws or regulations": "違反任何適用的法律或法規",

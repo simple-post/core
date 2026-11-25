@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "Beiträge mit n8n automatisieren",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "Installiere den SimplePost-Community-Node und verwende einen API-Schlüssel von dieser Seite zur Authentifizierung.",
   "Setup reminder scheduled.": "Die Erinnerung ist eingeplant.",
   "Cancel setup reminder": "Erinnerung absagen",
   "Email me once if I haven’t connected an account two days after signup.": "Schick mir einmalig eine E-Mail, wenn ich zwei Tage nach der Anmeldung noch kein Konto verbunden habe.",
@@ -1014,6 +1016,7 @@
   "Video limit for this creator: {{duration}}": "Maximale Videolänge für diesen Creator: {{duration}}",
   "Video title": "Videotitel",
   "View connected social accounts": "Verbundene Social-Media-Konten ansehen",
+  "View n8n node": "n8n-Node ansehen",
   "View post": "Beitrag ansehen",
   "View post and results": "Beitrag und Ergebnisse ansehen",
   "Violate any applicable laws or regulations": "Gegen geltende Gesetze oder Vorschriften zu verstoßen",

@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "n8n ile gönderi yayınlamayı otomatikleştirin",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost topluluk düğümünü yükleyin ve kimlik doğrulamak için bu sayfadaki bir API anahtarını kullanın.",
   "Setup reminder scheduled.": "Kurulum hatırlatması planlandı.",
   "Cancel setup reminder": "Kurulum hatırlatmasını iptal et",
   "Email me once if I haven’t connected an account two days after signup.": "Kaydolduktan iki gün sonra henüz bir hesap bağlamadıysam bana bir kez e-posta gönder.",
@@ -1014,6 +1016,7 @@
   "Video limit for this creator: {{duration}}": "Bu içerik üreticisinin video süre sınırı: {{duration}}",
   "Video title": "Video başlığı",
   "View connected social accounts": "Bağlı sosyal medya hesaplarını görüntülemek",
+  "View n8n node": "n8n düğümünü görüntüle",
   "View post": "Gönderiyi görüntüle",
   "View post and results": "Gönderiyi ve sonuçları görüntüle",
   "Violate any applicable laws or regulations": "Geçerli herhangi bir yasa veya düzenlemeyi ihlal etmek",

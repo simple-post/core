@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "Otomatiskan penerbitan dengan n8n",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "Instal node komunitas SimplePost, lalu gunakan kunci API dari halaman ini untuk autentikasi.",
   "Setup reminder scheduled.": "Pengingat penyiapan dijadwalkan.",
   "Cancel setup reminder": "Batalkan pengingat penyiapan",
   "Email me once if I haven’t connected an account two days after signup.": "Kirimi saya satu email jika saya belum menghubungkan akun dua hari setelah mendaftar.",
@@ -1000,6 +1002,7 @@
   "Video limit for this creator: {{duration}}": "Batas durasi video untuk kreator ini: {{duration}}",
   "Video title": "Judul video",
   "View connected social accounts": "Melihat akun media sosial yang terhubung",
+  "View n8n node": "Lihat node n8n",
   "View post": "Lihat postingan",
   "View post and results": "Lihat postingan dan hasil",
   "Violate any applicable laws or regulations": "Melanggar hukum atau peraturan yang berlaku",

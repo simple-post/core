@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "n8n으로 게시 자동화",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost 커뮤니티 노드를 설치한 뒤 이 페이지의 API 키로 인증하세요.",
   "Setup reminder scheduled.": "설정 알림이 예약되었습니다.",
   "Cancel setup reminder": "설정 알림 취소",
   "Email me once if I haven’t connected an account two days after signup.": "가입 이틀 후에도 계정을 연결하지 않았다면 이메일을 한 번 보내 주세요.",
@@ -1000,6 +1002,7 @@
   "Video limit for this creator: {{duration}}": "이 크리에이터의 동영상 길이 제한: {{duration}}",
   "Video title": "동영상 제목",
   "View connected social accounts": "연결된 소셜 계정 보기",
+  "View n8n node": "n8n 노드 보기",
   "View post": "게시물 보기",
   "View post and results": "게시물 및 결과 보기",
   "Violate any applicable laws or regulations": "관련 법률이나 규정을 위반하는 행위",

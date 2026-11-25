@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "使用 n8n 自动发布帖子",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "安装 SimplePost 社区节点，然后使用此页面的 API 密钥进行身份验证。",
   "Setup reminder scheduled.": "设置提醒已安排。",
   "Cancel setup reminder": "取消设置提醒",
   "Email me once if I haven’t connected an account two days after signup.": "如果我注册两天后还没连接账号，请给我发一封提醒邮件。",
@@ -1000,6 +1002,7 @@
   "Video limit for this creator: {{duration}}": "该创作者的视频时长上限：{{duration}}",
   "Video title": "视频标题",
   "View connected social accounts": "查看已连接的社交账号",
+  "View n8n node": "查看 n8n 节点",
   "View post": "查看帖子",
   "View post and results": "查看帖子和结果",
   "Violate any applicable laws or regulations": "违反任何适用法律或法规",

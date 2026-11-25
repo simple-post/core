@@ -1,4 +1,6 @@
 {
+  "Automate posting with n8n": "Automatize publicações com o n8n",
+  "Install the SimplePost community node, then use an API key from this page as its credential.": "Instale o nó da comunidade do SimplePost e use uma chave de API desta página para autenticação.",
   "Setup reminder scheduled.": "Lembrete de configuração agendado.",
   "Cancel setup reminder": "Cancelar lembrete de configuração",
   "Email me once if I haven’t connected an account two days after signup.": "Envie um único e-mail se eu ainda não tiver conectado uma conta dois dias após o cadastro.",
@@ -1028,6 +1030,7 @@
   "Video limit for this creator: {{duration}}": "Limite de duração do vídeo para este criador: {{duration}}",
   "Video title": "Título do vídeo",
   "View connected social accounts": "Ver as contas de redes sociais conectadas",
+  "View n8n node": "Ver o nó do n8n",
   "View post": "Ver publicação",
   "View post and results": "Ver publicação e resultados",
   "Violate any applicable laws or regulations": "Violar qualquer lei ou regulamento aplicável",

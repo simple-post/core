@@ -1,7 +1,6 @@
 /* eslint-disable unicorn/no-await-expression-member -- Integration assertions inspect committed database values. */
 import { uploadFromBuffer, deleteFromStorage } from "@simple-post/sdk";
 
-import { workspaceLimit } from "@/lib/billing/plans";
 import { PostsModel } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
@@ -50,6 +49,7 @@ beforeEach(async () => {
   delete process.env.SELF_HOSTED;
   await clean();
   await prisma.user.createMany({ data: people });
+  await prisma.userFeature.create({ data: { userId: admin.id, feature: "TEAM_WORKSPACES" } });
   await prisma.complimentaryAccess.create({
     data: { userId: admin.id, planKey: "advanced", expiresAt: new Date("2040-01-01") },
   });
@@ -74,22 +74,20 @@ async function setup() {
   await send(editor, { action: "createPost", ...fields });
   return prisma.teamPost.findFirstOrThrow({ where: { workspaceId: wid } });
 }
-it("serializes creator quotas for each entitlement", async () => {
-  expect([workspaceLimit("trial"), workspaceLimit("basic"), workspaceLimit("advanced"), workspaceLimit("pro")]).toEqual(
-    [0, 0, 1, 3],
-  );
-  expect(
-    (await Promise.allSettled(Array.from({ length: 4 }, () => createWorkspace(admin, newTeam)))).filter(
-      (r) => r.status === "fulfilled",
-    ),
-  ).toHaveLength(1);
-  await prisma.complimentaryAccess.update({ where: { userId: admin.id }, data: { planKey: "pro" } });
-  expect(
-    (await Promise.allSettled(Array.from({ length: 4 }, () => createWorkspace(admin, newTeam)))).filter(
-      (r) => r.status === "fulfilled",
-    ),
-  ).toHaveLength(2);
-  await expect(createWorkspace(other, newTeam)).rejects.toThrow();
+it("allows only the pilot to create workspaces, independently of billing and invitations", async () => {
+  await prisma.complimentaryAccess.delete({ where: { userId: admin.id } });
+  const workspace = await createWorkspace(admin, newTeam);
+  wid = workspace.id;
+  await createWorkspace(admin, newTeam);
+  await send(admin, { action: "invite", email: other.email, role: "Editor", approver: false });
+  const access = await prisma.complimentaryAccess.create({
+    data: { userId: other.id, planKey: "pro", expiresAt: new Date("2040-01-01") },
+  });
+  await expect(createWorkspace(other, newTeam)).rejects.toMatchObject({ statusCode: 404 });
+  expect(await prisma.userFeature.count({ where: { userId: other.id } })).toBe(0);
+  expect(await prisma.complimentaryAccess.findUnique({ where: { userId: other.id } })).toEqual(access);
+  await prisma.userFeature.deleteMany({ where: { userId: admin.id, feature: "TEAM_WORKSPACES" } });
+  await expect(createWorkspace(admin, newTeam)).rejects.toMatchObject({ statusCode: 404 });
 });
 it("enforces membership, private media, state constraints and Viewer plus Approver permissions", async () => {
   const post = await setup();

@@ -232,9 +232,3 @@ export function formatPostLimit(plan: AccessPlan): string {
   }
   return plan.limits.postsPerMonth === null ? "Unlimited" : plan.limits.postsPerMonth.toLocaleString();
 }
-
-export function workspaceLimit(plan: AccessPlanKey | null | undefined): number {
-  if (plan === "advanced") return 1;
-  if (plan === "pro") return 3;
-  return 0;
-}

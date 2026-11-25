@@ -62,18 +62,22 @@ Recruit five small brand teams already using Sheets and chat. Ask each to bring 
 
 ## Implementation decisions, November 24
 
-The creator's active Advanced or Pro entitlement pays for one or three workspaces respectively. Basic and the free trial have no creation allowance. Existing workspaces survive a downgrade. Invited collaborators sign in with the verified email on their invitation and use the team's access. The creator starts as an Admin and Approver. One current workspace approver can decide, including a Viewer or the author.
+The private pilot uses an individual account grant. Every subscription tier keeps its existing benefits. The owner can create workspaces and issue invitations. Accepting an invitation requires a separate pilot grant and a matching verified email. The creator starts as an Admin and Approver. One current workspace approver can decide, including a Viewer or the author.
 
 Reviewers sign off on the title, ordered platform variants, destinations, captions, options, ordered final files and publication time. Assignments, internal deadlines and discussion stay editable. A decision is permanent history after an approver leaves. New decisions always check current membership. Personal posts stay in the personal planner. Teams can plan native publication without connecting accounts. For SimplePost delivery the creator selects a personal connection as a named destination before review, and explicitly releases the approved version. Credentials stay in the existing account and dispatcher systems.
 
-The creator owns the workspace for its lifetime. Removing a collaborator preserves their past attribution. Deleting the creator account removes its workspaces, originals and decisions with the account. Creation requires a qualifying hosted plan, including an active grant of that plan. Self-hosted mode has no paid-plan creation entitlement. Personal delivery copies can be canceled by the account owner and the workspace records their removal. Native and connected releases use separate planning items.
+The creator owns the workspace for its lifetime. Removing a collaborator preserves their past attribution. Deleting the creator account removes its workspaces, originals and decisions with the account. Personal delivery copies can be canceled by the account owner and the workspace records their removal. Native and connected releases use separate planning items.
 
 Private uploads support JPEG, PNG, WebP and MP4 up to 8 MiB each, with 512 MiB of original media per workspace. Admins can remove unused uploads. The service retains every file used by a current post or a historical review. A connected release copies the approved media into the creator's existing publishing storage and charges the normal scheduling allowance per platform delivery.
 
 ## Activate the private rollout
 
-The migration adds `TEAM_WORKSPACES` to the existing `Feature` enum and creates no grants. For an owner-only launch, leave `TEAM_WORKSPACES` out of `GLOBAL_FEATURES` and grant it to your SimplePost user ID in `user_feature`. Use the [existing grant and revoke procedure](../image-fitting.md#private-hosted-rollout) with `Feature.TEAM_WORKSPACES`. Add another account by granting the same feature to its user ID.
+The migrations create the workspace tables and the `TEAM_WORKSPACES` feature with zero grants. Deploy and check application health before activating the owner's verified account. From the repository root, run the following against the verified deployment database, supplying the owner's email privately.
 
-Personal is the default dashboard. Eligible accounts switch between Personal and team workspaces in the navigation. Both use the same dashboard, calendar, post editor controls and platform previews. The team view adds states, discussion and approvals. Accounts with only a personal workspace and no creation allowance see the existing interface.
+```sh
+psql "$DATABASE_URL" -v pilot_email="$PILOT_EMAIL" -f scheduler/scripts/grant-workspace-pilot.sql
+```
 
-The planner and workspace API check the signed-in account's grant. Collaborators also need a workspace membership or invitation. Workspace creation follows the creator's plan allowance. To roll out to everyone later, add `TEAM_WORKSPACES` to the existing `GLOBAL_FEATURES` list.
+The script uses the existing `user_feature` table. It requires exactly one verified account matching the email, refuses to proceed if another account already has the workspace grant, and can be rerun for the same owner. Revoke access by deleting that owner's `TEAM_WORKSPACES` row. The next workspace request rechecks the grant. Revocation preserves planning data.
+
+The owner sees Personal in the existing navigation and can create a workspace from its menu. Team views reuse the dashboard, calendar, editor controls and previews, with states, discussion and approvals added. Accounts without the grant keep their personal interface. Invitations, membership, subscription tier and `GLOBAL_FEATURES` do not enable the pilot. Connected publishing continues to use the creator's existing publishing entitlement and quota.

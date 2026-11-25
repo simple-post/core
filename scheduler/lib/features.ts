@@ -17,7 +17,7 @@ function globallyEnabledFeatures(): Set<Feature> {
 
   // Private pilots require a user_feature row even if listed in GLOBAL_FEATURES.
   const known = new Set<string>(
-    Object.values(Feature).filter(feature => feature !== Feature.SOCIAL_INBOX && feature !== Feature.TEAM_WORKSPACES),
+    Object.values(Feature).filter((feature) => feature !== Feature.SOCIAL_INBOX && feature !== Feature.TEAM_WORKSPACES),
   );
   return new Set(
     configured

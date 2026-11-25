@@ -27,7 +27,7 @@ const UNGATED_PATHS = new Set(["/subscribe", "/billing", "/billing/plans", "/wor
 export function SubscriptionGate({ children }: { children: ReactNode }) {
   const { copy } = useUiCopy();
   const pathname = usePathname();
-  const { current, id, pending } = useWorkspaceIndex();
+  const { current, requested, pending } = useWorkspaceIndex();
   const teamRoute =
     current &&
     (pathname === "/" ||
@@ -54,7 +54,7 @@ export function SubscriptionGate({ children }: { children: ReactNode }) {
     return <SelfHostedContext.Provider value={selfHosted}>{children}</SelfHostedContext.Provider>;
   }
 
-  if (isPending || (id && pending)) {
+  if (isPending || (requested && pending)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-muted-foreground">{copy("Loading...")}</div>

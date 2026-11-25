@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { Trash2, Calendar, CalendarClock, Clock, Copy, Edit, AlertCircle, FileText, Quote, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useFeatures } from "@/hooks/use-features";
 import { useDeletePost, useSubmitPost } from "@/hooks/use-mutations";
 import { usePost } from "@/hooks/use-posts";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { getAccountDisplayName, getPlatformById } from "@/lib/config";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
@@ -47,7 +48,7 @@ type FailedPlatform = {
 };
 
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const workspace = useSearchParams().get("workspace");
+  const workspace = useWorkspaceScope().id;
   const { id } = use(params);
   return workspace ? (
     <TeamScreen key={workspace + id} id={workspace} postId={id} view="detail" />

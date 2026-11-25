@@ -14,6 +14,7 @@ import { ScheduleCalendar } from "@/components/schedule-calendar";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { TeamScreen } from "@/components/workspaces/team-screen";
 import { usePostCounts } from "@/hooks/use-posts";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useSession } from "@/lib/auth/auth-client";
 
 type TimelineTabType = "drafts" | "scheduled" | "past" | "failed";
@@ -26,7 +27,7 @@ function getTimelineTabFromParam(value: string | null): TimelineTabType | null {
 }
 
 export default function Dashboard() {
-  const id = useSearchParams().get("workspace");
+  const id = useWorkspaceScope().id;
   return id ? <TeamScreen key={id} id={id} view="dashboard" /> : <PersonalDashboard />;
 }
 function PersonalDashboard() {

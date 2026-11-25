@@ -3,7 +3,7 @@ Object.defineProperty(process.env, "NODE_ENV", { value: "test", writable: true }
 import { createElement } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { WorkspaceSwitcher } from "@/components/workspaces/switcher";
 import { request, type WorkspaceIndex } from "@/components/workspaces/types";
@@ -26,28 +26,24 @@ afterEach(() => {
   mockEnabled = true;
 });
 function mount(index: Partial<WorkspaceIndex> = {}) {
-  jest.mocked(request).mockResolvedValue({ owned: 0, limit: 0, workspaces: [], invites: [], ...index });
+  jest.mocked(request).mockResolvedValue({ workspaces: [], invites: [], ...index });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(createElement(QueryClientProvider, { client }, createElement(WorkspaceSwitcher)));
   return client;
 }
 it("leaves the ordinary dashboard alone when the rollout is off", () => {
   mockEnabled = false;
-  mount({ limit: 3 });
+  mockParams.set("workspace", "studio");
+  mount({ workspaces: [{ id: "studio", name: "Studio", icon: "S", role: "Admin" }] });
   expect(screen.queryByRole("button")).toBeNull();
   expect(request).not.toHaveBeenCalled();
 });
-it("hides workspace controls on a personal-only account without a creation allowance", async () => {
-  const client = mount();
-  await waitFor(() => expect(client.getQueryState(["workspaces", "signed-in"])?.status).toBe("success"));
-  expect(screen.queryByRole("button")).toBeNull();
-});
 it("lets an eligible personal account create its first workspace", async () => {
-  mount({ limit: 1 });
+  mount();
   fireEvent.keyDown(await screen.findByRole("button", { name: "Switch workspace: Personal" }), { key: "ArrowDown" });
   expect(await screen.findByRole("menuitem", { name: "Create workspace" })).toBeTruthy();
 });
-it("lets an invited viewer return to Personal without exposing creation or settings", async () => {
+it("lets an invited viewer return to Personal without exposing admin settings", async () => {
   mockParams.set("workspace", "studio");
   mount({ workspaces: [{ id: "studio", role: "Viewer", name: "Studio", icon: "S" }] });
   fireEvent.keyDown(await screen.findByRole("button", { name: "Switch workspace: Studio" }), { key: "ArrowDown" });
@@ -55,6 +51,6 @@ it("lets an invited viewer return to Personal without exposing creation or setti
   expect(mockPush).toHaveBeenCalledWith("/");
   fireEvent.keyDown(screen.getByRole("button", { name: "Switch workspace: Studio" }), { key: "ArrowDown" });
   await screen.findByRole("menuitem", { name: "Personal workspace" });
-  expect(screen.queryByRole("menuitem", { name: "Create workspace" })).toBeNull();
+  expect(screen.getByRole("menuitem", { name: "Create workspace" })).toBeTruthy();
   expect(screen.queryByRole("menuitem", { name: "Workspace settings" })).toBeNull();
 });

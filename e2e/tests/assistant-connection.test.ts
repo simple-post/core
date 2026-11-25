@@ -46,6 +46,7 @@ test.beforeAll(async () => {
             "@/lib/auth/auth-client": "export const authClient = {signOut: async () => ({})};",
             "@/components/login-form": `import React from 'react'; export const LoginForm = ({callbackURL}) => <button onClick={() => { sessionStorage.signedIn='true'; location.assign(callbackURL); }}>Sign into SimplePost</button>;`,
             "@/components/billing/subscription-gate": "export const SubscriptionGate = ({children}) => children;",
+            "@/hooks/use-features": "export const useFeatures = () => ({hasFeature: () => false, isPending: false});",
             "@/hooks/use-billing": "export const useWorkspaceReadOnly = () => false;",
             "@/components/create-post-webmcp": "export const WebMcpProvider = ({children}) => children;",
             "@/components/schedule-calendar-context":

@@ -23,7 +23,6 @@ import { logClientError } from "@/lib/logger/client";
 export function UserMenu() {
   const { t } = useUiTranslation();
   const { data: session } = useSession();
-
   const selfHosted = useSelfHosted();
   const [isLoading, setIsLoading] = useState(false);
 

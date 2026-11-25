@@ -3,7 +3,7 @@
 import { use, useEffect } from "react";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { BackLink } from "@/components/back-link";
 import { Navbar } from "@/components/navbar";
@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { UiCopy } from "@/components/ui-copy";
 import { TeamScreen } from "@/components/workspaces/team-screen";
 import { usePost } from "@/hooks/use-posts";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
 export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
-  const workspace = useSearchParams().get("workspace");
+  const workspace = useWorkspaceScope().id;
   const { id } = use(params);
   return workspace ? (
     <TeamScreen key={workspace + id} id={workspace} postId={id} view="edit" />

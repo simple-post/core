@@ -73,7 +73,11 @@ export function Navbar({ actions }: NavbarProps) {
             includeInbox={!readOnly && hasFeature("SOCIAL_INBOX")}
             renderItem={({ id, label, className, children }) => (
               <Link
-                href={id === "posts" || id === "accounts" ? workspaceHref(id === "posts" ? "/" : "/accounts", current?.id) : `/${id}`}
+                href={
+                  id === "posts" || id === "accounts"
+                    ? workspaceHref(id === "posts" ? "/" : "/accounts", current?.id)
+                    : `/${id}`
+                }
                 aria-label={label}
                 aria-current={id === activeSection ? "page" : undefined}
                 className={className}>

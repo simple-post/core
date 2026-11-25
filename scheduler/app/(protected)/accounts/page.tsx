@@ -24,6 +24,7 @@ import { TeamScreen } from "@/components/workspaces/team-screen";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
@@ -82,7 +83,7 @@ function TelegramHelpLink({
 }
 
 export default function AccountsPage() {
-  const workspace = useSearchParams().get("workspace");
+  const workspace = useWorkspaceScope().id;
   return workspace ? <TeamScreen key={workspace} id={workspace} view="accounts" /> : <PersonalAccountsPage />;
 }
 function PersonalAccountsPage() {

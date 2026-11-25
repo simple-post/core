@@ -46,7 +46,7 @@ describe("GLOBAL_FEATURES", () => {
     delete process.env.GLOBAL_FEATURES;
   });
 
-  it("exposes team workspaces to its grantee first and supports the standard global rollout", async () => {
+  it("requires an individual workspace grant even if configured globally", async () => {
     jest
       .mocked(prisma.userFeature.findMany)
       .mockResolvedValueOnce([{ feature: Feature.TEAM_WORKSPACES }] as never)
@@ -54,8 +54,9 @@ describe("GLOBAL_FEATURES", () => {
     expect(await getUserFeatures("owner")).toEqual([Feature.TEAM_WORKSPACES]);
     expect(await getUserFeatures("other")).toEqual([]);
     process.env.GLOBAL_FEATURES = "TEAM_WORKSPACES";
-    expect(await hasFeature("other", Feature.TEAM_WORKSPACES)).toBe(true);
-    expect(await getUserFeatures("other")).toEqual([Feature.TEAM_WORKSPACES]);
+    jest.mocked(prisma.userFeature.findUnique).mockResolvedValue(null);
+    expect(await hasFeature("other", Feature.TEAM_WORKSPACES)).toBe(false);
+    expect(await getUserFeatures("other")).toEqual([]);
   });
 
   it("grants a globally enabled feature without consulting or needing a grant", async () => {

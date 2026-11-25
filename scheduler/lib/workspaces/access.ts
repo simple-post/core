@@ -1,5 +1,4 @@
-import { workspaceLimit } from "@/lib/billing/plans";
-import { getBillingStatus, lockUserForQuota } from "@/lib/billing/subscriptions";
+import { hasFeature } from "@/lib/features";
 import { prisma } from "@/lib/prisma";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/utils/errors";
 
@@ -26,7 +25,7 @@ export function authorize(member: { role: string; approver: boolean }, permissio
   if (!allowed) throw new ForbiddenError("Your workspace permissions do not allow this action");
 }
 export async function listWorkspaces(actor: Actor) {
-  const [memberships, invites, billing, owned] = await Promise.all([
+  const [memberships, invites] = await Promise.all([
     prisma.teamMember.findMany({
       where: { userId: actor.id },
       select: { role: true, workspace: { select: { id: true, name: true, icon: true } } },
@@ -38,40 +37,30 @@ export async function listWorkspaces(actor: Actor) {
           include: { workspace: { select: { name: true } } },
         })
       : [],
-    getBillingStatus(actor.id),
-    prisma.teamWorkspace.count({ where: { creatorId: actor.id } }),
   ]);
   return {
     workspaces: memberships.map((m) => ({ ...m.workspace, role: m.role })),
     invites,
-    limit: workspaceLimit(billing.plan?.key),
-    owned,
   };
 }
 export async function createWorkspace(actor: Actor, input: unknown) {
+  if (!(await hasFeature(actor.id, "TEAM_WORKSPACES"))) throw new NotFoundError();
   const fields = workspaceFields.parse(input);
-  return prisma.$transaction(async (tx) => {
-    await lockUserForQuota(tx, actor.id);
-    const billing = await getBillingStatus(actor.id, tx);
-    const count = await tx.teamWorkspace.count({ where: { creatorId: actor.id } });
-    if (count >= workspaceLimit(billing.plan?.key))
-      throw new ForbiddenError("Workspace allowance reached for your plan");
-    return tx.teamWorkspace.create({
-      data: {
-        ...fields,
-        creatorId: actor.id,
-        members: { create: { userId: actor.id, role: "Admin", approver: true } },
-        states: {
-          create: [
-            { kind: "draft", name: "Draft", position: 0 },
-            { kind: "progress", name: "In progress", position: 10 },
-            { kind: "review", name: "In review", position: 1000 },
-            { kind: "approved", name: "Approved", position: 1001 },
-          ],
-        },
+  return prisma.teamWorkspace.create({
+    data: {
+      ...fields,
+      creatorId: actor.id,
+      members: { create: { userId: actor.id, role: "Admin", approver: true } },
+      states: {
+        create: [
+          { kind: "draft", name: "Draft", position: 0 },
+          { kind: "progress", name: "In progress", position: 10 },
+          { kind: "review", name: "In review", position: 1000 },
+          { kind: "approved", name: "Approved", position: 1001 },
+        ],
       },
-      select: { id: true },
-    });
+    },
+    select: { id: true },
   });
 }
 export async function acceptInvite(actor: Actor, workspaceId: string, inviteId: string) {

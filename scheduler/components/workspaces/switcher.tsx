@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Plus } from "lucide-react";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useFeatures } from "@/hooks/use-features";
+import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useSession } from "@/lib/auth/auth-client";
 
 import { json, request, type WorkspaceIndex } from "./types";
@@ -26,10 +26,8 @@ export function workspaceHref(path: string, id?: string | null) {
   return id ? `${path}${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(id)}` : path;
 }
 export function useWorkspaceIndex() {
-  const id = useSearchParams()?.get("workspace");
+  const { id, requested, enabled, isPending: featuresPending } = useWorkspaceScope();
   const { data: session } = useSession();
-  const { hasFeature, isPending: featuresPending } = useFeatures();
-  const enabled = hasFeature("TEAM_WORKSPACES");
   const query = useQuery({
     queryKey: ["workspaces", session?.user.id],
     enabled,
@@ -38,6 +36,7 @@ export function useWorkspaceIndex() {
   const data = enabled ? query.data : undefined;
   return {
     id,
+    requested,
     data,
     pending: featuresPending || (enabled && query.isPending),
     indexError: query.error,
@@ -52,7 +51,7 @@ export function WorkspaceSwitcher() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  if (!data || (!data.limit && data.workspaces.length === 0 && data.invites.length === 0)) return null;
+  if (!data) return null;
   const current = data.workspaces.find((w) => w.id === id);
   async function submit(body: object) {
     setBusy(true);
@@ -104,19 +103,15 @@ export function WorkspaceSwitcher() {
               Workspace settings
             </DropdownMenuItem>
           )}
-          {data.owned < data.limit && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  setError("");
-                  setCreating(true);
-                }}>
-                <Plus />
-                Create workspace
-              </DropdownMenuItem>
-            </>
-          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              setError("");
+              setCreating(true);
+            }}>
+            <Plus />
+            Create workspace
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {!creating && error && (

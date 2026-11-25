@@ -1,8 +1,6 @@
 import type { Snapshot, Variant, WorkspaceCommand } from "@/lib/workspaces/contracts";
 export type WorkspaceIndex = {
   workspaces: { id: string; name: string; icon: string; role: string }[];
-  limit: number;
-  owned: number;
   invites: { id: string; workspaceId: string; workspace: { name: string } }[];
 };
 export type Member = { userId: string; role: string; approver: boolean; user: { name: string; email: string } };

@@ -446,7 +446,7 @@ export class PostsModel {
         },
       })
       .catch((error: unknown) => {
-        if (editsReviewedContent && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        if (expected && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
           throw new ConflictError(
             serverMessage("This post changed or started publishing. Reload it before trying again."),
           );

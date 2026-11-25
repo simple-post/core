@@ -1,5 +1,3 @@
-// These are incremental permissions. Authorization requests add them only
-// for an invited user's explicit inbox connection and an approved app.
 const permissions: Readonly<Record<string, readonly string[]>> = {
   x: ["like.write"],
   facebook: ["pages_read_engagement", "pages_read_user_content", "pages_manage_engagement"],
@@ -9,9 +7,10 @@ const permissions: Readonly<Record<string, readonly string[]>> = {
   youtube: ["https://www.googleapis.com/auth/youtube.force-ssl"],
 };
 
-export function approvedInboxScopes(platform: string): readonly string[] {
-  const approved = new Set((process.env.SOCIAL_INBOX_OAUTH_PLATFORMS ?? "").split(",").map((value) => value.trim()));
-  return approved.has(platform) ? (permissions[platform] ?? []) : [];
+export function enabledInboxScopes(platform: string): readonly string[] {
+  const configured = process.env.SOCIAL_INBOX_OAUTH_PLATFORMS ?? "facebook,instagram,threads,x,youtube";
+  const platforms = new Set(configured.toLowerCase().split(/[\s,]+/u));
+  return platforms.has(platform) ? (permissions[platform] ?? []) : [];
 }
 
 export function hasInboxScopes(scope: string | undefined | null, required: readonly string[]): boolean {

@@ -10,6 +10,7 @@ export interface OAuthStatePayload {
   timestamp: number;
   source?: "assistant_handoff";
   inboxAccountId?: string;
+  pilotScopes?: { scope: string; analytics: boolean; inbox: boolean };
 }
 
 function getSigningKey(): Buffer {
@@ -25,6 +26,7 @@ export function createOAuthState(
   platform: string,
   source?: "assistant_handoff",
   inboxAccountId?: string,
+  pilotScopes?: OAuthStatePayload["pilotScopes"],
 ): string {
   const payload: OAuthStatePayload = {
     userId,
@@ -32,6 +34,7 @@ export function createOAuthState(
     timestamp: Date.now(),
     ...(source && { source }),
     ...(inboxAccountId && { inboxAccountId }),
+    ...(pilotScopes && { pilotScopes }),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = hmacSign(encoded);

@@ -62,9 +62,11 @@ Live pagination still needs a thread with enough activity to return a continuati
 
 Deploy the additive Prisma migration using the normal scheduler release process. Individual `SOCIAL_INBOX` grants in `UserFeature` control access to the page, API, MCP discovery and execution, and provider refresh. The migration creates zero grants. After deploying the scheduler, use the [existing administrative grant pattern](../image-fitting.md#private-hosted-rollout) with `Feature.SOCIAL_INBOX` and the verified internal user ID. Remove the row to revoke access.
 
-Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to a comma-separated list of platforms whose incremental permissions the provider has approved for this installation. An invited user can select **Grant inbox permissions** on an existing connection. This starts a per-account consent flow. If consent is incomplete or the provider returns a different account, SimplePost keeps the original connection.
+`POST_ANALYTICS` and `SOCIAL_INBOX` are independent grants. Social account connections and reconnects start with publishing scopes and add the scopes for the user's grants and the selected platform. A user with both grants can consent to both sets in one flow. Existing connections gain permissions when their owners reconnect and consent.
 
-`POST_ANALYTICS` and `SOCIAL_INBOX` are independent grants. Standard account connections request publishing scopes and any approved analytics scopes for users with the analytics grant. **Grant inbox permissions** adds the approved inbox scopes to that request. For a user with both grants, complete the inbox consent flow after enabling both sets of scopes.
+For Inbox, the default platforms are Facebook, Instagram, Threads, YouTube, and X. X requests `like.write`. Bluesky already authorizes replies and likes through its existing connection. Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to override the platform list, or set it to an empty value to disable additional Inbox requests. TikTok's pilot scopes cover [analytics](../post-analytics/platform-permissions.md).
+
+An invited user can also select **Grant inbox permissions** on an existing connection. If the inbox consent is incomplete or the provider returns a different account, SimplePost keeps the original connection. During provider review, the tester needs an account that can authorize the new scopes on that developer app.
 
 ## SDK and clients
 

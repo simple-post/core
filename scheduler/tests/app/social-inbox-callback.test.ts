@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { GET } from "@/app/api/connect/callback/[platform]/route";
+import { hasFeature, requireSocialInbox } from "@/lib/features";
 import { exchangeCodeForToken, handlePlatformCallback, verifyOAuthState } from "@/lib/oauth";
 
-jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn() }));
+jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn(), measurementFailure: () => "test_error" }));
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: () => true }));
 jest.mock("@/lib/middleware/auth", () => ({ requireAuth: async () => ({ user: { id: "user-1" } }) }));
-jest.mock("@/lib/features", () => ({ requireSocialInbox: jest.fn() }));
+jest.mock("@/lib/features", () => ({ hasFeature: jest.fn(), requireSocialInbox: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prisma: { connectedAccount: { findFirst: async () => ({ platformAccountId: "123" }) } },
 }));
@@ -21,6 +22,51 @@ const previous = process.env.SOCIAL_INBOX_OAUTH_PLATFORMS;
 beforeEach(() => {
   jest.clearAllMocks();
   process.env.SOCIAL_INBOX_OAUTH_PLATFORMS = "threads,instagram";
+});
+
+describe("pilot scope callback", () => {
+  const requested = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
+  ].join(" ");
+
+  function pilotCallback() {
+    return GET(new NextRequest("http://localhost/api/connect/callback/youtube?code=code&state=signed"), {
+      params: Promise.resolve({ platform: "youtube" }),
+    });
+  }
+
+  beforeEach(() => {
+    jest.mocked(hasFeature).mockResolvedValue(true);
+    jest.mocked(verifyOAuthState).mockReturnValue({
+      userId: "user-1",
+      platform: "youtube",
+      timestamp: Date.now(),
+      pilotScopes: { scope: requested, analytics: true, inbox: true },
+    });
+    jest.mocked(handlePlatformCallback).mockResolvedValue(new NextResponse(null));
+  });
+
+  it.each([undefined, "https://www.googleapis.com/auth/youtube.readonly"])(
+    "uses the provider scope when present and the signed request when omitted (%s)",
+    async (scope) => {
+      jest.mocked(exchangeCodeForToken).mockResolvedValue({ access_token: "test", scope });
+      await pilotCallback();
+      expect(requireSocialInbox).toHaveBeenCalledWith("user-1");
+      expect(handlePlatformCallback).toHaveBeenCalledWith(expect.objectContaining({ scope: scope ?? requested }));
+    },
+  );
+
+  it("rejects a pilot callback if its Analytics grant was revoked during consent", async () => {
+    jest.mocked(hasFeature).mockResolvedValue(false);
+    const response = await pilotCallback();
+    expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe(
+      "Invalid authorization request. Please try connecting again.",
+    );
+    expect(exchangeCodeForToken).not.toHaveBeenCalled();
+  });
 });
 afterAll(() => {
   if (previous === undefined) delete process.env.SOCIAL_INBOX_OAUTH_PLATFORMS;

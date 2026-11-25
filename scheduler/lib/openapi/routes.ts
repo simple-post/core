@@ -29,6 +29,7 @@ import apiKeyRoute from "@/app/api/v1/api-keys/[id]/openapi";
 import apiKeyRotateRoutes from "@/app/api/v1/api-keys/[id]/rotate/openapi";
 import apiKeyRoutes from "@/app/api/v1/api-keys/openapi";
 import featureRoutes from "@/app/api/v1/features/openapi";
+import pabblyPostRoutes from "@/app/api/v1/integrations/pabbly/posts/openapi";
 import postingSlotsRoutes from "@/app/api/v1/posting-slots/openapi";
 import postAnalyticsRoutes from "@/app/api/v1/posts/[id]/analytics/openapi";
 import postRoutes from "@/app/api/v1/posts/[id]/openapi";
@@ -80,6 +81,7 @@ export const schedulerOpenApiRoutes: OpenApiRoute[] = [
   apiKeyRoute,
   apiKeyRotateRoutes,
   postsRoutes,
+  pabblyPostRoutes,
   postRoutes,
   postsCalendarRoutes,
   repostPostRoutes,

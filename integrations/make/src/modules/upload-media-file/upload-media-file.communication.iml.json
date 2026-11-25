@@ -13,7 +13,7 @@
 	},
 	"response": {
 		"output": {
-			"{{...}}": "{{body}}",
+			"{{...}}": "{{omit(body, 'type')}}",
 			"id": "{{body.key}}",
 			"type": "{{if(contains(body.type, 'video/'), 'video', 'image')}}",
 			"contentType": "{{body.type}}"

@@ -216,8 +216,10 @@ test("media items match the Scheduler media file schema", () => {
   }
 
   const uploadOutput = moduleCode("uploadMediaFile", "communication").response.output;
-  assert.equal(uploadOutput["{{...}}"], "{{body}}");
+  assert.equal(uploadOutput["{{...}}"], "{{omit(body, 'type')}}");
   assert.equal(uploadOutput.id, "{{body.key}}");
+  assert.equal(uploadOutput.type, "{{if(contains(body.type, 'video/'), 'video', 'image')}}");
+  assert.equal(uploadOutput.contentType, "{{body.type}}");
   for (const name of [...MEDIA_FILE_REQUIRED, "key", "contentType"]) {
     assert.ok(moduleCode("uploadMediaFile", "interface").some((field) => field.name === name), `upload output ${name}`);
   }

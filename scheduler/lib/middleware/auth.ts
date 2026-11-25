@@ -6,7 +6,7 @@ import { hashCliCredential, isCliToken } from "@/lib/cli/tokens";
 import { serverMessage } from "@/lib/i18n/server";
 import { rememberRequestUser } from "@/lib/logger/request-context";
 import { authenticateMcpToken, isMcpToken } from "@/lib/mcp/oauth";
-import { allowsMcpRestRequest } from "@/lib/mcp/rest-scopes";
+import { allowsMcpRestRequest, socialInboxRestScope } from "@/lib/mcp/rest-scopes";
 import { prisma } from "@/lib/prisma";
 import { hashApiKey, isApiKey } from "@/lib/security/api-keys";
 import { ForbiddenError, UnauthorizedError } from "@/lib/utils/errors";
@@ -69,7 +69,11 @@ async function authenticateMcpBearerToken(req: NextRequest) {
   if (!isMcpToken(token)) return null;
 
   const session = await authenticateMcpToken(token);
-  if (session?.session.enforceRestScopes && !(await allowsMcpRestRequest(req, session.session.scope))) {
+  if (
+    session &&
+    (session.session.enforceRestScopes || socialInboxRestScope(req)) &&
+    !(await allowsMcpRestRequest(req, session.session.scope))
+  ) {
     // A valid restricted bearer must never fall through to a broader browser session.
     throw new ForbiddenError(serverMessage("The connected app does not have permission for this request"));
   }

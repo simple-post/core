@@ -250,6 +250,9 @@ export async function handleGenericCallback(ctx: CallbackContext): Promise<NextR
     ctx.tokenData,
   );
 
+  if (ctx.inboxIdentity && ctx.inboxIdentity !== platformAccountId) {
+    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+  }
   const expiresAt = ctx.expiresIn ? new Date(Date.now() + ctx.expiresIn * 1000) : null;
 
   await upsertConnectedAccount({

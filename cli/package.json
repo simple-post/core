@@ -66,6 +66,9 @@
     "topicSeparator": " ",
     "flexibleTaxonomy": true,
     "topics": {
+      "inbox": {
+        "description": "Read and respond to activity in the SimplePost scheduler inbox."
+      },
       "account": {
         "description": "List, add, and remove connected accounts."
       },

@@ -29,6 +29,7 @@ export function createSchedulerOpenApiDocument() {
         { name: "OAuth", description: "OAuth endpoints for MCP clients." },
         { name: "Accounts", description: "Connected social account management." },
         { name: "API Keys", description: "User-managed API keys for direct Scheduler API access." },
+        { name: "Social inbox", description: "Invite-only replies, comments, and quote posts." },
         { name: "Posts", description: "Post listing, creation, publishing, scheduling, and mutation." },
         {
           name: "Analytics",

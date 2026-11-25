@@ -108,7 +108,7 @@ it("preserves a legacy connection only after its own refreshed credentials prove
   fetchMock
     .mockResolvedValueOnce(response({ items: [channel()] }))
     .mockResolvedValueOnce(response({ items: [channel()] }));
-  await handleYouTubeCallback(context);
+  await handleYouTubeCallback({ ...context, inboxIdentity: legacy.platformAccountId });
 
   expect(refreshMock).toHaveBeenCalledWith(expect.objectContaining({ accessToken: "old-token" }));
   expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer refreshed-old");
@@ -186,4 +186,10 @@ it("accepts a channel without optional profile fields", async () => {
       profilePicture: null,
     }),
   );
+});
+
+it("preserves the publishing connection when incremental consent returns no offline token", async () => {
+  const result = await handleYouTubeCallback({ ...context, inboxIdentity: "UC-brand", refreshToken: null });
+  expect(result.headers.get("location")).toContain("/inbox?connection=permissions");
+  expect(upsertMock).not.toHaveBeenCalled();
 });

@@ -219,11 +219,12 @@ export async function exchangeCodeForToken(
   }
 
   const tokenData = await response.json();
-  // Accept Instagram's data envelope as well as the flat token response.
-  if (platform === "instagram" && !tokenData.access_token && Array.isArray(tokenData.data)) {
-    const token = tokenData.data[0];
+  if (platform === "instagram") {
+    const token = tokenData.access_token ? tokenData : tokenData.data?.[0];
     if (typeof token?.access_token === "string") {
-      return { ...token, scope: Array.isArray(token.permissions) ? token.permissions.join(",") : token.scope };
+      const permissions = token.permissions;
+      const scope = Array.isArray(permissions) ? permissions.join(",") : (permissions ?? token.scope);
+      return { ...token, scope: typeof scope === "string" ? scope : undefined };
     }
   }
   return tokenData;

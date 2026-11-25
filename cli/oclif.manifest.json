@@ -49,6 +49,147 @@
         "account"
       ]
     },
+    "account:add": {
+      "aliases": [],
+      "args": {
+        "platform": {
+          "description": "Platform to connect",
+          "name": "platform",
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "pinterest",
+            "telegram",
+            "forem"
+          ],
+          "required": false
+        }
+      },
+      "description": "Connect a new account.",
+      "flags": {
+        "alias": {
+          "description": "Alias to store for the connected account",
+          "name": "alias",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "bot-token": {
+          "description": "Telegram bot token (for non-interactive Telegram connect)",
+          "name": "bot-token",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "callback-url": {
+          "description": "Provide the final browser callback URL directly instead of waiting for the listener",
+          "name": "callback-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "callback-port": {
+          "description": "Loopback callback port when no platform redirect URI override is set (default: 5000)",
+          "env": "SIMPLE_POST_CALLBACK_PORT",
+          "name": "callback-port",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "chat-id": {
+          "description": "Telegram chat ID (for non-interactive Telegram connect)",
+          "name": "chat-id",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "no-browser": {
+          "description": "Do not try to open the browser automatically",
+          "name": "no-browser",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "redirect-uri": {
+          "description": "Loopback redirect URI to use for the OAuth callback",
+          "name": "redirect-uri",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "instance-url": {
+          "description": "Forem instance URL (defaults to https://dev.to)",
+          "name": "instance-url",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "api-key": {
+          "description": "Forem API key (prefer interactive entry)",
+          "name": "api-key",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account:add",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "account",
+        "add.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account:add",
+        "add:account"
+      ]
+    },
+    "account:remove": {
+      "aliases": [],
+      "args": {
+        "account": {
+          "description": "Account alias or <platform>:<alias>",
+          "name": "account",
+          "required": false
+        }
+      },
+      "description": "Remove a connected account.",
+      "flags": {},
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "account:remove",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "account",
+        "remove.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "account:remove",
+        "remove:account"
+      ]
+    },
     "analytics": {
       "aliases": [],
       "args": {},
@@ -203,6 +344,310 @@
         "analytics"
       ]
     },
+    "analytics:accounts": {
+      "aliases": [],
+      "args": {},
+      "description": "Show followers and other account analytics for your connected accounts.",
+      "examples": [
+        "<%= config.bin %> analytics accounts",
+        "<%= config.bin %> analytics accounts --refresh force",
+        "<%= config.bin %> analytics accounts --account x:main --account bluesky:me"
+      ],
+      "flags": {
+        "account": {
+          "description": "Read a local account <platform>:<alias> directly instead of your SimplePost account.",
+          "helpGroup": "Local",
+          "name": "account",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "refresh": {
+          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
+          "name": "refresh",
+          "default": "auto",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "auto",
+            "none",
+            "force"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Print the raw JSON response.",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "analytics:accounts",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "analytics",
+        "accounts.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "analytics:accounts",
+        "accounts:analytics"
+      ]
+    },
+    "analytics:post": {
+      "aliases": [],
+      "args": {
+        "simplepostPostId": {
+          "description": "SimplePost post ID (uses your connected SimplePost account).",
+          "name": "simplepostPostId",
+          "required": false
+        }
+      },
+      "description": "Show analytics for one post: a SimplePost post ID, or a platform post ID read with a local account.",
+      "examples": [
+        "<%= config.bin %> analytics post clx123abc",
+        "<%= config.bin %> analytics post clx123abc --refresh force --details",
+        "<%= config.bin %> analytics post --account x:main --post-id 1790000000000000000",
+        "<%= config.bin %> analytics post --account bluesky:me --post-id at://did:plc:abc/app.bsky.feed.post/3k"
+      ],
+      "flags": {
+        "account": {
+          "description": "Local account <platform>:<alias> that published the post.",
+          "helpGroup": "Local",
+          "name": "account",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "post-id": {
+          "description": "Platform post ID (tweet ID, Bluesky at:// URI, Instagram media ID, …). Repeatable.",
+          "helpGroup": "Local",
+          "name": "post-id",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "details": {
+          "description": "Also print every platform-native metric.",
+          "name": "details",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "refresh": {
+          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
+          "name": "refresh",
+          "default": "auto",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "auto",
+            "none",
+            "force"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Print the raw JSON response.",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "analytics:post",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "analytics",
+        "post.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "analytics:post",
+        "post:analytics"
+      ]
+    },
+    "analytics:posts": {
+      "aliases": [],
+      "args": {},
+      "description": "List or rank your posts by performance for a period.",
+      "examples": [
+        "<%= config.bin %> analytics posts",
+        "<%= config.bin %> analytics posts --period 7d --sort-by views --limit 5",
+        "<%= config.bin %> analytics posts --sort-by engagementRate --order asc --platform instagram"
+      ],
+      "flags": {
+        "period": {
+          "char": "p",
+          "description": "Period: 24h, 7d, 30d, 90d, 12m, ytd, all, or this_week, last_month, last_year, … (default 30d).",
+          "helpGroup": "Period",
+          "name": "period",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "from": {
+          "description": "Custom start date (YYYY-MM-DD).",
+          "helpGroup": "Period",
+          "name": "from",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "to": {
+          "description": "Custom end date, inclusive (YYYY-MM-DD).",
+          "helpGroup": "Period",
+          "name": "to",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "timezone": {
+          "description": "IANA timezone for calendar periods and best times (defaults to this machine's timezone).",
+          "helpGroup": "Period",
+          "name": "timezone",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "mode": {
+          "description": "published: lifetime metrics of posts published in the period. activity: what all posts gained during it.",
+          "helpGroup": "Period",
+          "name": "mode",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "published",
+            "activity"
+          ],
+          "type": "option"
+        },
+        "platform": {
+          "description": "Only this platform (repeatable).",
+          "helpGroup": "Filters",
+          "name": "platform",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "app-account-id": {
+          "description": "Only this SimplePost account ID (repeatable).",
+          "helpGroup": "Filters",
+          "name": "app-account-id",
+          "hasDynamicHelp": false,
+          "multiple": true,
+          "type": "option"
+        },
+        "sort-by": {
+          "description": "Metric to sort by.",
+          "name": "sort-by",
+          "default": "engagements",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "views",
+            "reach",
+            "likes",
+            "comments",
+            "shares",
+            "quotes",
+            "saves",
+            "clicks",
+            "profileVisits",
+            "follows",
+            "watchTimeSeconds",
+            "averageWatchTimeSeconds",
+            "engagements",
+            "engagementRate",
+            "publishedAt"
+          ],
+          "type": "option"
+        },
+        "order": {
+          "description": "desc: best first; asc: weakest first.",
+          "name": "order",
+          "default": "desc",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "desc",
+            "asc"
+          ],
+          "type": "option"
+        },
+        "limit": {
+          "description": "Posts per page.",
+          "name": "limit",
+          "default": 10,
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "page": {
+          "description": "Page number.",
+          "name": "page",
+          "default": 1,
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "refresh": {
+          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
+          "name": "refresh",
+          "default": "auto",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "auto",
+            "none",
+            "force"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Print the raw JSON response.",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "analytics:posts",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "analytics",
+        "posts.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "analytics:posts",
+        "posts:analytics"
+      ]
+    },
     "connect": {
       "aliases": [],
       "args": {},
@@ -285,6 +730,248 @@
       "aliasPermutations": [],
       "permutations": [
         "disconnect"
+      ]
+    },
+    "inbox:like": {
+      "aliases": [],
+      "args": {
+        "item": {
+          "description": "Inbox item ID.",
+          "name": "item",
+          "required": true
+        }
+      },
+      "description": "Like the selected inbox item as its receiving account.",
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "inbox:like",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "inbox",
+        "like.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "inbox:like",
+        "like:inbox"
+      ]
+    },
+    "inbox:list": {
+      "aliases": [],
+      "args": {},
+      "description": "List replies, comments, and quote posts in your SimplePost inbox.",
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "platform": {
+          "description": "Filter by platform.",
+          "name": "platform",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "pinterest",
+            "telegram",
+            "forem"
+          ],
+          "type": "option"
+        },
+        "kind": {
+          "description": "Filter by activity type.",
+          "name": "kind",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "comment",
+            "reply",
+            "quote"
+          ],
+          "type": "option"
+        },
+        "needs-reply": {
+          "description": "Show items awaiting a reply.",
+          "name": "needs-reply",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "cursor": {
+          "description": "Continue from a previous page.",
+          "name": "cursor",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "limit": {
+          "description": "Maximum number of items.",
+          "name": "limit",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "inbox:list",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "inbox",
+        "list.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "inbox:list",
+        "list:inbox"
+      ]
+    },
+    "inbox:refresh": {
+      "aliases": [],
+      "args": {},
+      "description": "Advance a bounded inbox refresh for your connected accounts.",
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "platform": {
+          "description": "Refresh only this platform.",
+          "name": "platform",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "x",
+            "youtube",
+            "facebook",
+            "instagram",
+            "tiktok",
+            "bluesky",
+            "threads",
+            "linkedin",
+            "pinterest",
+            "telegram",
+            "forem"
+          ],
+          "type": "option"
+        },
+        "reset": {
+          "description": "Start again from the newest posts.",
+          "name": "reset",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "inbox:refresh",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "inbox",
+        "refresh.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "inbox:refresh",
+        "refresh:inbox"
+      ]
+    },
+    "inbox:reply": {
+      "aliases": [],
+      "args": {
+        "item": {
+          "description": "Inbox item ID.",
+          "name": "item",
+          "required": true
+        }
+      },
+      "description": "Publish a reply to the selected inbox item.",
+      "flags": {
+        "json": {
+          "description": "Format output as json.",
+          "helpGroup": "GLOBAL",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "text": {
+          "description": "Reply text.",
+          "name": "text",
+          "required": true,
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "idempotency-key": {
+          "description": "Unique key for this reply. Reuse it after an interruption.",
+          "name": "idempotency-key",
+          "required": true,
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "inbox:reply",
+      "pluginAlias": "@simple-post/cli",
+      "pluginName": "@simple-post/cli",
+      "pluginType": "core",
+      "strict": true,
+      "enableJsonFlag": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "inbox",
+        "reply.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "inbox:reply",
+        "reply:inbox"
       ]
     },
     "post": {
@@ -799,451 +1486,6 @@
       "aliasPermutations": [],
       "permutations": [
         "status"
-      ]
-    },
-    "account:add": {
-      "aliases": [],
-      "args": {
-        "platform": {
-          "description": "Platform to connect",
-          "name": "platform",
-          "options": [
-            "x",
-            "youtube",
-            "facebook",
-            "instagram",
-            "tiktok",
-            "bluesky",
-            "threads",
-            "linkedin",
-            "pinterest",
-            "telegram",
-            "forem"
-          ],
-          "required": false
-        }
-      },
-      "description": "Connect a new account.",
-      "flags": {
-        "alias": {
-          "description": "Alias to store for the connected account",
-          "name": "alias",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "bot-token": {
-          "description": "Telegram bot token (for non-interactive Telegram connect)",
-          "name": "bot-token",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "callback-url": {
-          "description": "Provide the final browser callback URL directly instead of waiting for the listener",
-          "name": "callback-url",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "callback-port": {
-          "description": "Loopback callback port when no platform redirect URI override is set (default: 5000)",
-          "env": "SIMPLE_POST_CALLBACK_PORT",
-          "name": "callback-port",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "chat-id": {
-          "description": "Telegram chat ID (for non-interactive Telegram connect)",
-          "name": "chat-id",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "no-browser": {
-          "description": "Do not try to open the browser automatically",
-          "name": "no-browser",
-          "allowNo": false,
-          "type": "boolean"
-        },
-        "redirect-uri": {
-          "description": "Loopback redirect URI to use for the OAuth callback",
-          "name": "redirect-uri",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "instance-url": {
-          "description": "Forem instance URL (defaults to https://dev.to)",
-          "name": "instance-url",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "api-key": {
-          "description": "Forem API key (prefer interactive entry)",
-          "name": "api-key",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        }
-      },
-      "hasDynamicHelp": false,
-      "hiddenAliases": [],
-      "id": "account:add",
-      "pluginAlias": "@simple-post/cli",
-      "pluginName": "@simple-post/cli",
-      "pluginType": "core",
-      "strict": true,
-      "enableJsonFlag": false,
-      "isESM": true,
-      "relativePath": [
-        "dist",
-        "commands",
-        "account",
-        "add.js"
-      ],
-      "aliasPermutations": [],
-      "permutations": [
-        "account:add",
-        "add:account"
-      ]
-    },
-    "account:remove": {
-      "aliases": [],
-      "args": {
-        "account": {
-          "description": "Account alias or <platform>:<alias>",
-          "name": "account",
-          "required": false
-        }
-      },
-      "description": "Remove a connected account.",
-      "flags": {},
-      "hasDynamicHelp": false,
-      "hiddenAliases": [],
-      "id": "account:remove",
-      "pluginAlias": "@simple-post/cli",
-      "pluginName": "@simple-post/cli",
-      "pluginType": "core",
-      "strict": true,
-      "enableJsonFlag": false,
-      "isESM": true,
-      "relativePath": [
-        "dist",
-        "commands",
-        "account",
-        "remove.js"
-      ],
-      "aliasPermutations": [],
-      "permutations": [
-        "account:remove",
-        "remove:account"
-      ]
-    },
-    "analytics:accounts": {
-      "aliases": [],
-      "args": {},
-      "description": "Show followers and other account analytics for your connected accounts.",
-      "examples": [
-        "<%= config.bin %> analytics accounts",
-        "<%= config.bin %> analytics accounts --refresh force",
-        "<%= config.bin %> analytics accounts --account x:main --account bluesky:me"
-      ],
-      "flags": {
-        "account": {
-          "description": "Read a local account <platform>:<alias> directly instead of your SimplePost account.",
-          "helpGroup": "Local",
-          "name": "account",
-          "hasDynamicHelp": false,
-          "multiple": true,
-          "type": "option"
-        },
-        "refresh": {
-          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
-          "name": "refresh",
-          "default": "auto",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "auto",
-            "none",
-            "force"
-          ],
-          "type": "option"
-        },
-        "json": {
-          "description": "Print the raw JSON response.",
-          "name": "json",
-          "allowNo": false,
-          "type": "boolean"
-        }
-      },
-      "hasDynamicHelp": false,
-      "hiddenAliases": [],
-      "id": "analytics:accounts",
-      "pluginAlias": "@simple-post/cli",
-      "pluginName": "@simple-post/cli",
-      "pluginType": "core",
-      "strict": true,
-      "enableJsonFlag": false,
-      "isESM": true,
-      "relativePath": [
-        "dist",
-        "commands",
-        "analytics",
-        "accounts.js"
-      ],
-      "aliasPermutations": [],
-      "permutations": [
-        "analytics:accounts",
-        "accounts:analytics"
-      ]
-    },
-    "analytics:post": {
-      "aliases": [],
-      "args": {
-        "simplepostPostId": {
-          "description": "SimplePost post ID (uses your connected SimplePost account).",
-          "name": "simplepostPostId",
-          "required": false
-        }
-      },
-      "description": "Show analytics for one post: a SimplePost post ID, or a platform post ID read with a local account.",
-      "examples": [
-        "<%= config.bin %> analytics post clx123abc",
-        "<%= config.bin %> analytics post clx123abc --refresh force --details",
-        "<%= config.bin %> analytics post --account x:main --post-id 1790000000000000000",
-        "<%= config.bin %> analytics post --account bluesky:me --post-id at://did:plc:abc/app.bsky.feed.post/3k"
-      ],
-      "flags": {
-        "account": {
-          "description": "Local account <platform>:<alias> that published the post.",
-          "helpGroup": "Local",
-          "name": "account",
-          "hasDynamicHelp": false,
-          "multiple": true,
-          "type": "option"
-        },
-        "post-id": {
-          "description": "Platform post ID (tweet ID, Bluesky at:// URI, Instagram media ID, …). Repeatable.",
-          "helpGroup": "Local",
-          "name": "post-id",
-          "hasDynamicHelp": false,
-          "multiple": true,
-          "type": "option"
-        },
-        "details": {
-          "description": "Also print every platform-native metric.",
-          "name": "details",
-          "allowNo": false,
-          "type": "boolean"
-        },
-        "refresh": {
-          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
-          "name": "refresh",
-          "default": "auto",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "auto",
-            "none",
-            "force"
-          ],
-          "type": "option"
-        },
-        "json": {
-          "description": "Print the raw JSON response.",
-          "name": "json",
-          "allowNo": false,
-          "type": "boolean"
-        }
-      },
-      "hasDynamicHelp": false,
-      "hiddenAliases": [],
-      "id": "analytics:post",
-      "pluginAlias": "@simple-post/cli",
-      "pluginName": "@simple-post/cli",
-      "pluginType": "core",
-      "strict": true,
-      "enableJsonFlag": false,
-      "isESM": true,
-      "relativePath": [
-        "dist",
-        "commands",
-        "analytics",
-        "post.js"
-      ],
-      "aliasPermutations": [],
-      "permutations": [
-        "analytics:post",
-        "post:analytics"
-      ]
-    },
-    "analytics:posts": {
-      "aliases": [],
-      "args": {},
-      "description": "List or rank your posts by performance for a period.",
-      "examples": [
-        "<%= config.bin %> analytics posts",
-        "<%= config.bin %> analytics posts --period 7d --sort-by views --limit 5",
-        "<%= config.bin %> analytics posts --sort-by engagementRate --order asc --platform instagram"
-      ],
-      "flags": {
-        "period": {
-          "char": "p",
-          "description": "Period: 24h, 7d, 30d, 90d, 12m, ytd, all, or this_week, last_month, last_year, … (default 30d).",
-          "helpGroup": "Period",
-          "name": "period",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "from": {
-          "description": "Custom start date (YYYY-MM-DD).",
-          "helpGroup": "Period",
-          "name": "from",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "to": {
-          "description": "Custom end date, inclusive (YYYY-MM-DD).",
-          "helpGroup": "Period",
-          "name": "to",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "timezone": {
-          "description": "IANA timezone for calendar periods and best times (defaults to this machine's timezone).",
-          "helpGroup": "Period",
-          "name": "timezone",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "mode": {
-          "description": "published: lifetime metrics of posts published in the period. activity: what all posts gained during it.",
-          "helpGroup": "Period",
-          "name": "mode",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "published",
-            "activity"
-          ],
-          "type": "option"
-        },
-        "platform": {
-          "description": "Only this platform (repeatable).",
-          "helpGroup": "Filters",
-          "name": "platform",
-          "hasDynamicHelp": false,
-          "multiple": true,
-          "type": "option"
-        },
-        "app-account-id": {
-          "description": "Only this SimplePost account ID (repeatable).",
-          "helpGroup": "Filters",
-          "name": "app-account-id",
-          "hasDynamicHelp": false,
-          "multiple": true,
-          "type": "option"
-        },
-        "sort-by": {
-          "description": "Metric to sort by.",
-          "name": "sort-by",
-          "default": "engagements",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "views",
-            "reach",
-            "likes",
-            "comments",
-            "shares",
-            "quotes",
-            "saves",
-            "clicks",
-            "profileVisits",
-            "follows",
-            "watchTimeSeconds",
-            "averageWatchTimeSeconds",
-            "engagements",
-            "engagementRate",
-            "publishedAt"
-          ],
-          "type": "option"
-        },
-        "order": {
-          "description": "desc: best first; asc: weakest first.",
-          "name": "order",
-          "default": "desc",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "desc",
-            "asc"
-          ],
-          "type": "option"
-        },
-        "limit": {
-          "description": "Posts per page.",
-          "name": "limit",
-          "default": 10,
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "page": {
-          "description": "Page number.",
-          "name": "page",
-          "default": 1,
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "type": "option"
-        },
-        "refresh": {
-          "description": "auto: refresh stale numbers first; none: cached only; force: re-read everything.",
-          "name": "refresh",
-          "default": "auto",
-          "hasDynamicHelp": false,
-          "multiple": false,
-          "options": [
-            "auto",
-            "none",
-            "force"
-          ],
-          "type": "option"
-        },
-        "json": {
-          "description": "Print the raw JSON response.",
-          "name": "json",
-          "allowNo": false,
-          "type": "boolean"
-        }
-      },
-      "hasDynamicHelp": false,
-      "hiddenAliases": [],
-      "id": "analytics:posts",
-      "pluginAlias": "@simple-post/cli",
-      "pluginName": "@simple-post/cli",
-      "pluginType": "core",
-      "strict": true,
-      "enableJsonFlag": false,
-      "isESM": true,
-      "relativePath": [
-        "dist",
-        "commands",
-        "analytics",
-        "posts.js"
-      ],
-      "aliasPermutations": [],
-      "permutations": [
-        "analytics:posts",
-        "posts:analytics"
       ]
     }
   },

@@ -61,3 +61,16 @@ it("fails closed for malformed validation requests", async () => {
   const invalid = new NextRequest("http://localhost:3000/api/v1/validation", { method: "POST", body: "{" });
   expect(await allowsMcpRestRequest(invalid, readOnly)).toBe(false);
 });
+
+it("allows scoped inbox reads and reserves refresh, reply, and like for write scopes", async () => {
+  expect(await allowsMcpRestRequest(request("/api/v1/social/inbox"), readOnly)).toBe(true);
+  expect(await allowsMcpRestRequest(request("/api/v1/social/inbox"), "posts:write")).toBe(false);
+  for (const [endpoint, method] of [
+    ["/api/v1/social/inbox/refresh", "POST"],
+    ["/api/v1/social/items/id/reply", "POST"],
+    ["/api/v1/social/items/id/like", "PUT"],
+  ]) {
+    expect(await allowsMcpRestRequest(request(endpoint, method), readOnly)).toBe(false);
+    expect(await allowsMcpRestRequest(request(endpoint, method), "posts:write")).toBe(true);
+  }
+});

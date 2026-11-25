@@ -41,8 +41,60 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.restoreAllMocks();
   jest.useRealTimers();
 });
+
+const qaMessage = "SimplePost Zapier QA failure test.";
+
+it("reports the configured Zapier QA failure without preparing media or publishing", async () => {
+  jest.replaceProperty(process, "env", { ...process.env, ZAPIER_QA_FAILURE_ACCOUNT_ID: "edmund-qa" });
+  jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([{ id: "edmund-qa", platform: "bluesky" }] as never);
+  const onResult = jest.fn();
+
+  const results = await postToAccounts(
+    "u1",
+    qaMessage,
+    [],
+    ["edmund-qa"],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    onResult,
+  );
+
+  expect(results).toEqual([
+    {
+      accountId: "edmund-qa",
+      platform: "bluesky",
+      success: false,
+      error: "ZAPIER_QA_FAILURE",
+      message: "Intentional SimplePost failure for Zapier QA.",
+    },
+  ]);
+  expect(onResult).toHaveBeenCalledWith(results[0]);
+  expect(sdkPost).not.toHaveBeenCalled();
+  expect(mockResolve).not.toHaveBeenCalled();
+});
+
+it.each([
+  { id: "edmund-qa", message: qaMessage, accountSetting: undefined },
+  { id: "edmund-qa", message: `${qaMessage} Extra text`, accountSetting: "edmund-qa" },
+  { id: "other-account", message: qaMessage, accountSetting: "edmund-qa" },
+])(
+  "publishes normally when the QA setting, account, or exact message does not match ($id, $message)",
+  async ({ id, message, accountSetting }) => {
+    jest.replaceProperty(process, "env", { ...process.env, ZAPIER_QA_FAILURE_ACCOUNT_ID: accountSetting });
+    jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([{ id, platform: "bluesky" }] as never);
+    jest.mocked(sdkPost).mockResolvedValue(new Map([["bluesky", { id: "published", error: "NO_ERROR" }]]) as never);
+
+    await expect(postToAccounts("u1", message, [], [id])).resolves.toEqual([
+      expect.objectContaining({ accountId: id, success: true, postId: "published" }),
+    ]);
+    expect(sdkPost).toHaveBeenCalledTimes(1);
+  },
+);
 
 it("preserves other results and waits to clean up shared media after one account's download fails", async () => {
   jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([

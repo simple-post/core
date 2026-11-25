@@ -18,7 +18,7 @@
   },
   "postRequest": {
     "method": "POST",
-    "url": "https://app.simplepost.social/api/v1/posts",
+    "url": "https://app.simplepost.social/api/v1/integrations/pabbly/posts",
     "contentType": "application/x-www-form-urlencoded",
     "fields": {
       "accountId": {

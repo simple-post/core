@@ -13,7 +13,6 @@ import {
   PostCountsEnvelopeSchema,
   PostsEnvelopeSchema,
 } from "@/lib/openapi/schemas";
-import { createPostFormSchema } from "@/lib/validations/posts";
 
 export default defineRoute({
   path: "/api/v1/posts",
@@ -51,19 +50,9 @@ export default defineRoute({
           "application/json": {
             schema: CreatePostRequestSchema,
           },
-          "application/x-www-form-urlencoded": {
-            schema: createPostFormSchema,
-          },
         },
       },
       responses: {
-        "200": jsonResponse(
-          "Original post returned for a previously used idempotency key.",
-          CreatePostResponseSchema.pick({ warnings: true }).extend({
-            post: CreatePostResponseSchema.shape.post.nullable(),
-            replayed: z.literal(true),
-          }),
-        ),
         "201": jsonResponse("Created post and optional immediate publishing results.", CreatePostResponseSchema),
         ...userAuthErrorResponses,
         ...basicErrorResponses,

@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { runInNewContext } from "node:vm";
 
-import { createPostSchema, readCreatePostBody } from "@/lib/validations/posts";
+import { readPabblyCreatePostBody } from "@/lib/validations/pabbly-posts";
+import { createPostSchema } from "@/lib/validations/posts";
 
 const portal = JSON.parse(
   readFileSync(path.resolve(__dirname, "../../../../integrations/pabbly/portal.json"), "utf8"),
@@ -31,7 +32,7 @@ it.each(portal.actions)("$name maps a Pabbly form to the existing post input", a
   const body = new URLSearchParams(fields.map((field) => [field, values[field]]));
   body.set("postingMode", postingMode);
 
-  const result = createPostSchema.parse(await readCreatePostBody(formRequest(body)));
+  const result = createPostSchema.parse(await readPabblyCreatePostBody(formRequest(body)));
 
   expect(result).toEqual({
     accountIds: [values.accountId],
@@ -54,17 +55,17 @@ it.each([
     idempotencyKey: values.idempotencyKey,
   });
   for (const [key, value] of Object.entries(fields)) body.set(key, value);
-  await expect(readCreatePostBody(formRequest(body))).rejects.toThrow();
+  await expect(readPabblyCreatePostBody(formRequest(body))).rejects.toThrow();
 });
 
-it("preserves the existing JSON input for immediate publishing and multiple accounts", async () => {
+it("rejects JSON at the Pabbly endpoint", async () => {
   const post = { accountIds: ["account-1", "account-2"], message: "Hello", postingMode: "now" };
   const request = new Request(portal.postRequest.url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(post),
   });
-  await expect(readCreatePostBody(request)).resolves.toEqual(post);
+  await expect(readPabblyCreatePostBody(request)).rejects.toMatchObject({ statusCode: 415 });
 });
 
 it("maps only eligible accounts to the Pabbly dropdown", () => {

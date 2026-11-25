@@ -25,29 +25,6 @@ export const createPostSchema = sdkCreatePostSchema.extend({
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 
-const createPostFormFields = {
-  accountId: z.string().min(1),
-  message: z.string().min(1),
-  idempotencyKey: createPostSchema.shape.idempotencyKey.unwrap(),
-};
-
-export const createPostFormSchema = z.discriminatedUnion("postingMode", [
-  z.strictObject({ ...createPostFormFields, postingMode: z.literal("draft") }),
-  z.strictObject({
-    ...createPostFormFields,
-    postingMode: z.literal("schedule"),
-    scheduledFor: z.iso.datetime(),
-  }),
-]);
-
-export async function readCreatePostBody(request: Request): Promise<unknown> {
-  const contentType = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
-  if (contentType !== "application/x-www-form-urlencoded") return request.json();
-
-  const { accountId, ...post } = createPostFormSchema.parse(Object.fromEntries(await request.formData()));
-  return { ...post, accountIds: [accountId] };
-}
-
 export const updatePostSchema = z.object({
   expectedUpdatedAt: z.iso.datetime().optional(),
   imageFit: ImageFitSchema.optional(),

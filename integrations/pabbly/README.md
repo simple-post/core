@@ -6,7 +6,7 @@ Send an approved content item from Airtable or another Pabbly trigger to SimpleP
 
 1. Connect a test social account in SimplePost. Create a key on the [API Keys page](https://app.simplepost.social/api-keys). The hosted API requires Pro or an active free trial.
 2. In Pabbly Connect, add your source trigger, then add **API (Pabbly)** and send a `GET` request to `https://app.simplepost.social/api/v1/accounts`. Use the API module's bearer credential option and select the `id` of a connected account that can publish.
-3. Add an API step with method `POST` and URL `https://app.simplepost.social/api/v1/posts`. Select the encoded form payload type and use the same credential. Map these body parameters.
+3. Add an API step with method `POST` and URL `https://app.simplepost.social/api/v1/integrations/pabbly/posts`. Select the encoded form payload type and use the same credential. Map these body parameters.
 
 | Parameter        | Example or mapping                                                                                          |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -18,7 +18,7 @@ Send an approved content item from Airtable or another Pabbly trigger to SimpleP
 
 4. Run the step with a new source item. A successful create returns HTTP 201 and `post.id` and `post.status`. Replaying the same key returns HTTP 200, `replayed: true`, and the original ID. Use a distinct key for a separate post. Editing a previously created draft takes place in SimplePost.
 
-Use Pabbly's encoded form fields for this request. Pabbly encodes each value before sending it so SimplePost receives quotes and newlines in the original message. The existing SimplePost JSON API also supports media, multiple accounts, and other post options.
+Use Pabbly's encoded form fields for this request. Pabbly encodes each value before sending it so SimplePost receives quotes and newlines in the original message. For media, multiple accounts, and other post options, use the JSON endpoint at `/api/v1/posts`.
 
 ## Configure the private native connector
 

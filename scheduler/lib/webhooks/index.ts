@@ -196,6 +196,12 @@ async function deliver(
       signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
     });
 
+    if (response.status === 410) {
+      await prisma.webhookEndpoint.deleteMany({ where: { id: endpoint.id } });
+      log.info({ endpointId: endpoint.id, event }, "Removed webhook endpoint after HTTP 410");
+      return;
+    }
+
     if (!response.ok) {
       throw new Error(`Endpoint responded with HTTP ${response.status}`);
     }

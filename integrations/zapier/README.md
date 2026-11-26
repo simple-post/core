@@ -7,8 +7,8 @@ A [Zapier Platform CLI](https://docs.zapier.com/platform/reference/cli-docs) int
 | Type | Key | Label | API |
 | --- | --- | --- | --- |
 | Auth | — | API key (custom auth) | `GET /api/v1/accounts` |
-| Trigger | `new_published_post` | New Published Post | REST hook on `post.published`, polling fallback `GET /api/v1/posts?type=past` |
-| Trigger | `new_failed_post` | New Failed Post | REST hook on `post.failed`, polling fallback `GET /api/v1/posts?type=failed` |
+| Trigger | `new_published_post` | New Published Post | REST hook on `post.published`, editor samples from `GET /api/v1/posts?type=past` |
+| Trigger | `new_failed_post` | New Failed Post | REST hook on `post.failed`, editor samples from `GET /api/v1/posts?type=failed` |
 | Trigger (hidden) | `account_list` | Account dropdown | `GET /api/v1/accounts` |
 | Action | `create_post` | Create Post | `POST /api/v1/posts` |
 | Action | `validate_post` | Validate Post | `POST /api/v1/validation` |
@@ -19,10 +19,10 @@ Notes on behavior:
 - Users connect with an `sp_api_` key from **API keys** in SimplePost. Keys need a plan with API access. The SimplePost URL field defaults to `https://app.simplepost.social`. Self-hosted Schedulers must use HTTPS.
 - **Accounts** is a dropdown. Preview-only accounts are hidden.
 - **Media** accepts files from earlier Zap steps or public URLs. The integration reads only the response headers to detect image or video. The Scheduler then copies the file into its own storage before publishing.
-- **Publish now** waits for every platform to respond, and Zapier allows 30 seconds per action. For videos or many accounts, schedule the post a few minutes ahead.
+- **Publish now** waits for every platform to respond, and Zapier allows 30 seconds per action. For videos or many accounts, schedule the post a few minutes ahead. If SimplePost queues a retry, the action returns the original post ID with status `scheduled`.
 - When a publish-now post fails on any platform, the action raises a Zap error that names the failed and successful platforms.
-- **Deduplication key** maps to the API `idempotencyKey`. When it is set, a replayed Zap run returns the original post instead of posting twice.
-- Each Zap that uses a trigger registers one webhook endpoint. The Scheduler allows 10 endpoints per user.
+- **Deduplication key** maps to the API `idempotencyKey`. Map a stable ID from the trigger before enabling retries. If a run times out, check the original post in SimplePost before replaying it.
+- Each Zap that uses a trigger registers one webhook endpoint. The Scheduler allows 10 endpoints per user. The trigger verifies the signature and delivery timestamp before accepting the event.
 - Trigger output is the same for webhook deliveries and polling samples: `id`, `event`, `eventCreatedAt`, `status`, `message`, `url`, `publishedAt`, `errorMessage`, and `accountResults[]`.
 
 ## Development

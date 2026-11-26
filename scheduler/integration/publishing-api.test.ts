@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { after, NextRequest } from "next/server";
 
 import { post as sdkPost, PostErrorType } from "@simple-post/sdk";
 
@@ -13,9 +13,12 @@ import * as posting from "@/lib/posting";
 import { runDurablePublish } from "@/lib/posting/durable-publish";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
+import { dispatchPostWebhooks } from "@/lib/webhooks";
 
 import type { Prisma } from "@prisma/client";
 
+// These tests call route handlers directly, outside Next.js's request context.
+jest.mock("next/server", () => ({ ...jest.requireActual("next/server"), after: jest.fn() }));
 jest.mock("@simple-post/sdk", () => ({ ...jest.requireActual("@simple-post/sdk"), post: jest.fn() }));
 jest.mock("@/lib/middleware/auth", () => ({ requireAuth: jest.fn() }));
 jest.mock("@/lib/security/connected-account-secrets", () => ({
@@ -286,6 +289,24 @@ it.each(["create", "edit"])(
       expect(sdkPost).toHaveBeenCalledTimes(1);
       const saved = await prisma.post.findFirstOrThrow({ where: { userId } });
       expect(saved.status).toBe("failed");
+      if (mode === "create") {
+        expect(saved.errorDetails).toBeNull();
+        expect(after).toHaveBeenCalledTimes(1);
+        expect(dispatchPostWebhooks).not.toHaveBeenCalled();
+        const [notify] = jest.mocked(after).mock.calls[0];
+        if (typeof notify !== "function") throw new Error("Expected an after-response callback");
+        await notify();
+        expect(dispatchPostWebhooks).toHaveBeenCalledTimes(1);
+        expect(dispatchPostWebhooks).toHaveBeenCalledWith(
+          userId,
+          "post.failed",
+          expect.objectContaining({
+            id: saved.id,
+            status: "failed",
+            errorMessage: expect.stringContaining("Check Posts"),
+          }),
+        );
+      }
       expect(await prisma.publishCheckpoint.count({ where: { postId: saved.id } })).toBe(1);
     } finally {
       summary.mockRestore();

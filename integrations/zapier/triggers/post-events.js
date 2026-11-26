@@ -1,6 +1,23 @@
+const { createHmac, timingSafeEqual } = require('node:crypto');
 const { request, toPostEvent } = require('../lib/simplepost');
 
 const POLLING_LIMIT = 25;
+const SIGNATURE_TOLERANCE_MS = 5 * 60 * 1000;
+
+const isSignedDelivery = ({ rawRequest, subscribeData }) => {
+  const { headers = {}, content } = rawRequest || {};
+  const secret = subscribeData?.secret;
+  const getHeader = (name) => Object.entries(headers)
+    .find(([key]) => key.toLowerCase().replace(/^http-/, '') === name)?.[1];
+  const timestamp = getHeader('x-simplepost-timestamp');
+  const signature = getHeader('x-simplepost-signature');
+  if (!secret || typeof content !== 'string' || !/^\d+$/.test(timestamp ?? '') ||
+      Math.abs(Date.now() - Number(timestamp)) > SIGNATURE_TOLERANCE_MS ||
+      !/^sha256=[a-f0-9]{64}$/.test(signature ?? '')) return false;
+
+  const expected = createHmac('sha256', secret).update(`${timestamp}.${content}`).digest();
+  return timingSafeEqual(expected, Buffer.from(signature.slice('sha256='.length), 'hex'));
+};
 
 const outputFields = [
   { key: 'id', label: 'Post ID' },
@@ -19,7 +36,7 @@ const outputFields = [
 ];
 
 // SimplePost webhooks are REST hooks: each Zap registers its own endpoint
-// for one event, and the polling fallback returns the same shape so samples
+// for one event, and the editor sample lookup returns the same shape so samples
 // pulled in the Zap editor match live webhook payloads.
 const makePostTrigger = ({ key, event, listType, label, description, sample }) => ({
   key,
@@ -33,7 +50,7 @@ const makePostTrigger = ({ key, event, listType, label, description, sample }) =
         path: '/api/v1/webhooks',
         body: { url: bundle.targetUrl, events: [event] },
       });
-      return webhook;
+      return { id: webhook.id, secret: webhook.secret };
     },
     // A 404 means the endpoint was already removed in SimplePost.
     performUnsubscribe: async (z, bundle) => (await request(z, bundle, {
@@ -41,8 +58,12 @@ const makePostTrigger = ({ key, event, listType, label, description, sample }) =
       path: `/api/v1/webhooks/${encodeURIComponent(bundle.subscribeData.id)}`,
       ignoreStatuses: [404],
     })) || { success: true },
-    perform: async (_z, bundle) => {
-      const body = bundle.cleanedRequest || {};
+    perform: async (z, bundle) => {
+      if (!isSignedDelivery(bundle)) {
+        z.console.log('Skipped a SimplePost webhook with an invalid or expired signature.');
+        return [];
+      }
+      const body = JSON.parse(bundle.rawRequest.content);
       if (body.event !== event || !body.post?.id) return [];
       return [toPostEvent(bundle, event, body.post, body.createdAt)];
     },

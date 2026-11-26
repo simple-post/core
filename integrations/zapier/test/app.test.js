@@ -1,3 +1,4 @@
+const { createHmac } = require('node:crypto');
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
@@ -56,6 +57,13 @@ test('find account matches username and platform', async () => {
   api().get('/api/v1/accounts').reply(200, { accounts });
   const results = await appTester(App.searches.find_account.operation.perform, { authData, inputData: { query: 'instagram' } });
   assert.deepEqual(results.map((account) => account.id), ['acc_ig']);
+});
+
+test('find account rejects an empty query and prefers an exact platform match', async () => {
+  const run = (query) => appTester(App.searches.find_account.operation.perform, { authData, inputData: { query } });
+  await assert.rejects(run(' @ '), /Enter an account name/);
+  api().get('/api/v1/accounts').reply(200, { accounts: [{ ...accounts[1], displayName: 'Max' }, accounts[0]] });
+  assert.deepEqual((await run('x')).map((account) => account.id), ['acc_x']);
 });
 
 test('create post schedules and returns a flat post with a link', async () => {
@@ -159,20 +167,27 @@ test('post published trigger subscribes, receives, lists, and unsubscribes', asy
   assert.equal(subscribeData.id, 'wh_1');
 
   const hookPost = { id: 'post_3', status: 'published', message: 'Live', publishedAt: '2030-01-01T12:00:04.000Z', accountResults: {} };
-  const fromHook = await appTester(trigger.perform, {
-    authData,
-    inputData: {},
-    cleanedRequest: { event: 'post.published', createdAt: '2030-01-01T12:00:05.000Z', post: hookPost },
-  });
+  const content = JSON.stringify({ event: 'post.published', createdAt: '2030-01-01T12:00:05.000Z', post: hookPost });
+  const runHook = (signedContent, { requestContent = signedContent, timestamp = Date.now(), secret = subscribeData.secret } = {}) => {
+    const signature = createHmac('sha256', secret).update(`${timestamp}.${signedContent}`).digest('hex');
+    return appTester(trigger.perform, {
+      authData,
+      subscribeData,
+      inputData: {},
+      rawRequest: {
+        content: requestContent,
+        headers: { 'Http-X-Simplepost-Timestamp': String(timestamp), 'Http-X-Simplepost-Signature': 'sha256=' + signature },
+      },
+    });
+  };
+
+  const fromHook = await runHook(content);
   assert.equal(fromHook.length, 1);
   assert.equal(fromHook[0].id, 'post_3');
 
-  const ignored = await appTester(trigger.perform, {
-    authData,
-    inputData: {},
-    cleanedRequest: { event: 'post.failed', post: { id: 'post_3' } },
-  });
-  assert.deepEqual(ignored, []);
+  assert.deepEqual(await runHook(content.replace('post.published', 'post.failed')), []);
+  assert.deepEqual(await runHook(content, { requestContent: content.replace('Live', 'Forged') }), []);
+  assert.deepEqual(await runHook(content, { timestamp: Date.now() - 6 * 60 * 1000 }), []);
 
   api()
     .get('/api/v1/posts')

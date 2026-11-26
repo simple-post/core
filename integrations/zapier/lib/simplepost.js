@@ -214,10 +214,14 @@ const createPostPayload = async (z, inputData) => {
   if (inputData.quotePostId) payload.quotePostId = String(inputData.quotePostId);
   if (inputData.idempotencyKey) payload.idempotencyKey = String(inputData.idempotencyKey);
 
-  if (String(inputData.repostEnabled) === 'true') {
+  if (String(inputData.repostEnabled).toLowerCase() === 'true') {
+    const delayHours = Number(inputData.repostDelayHours === '' ? 12 : inputData.repostDelayHours ?? 12);
+    if (!Number.isInteger(delayHours) || delayHours < 1 || delayHours > 720) {
+      throw new Error('Repost delay must be a whole number from 1 to 720 hours.');
+    }
     payload.repost = {
       enabled: true,
-      delayHours: Number(inputData.repostDelayHours || 12),
+      delayHours,
     };
   }
 
@@ -230,8 +234,8 @@ const toDateString = (value) => (value ? new Date(value).toISOString() : null);
 
 // accountResults is keyed by account ID; Zapier maps arrays of flat objects
 // to line items, which is easier to use in later steps.
-const toAccountResults = (accountResults) => Object.values(accountResults || {}).map((result) => ({
-  accountId: result.accountId,
+const toAccountResults = (accountResults) => Object.entries(accountResults || {}).map(([id, result]) => ({
+  accountId: result.accountId ?? id,
   platform: result.platform,
   success: Boolean(result.success),
   postUrl: result.postUrl || null,
@@ -253,7 +257,8 @@ const toPostEvent = (bundle, event, post, createdAt) => ({
 });
 
 const toPostOutput = (bundle, body) => {
-  const post = body.post || {};
+  const post = body?.post;
+  if (!post?.id) throw new Error('SimplePost did not return a post ID. Check Posts before retrying.');
   return {
     id: post.id,
     status: post.status,
@@ -298,7 +303,11 @@ const toAccount = (account) => ({
 
 // Preview-only accounts can be shown in SimplePost but cannot publish.
 const listAccounts = async (z, bundle) => {
-  const { accounts } = await request(z, bundle, { method: 'GET', path: '/api/v1/accounts' });
+  const response = await request(z, bundle, { method: 'GET', path: '/api/v1/accounts' });
+  if (!Array.isArray(response?.accounts)) {
+    throw new z.errors.Error('Expected a SimplePost accounts response. Check the SimplePost URL.', 'InvalidAccountsResponse', 502);
+  }
+  const { accounts } = response;
   return (accounts || []).filter((account) => !account.previewOnly).map(toAccount);
 };
 

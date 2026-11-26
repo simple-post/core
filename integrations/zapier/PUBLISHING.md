@@ -49,8 +49,8 @@ Zapier requires all of the following before it accepts a submission:
 - **At least one connected account** created through the integration's auth ([A001](https://docs.zapier.com/platform/publish/integration-checks-reference#a001)).
 - **One live Zap for every visible trigger, action, and search.** Each must be turned on with at least one successful run ([S002](https://docs.zapier.com/platform/publish/integration-checks-reference#s002), [T001](https://docs.zapier.com/platform/publish/integration-checks-reference#t001)). Build these five:
   1. New Published Post → any action, such as Slack or Email by Zapier.
-  2. New Failed Post → any action. Trigger a failure, for example by posting oversized text to X, or by scheduling to an account and then revoking its token.
-  3. Schedule or webhook trigger → SimplePost **Create Post** (publish now and schedule).
+  2. New Failed Post → any action. Trigger a failure, by scheduling a valid post to a test account and revoking its token after scheduling but before dispatch.
+  3. Schedule or webhook trigger → SimplePost **Create Post** (publish now and schedule). Map a stable ID from the trigger to **Deduplication key**.
   4. Any trigger → SimplePost **Validate Post**.
   5. Any trigger → SimplePost **Find Account**.
 - **At least 3 users with live Zaps** ([S001](https://docs.zapier.com/platform/publish/integration-checks-reference#s001)). Invite customers or teammates who do not share a Zapier account:

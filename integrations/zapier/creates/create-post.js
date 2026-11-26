@@ -15,7 +15,7 @@ const inputFields = [
       { value: 'schedule', label: 'Schedule', sample: 'schedule' },
       { value: 'draft', label: 'Save as draft', sample: 'draft' },
     ],
-    helpText: 'Publishing now waits for every platform to respond. For videos or many accounts, schedule the post a few minutes ahead instead.',
+    helpText: 'Publishing now waits for every platform to respond. Zapier allows 30 seconds per action. For videos or many accounts, schedule a post a few minutes ahead. SimplePost may also queue a retry and return a Scheduled status.',
   },
   {
     key: 'scheduledFor',

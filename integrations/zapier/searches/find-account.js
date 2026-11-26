@@ -19,9 +19,13 @@ module.exports = {
     ],
     perform: async (z, bundle) => {
       const query = String(bundle.inputData.query || '').trim().toLowerCase().replace(/^@/, '');
+      if (!query) throw new z.errors.Error('Enter an account name, ID, username, or platform.', 'MissingAccountQuery', 400);
       const accounts = await listAccounts(z, bundle);
-      return accounts.filter((account) => [account.name, account.username, account.displayName, account.platform]
-        .some((value) => value && String(value).toLowerCase().includes(query)));
+      const fields = (account) => [account.id, account.username, account.displayName, account.platform]
+        .filter(Boolean).map((value) => String(value).toLowerCase().replace(/^@/, ''));
+      const exact = accounts.filter((account) => fields(account).includes(query));
+      if (exact.length > 0) return exact;
+      return accounts.filter((account) => fields(account).some((value) => value.includes(query)));
     },
     sample: {
       id: 'cm0account123',

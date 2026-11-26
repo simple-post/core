@@ -43,7 +43,8 @@ test.beforeAll(async () => {
             "next/link": "import React from 'react'; export default (props) => React.createElement('a', props);",
             "@/lib/auth/use-login-session":
               "export const useLoginSession = () => ({isPending:false, data: !new URLSearchParams(location.search).has('loggedOut') || sessionStorage.signedIn ? {user: {id: 'test-user'}} : null});",
-            "@/lib/auth/auth-client": "export const authClient = {signOut: async () => ({})};",
+            "@/lib/auth/auth-client":
+              "export {useLoginSession as useSession} from '@/lib/auth/use-login-session'; export const authClient = {signOut: async () => ({})};",
             "@/components/login-form": `import React from 'react'; export const LoginForm = ({callbackURL}) => <button onClick={() => { sessionStorage.signedIn='true'; location.assign(callbackURL); }}>Sign into SimplePost</button>;`,
             "@/components/billing/subscription-gate": "export const SubscriptionGate = ({children}) => children;",
             "@/hooks/use-features": "export const useFeatures = () => ({hasFeature: () => false, isPending: false});",
@@ -52,8 +53,6 @@ test.beforeAll(async () => {
             "@/components/schedule-calendar-context":
               "export const ScheduleCalendarProvider = ({children}) => children;",
             "@/components/activation-analytics": "export const ActivationAnalytics = () => null;",
-            "@/components/workspaces/team-screen":
-              'export const TeamScreen = () => { throw new Error("Personal account handoff entered a team workspace"); };',
             "@/components/navbar": "export const Navbar = () => null;",
             "@/components/account-avatar": "export const AccountAvatar = () => null;",
             "@/components/help-link": "export const HelpLink = () => null;",

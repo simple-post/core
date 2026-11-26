@@ -1,61 +1,23 @@
-[
-	{
-		"url": "/api/v1/posts",
-		"method": "GET",
-		"qs": {
-			"type": "drafts",
-			"page": 1,
-			"limit": 25
-		},
-		"response": {
-			"temp": {
-				"drafts": "{{body.posts}}"
-			}
+{
+	"url": "/api/v1/posts",
+	"method": "GET",
+	"qs": {
+		"type": "{{switch(parameters.type, 'drafts', 'drafts', 'past', 'past', 'failed', 'failed', 'scheduled')}}",
+		"page": 1,
+		"limit": 100
+	},
+	"response": {
+		"limit": 300,
+		"iterate": "{{body.posts}}",
+		"output": {
+			"label": "[{{capitalize(item.status)}}] {{substring(ifempty(item.message, item.id), 0, 70)}} ({{item.id}})",
+			"value": "{{item.id}}"
 		}
 	},
-	{
-		"url": "/api/v1/posts",
-		"method": "GET",
+	"pagination": {
 		"qs": {
-			"type": "scheduled",
-			"page": 1,
-			"limit": 25
+			"page": "{{pagination.page}}"
 		},
-		"response": {
-			"temp": {
-				"scheduled": "{{body.posts}}"
-			}
-		}
-	},
-	{
-		"url": "/api/v1/posts",
-		"method": "GET",
-		"qs": {
-			"type": "failed",
-			"page": 1,
-			"limit": 25
-		},
-		"response": {
-			"temp": {
-				"failed": "{{body.posts}}"
-			}
-		}
-	},
-	{
-		"url": "/api/v1/posts",
-		"method": "GET",
-		"qs": {
-			"type": "past",
-			"page": 1,
-			"limit": 25
-		},
-		"response": {
-			"limit": 100,
-			"iterate": "{{merge(temp.drafts, temp.scheduled, temp.failed, body.posts)}}",
-			"output": {
-				"label": "[{{capitalize(item.status)}}] {{substring(ifempty(item.message, item.id), 0, 70)}} ({{item.id}})",
-				"value": "{{item.id}}"
-			}
-		}
+		"condition": "{{body.pagination.hasNextPage && pagination.page <= 3}}"
 	}
-]
+}

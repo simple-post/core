@@ -5,11 +5,11 @@
 		"iterate": "{{body.accounts}}",
 		"output": {
 			"{{...}}": "{{omit(item, 'createdAt', 'updatedAt', 'credentialStatus')}}",
-			"createdAt": "{{if(item.createdAt, parseDate(item.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.createdAt)}}",
-			"updatedAt": "{{if(item.updatedAt, parseDate(item.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.updatedAt)}}",
+			"createdAt": "{{if(item.createdAt, parseDate(item.createdAt, if(contains(item.createdAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), item.createdAt)}}",
+			"updatedAt": "{{if(item.updatedAt, parseDate(item.updatedAt, if(contains(item.updatedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), item.updatedAt)}}",
 			"credentialStatus": {
 				"{{...}}": "{{omit(item.credentialStatus, 'expiresAt')}}",
-				"expiresAt": "{{if(item.credentialStatus.expiresAt, parseDate(item.credentialStatus.expiresAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), item.credentialStatus.expiresAt)}}"
+				"expiresAt": "{{if(item.credentialStatus.expiresAt, parseDate(item.credentialStatus.expiresAt, if(contains(item.credentialStatus.expiresAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), item.credentialStatus.expiresAt)}}"
 			}
 		},
 		"limit": "{{parameters.limit}}"

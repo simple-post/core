@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { after, type NextRequest, NextResponse } from "next/server";
 
 import { Prisma } from "@prisma/client";
 import { IMAGE_FIT_HELP } from "@simple-post/sdk";
@@ -12,7 +12,7 @@ import {
   toBillingSocialAccounts,
 } from "@/lib/billing/subscriptions";
 import { PostsModel } from "@/lib/db";
-import { serverMessage } from "@/lib/i18n/server";
+import { canonicalMessage, serverMessage } from "@/lib/i18n/server";
 import { joinedValidationMessages } from "@/lib/i18n/validation-display";
 import { createLogger, serializeError } from "@/lib/logger";
 import { ingestPostMedia } from "@/lib/media-ingestion";
@@ -292,6 +292,7 @@ export async function createPost(
     // If posting now, actually post to the platforms
     if (postingMode === "now") {
       log.info({ postId: post.id }, "Starting platform posting (immediate mode)");
+      let postStateSaved = false;
       try {
         const quoteTargets = quoteSource ? buildQuoteTargets(quoteSource, validation.accounts) : undefined;
         const results = await postToAccounts(
@@ -328,6 +329,7 @@ export async function createPost(
         // Update post status based on results
         const deferred = await deferPostRetry(post.id, results, accountResults, threadResultsByAccount);
         if (deferred) {
+          postStateSaved = true;
           // Keep the original queued for a safe retry, preserving successful targets.
         } else if (summary.overallSuccess) {
           const publishedAt = new Date();
@@ -349,13 +351,16 @@ export async function createPost(
             repostErrorMessage: null,
             repostErrorDetails: null,
           });
-          await dispatchPostWebhooks(userId, "post.published", {
-            id: post.id,
-            status: "published",
-            message: validated.message,
-            publishedAt: publishedAt.toISOString(),
-            accountResults,
-          });
+          postStateSaved = true;
+          after(() =>
+            dispatchPostWebhooks(userId, "post.published", {
+              id: post.id,
+              status: "published",
+              message: validated.message,
+              publishedAt: publishedAt.toISOString(),
+              accountResults,
+            }),
+          );
         } else {
           log.debug({ postId: post.id }, "Updating post status to failed");
           // Collect error details from failed platforms
@@ -384,13 +389,16 @@ export async function createPost(
             repostDueAt: null,
             repostStatus: "not_applicable",
           });
-          await dispatchPostWebhooks(userId, "post.failed", {
-            id: post.id,
-            status: "failed",
-            message: validated.message,
-            errorMessage,
-            accountResults,
-          });
+          postStateSaved = true;
+          after(() =>
+            dispatchPostWebhooks(userId, "post.failed", {
+              id: post.id,
+              status: "failed",
+              message: validated.message,
+              errorMessage,
+              accountResults,
+            }),
+          );
         }
 
         const updatedPost = await repository.getPostById(post.id);
@@ -408,25 +416,27 @@ export async function createPost(
           { status: 201 },
         );
       } catch (postingError) {
-        // Update post status to failed
         log.error({ err: serializeError(postingError), postId: post.id }, "Error during platform posting");
-        const errorMessage = postingError instanceof Error ? postingError.message : "Unknown error during posting";
-        const errorDetails = {
-          error: postingError instanceof Error ? postingError.message : String(postingError),
-          stack: postingError instanceof Error ? postingError.stack : undefined,
-        };
-
+        const message = serverMessage("Publishing could not be confirmed. Check Posts before retrying.");
+        // Response or notification bookkeeping can fail after the post state was saved.
+        if (postStateSaved) throw new ApiError(message, 500);
+        const errorMessage = canonicalMessage(message);
         await repository.updatePost(post.id, {
           status: "failed",
           errorMessage,
-          errorDetails,
+          errorDetails: null,
           repostDueAt: null,
           repostStatus: "not_applicable",
         });
-
-        const durationMs = Date.now() - startTime;
-        log.error({ durationMs }, "Failed to post to platforms");
-        throw new ApiError(serverMessage("Publishing could not be confirmed. Check Posts before retrying."), 500);
+        after(() =>
+          dispatchPostWebhooks(userId, "post.failed", {
+            id: post.id,
+            status: "failed",
+            message: validated.message,
+            errorMessage,
+          }),
+        );
+        throw new ApiError(message, 500);
       }
     }
 

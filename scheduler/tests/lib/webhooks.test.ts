@@ -7,13 +7,14 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     webhookEndpoint: {
       findMany: jest.fn(),
+      deleteMany: jest.fn(),
       update: jest.fn(),
     },
   },
 }));
 
 const prismaMock = prisma as unknown as {
-  webhookEndpoint: { findMany: jest.Mock; update: jest.Mock };
+  webhookEndpoint: { findMany: jest.Mock; update: jest.Mock; deleteMany: jest.Mock };
 };
 
 const fetchMock = jest.fn();
@@ -124,6 +125,21 @@ describe("dispatchPostWebhooks", () => {
         data: expect.objectContaining({ lastFailureAt: expect.any(Date) }),
       }),
     );
+  });
+
+  it("removes a permanently gone webhook so it stops counting toward the endpoint limit", async () => {
+    prismaMock.webhookEndpoint.findMany.mockResolvedValue([
+      { id: "w1", url: "https://example.com/hook", secret: "s1" },
+    ]);
+    fetchMock.mockResolvedValue({ ok: false, status: 410 });
+    prismaMock.webhookEndpoint.deleteMany.mockResolvedValue({ count: 1 });
+
+    await dispatchPostWebhooks("u1", "post.published", post);
+
+    expect(prismaMock.webhookEndpoint.deleteMany).toHaveBeenCalledWith({
+      where: { id: "w1", url: "https://example.com/hook" },
+    });
+    expect(prismaMock.webhookEndpoint.update).not.toHaveBeenCalled();
   });
 
   it("revalidates redirect targets before following them", async () => {

@@ -487,7 +487,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "Dans Claude, ouvrez Personnaliser → Connecteurs, puis ajoutez un connecteur web personnalisé avec cette URL.",
   "Inbox": "Boîte de réception",
   "Inbox items": "Éléments de la boîte de réception",
-  "Inbox unavailable": "Boîte de réception indisponible",
   "Include the email address used for your SimplePost account": "Indiquez l’adresse e-mail utilisée pour votre compte SimplePost",
   "Incomplete": "Incomplet",
   "Incomplete and expired": "Incomplet et expiré",

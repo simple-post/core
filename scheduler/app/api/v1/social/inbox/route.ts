@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { requireSocialInbox } from "@/lib/features";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getSocialInbox } from "@/lib/social/activity";
 import { inboxQuerySchema } from "@/lib/social/schemas";
@@ -9,6 +10,7 @@ import { workspaceConnections } from "@/lib/workspaces/connections";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
+    await requireSocialInbox(session.user.id);
     const { userId, workspaceId } = await workspaceConnections(
       session.user.id,
       req.nextUrl.searchParams.get("workspace"),

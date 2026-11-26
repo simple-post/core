@@ -137,8 +137,8 @@ export function PostsTable({
                 <td className="max-w-xs py-2">
                   <Link
                     href={
-                      filters.workspace && post.teamPostId
-                        ? `/posts/${post.teamPostId}?workspace=${encodeURIComponent(filters.workspace)}`
+                      post.teamWorkspaceId && post.teamPostId
+                        ? `/posts/${post.teamPostId}?workspace=${encodeURIComponent(post.teamWorkspaceId)}`
                         : `/posts/${post.postId}`
                     }
                     className="flex items-center gap-3">

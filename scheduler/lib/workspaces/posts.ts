@@ -114,12 +114,12 @@ export async function runCommand(
       const account = await tx.connectedAccount.findFirst({
         where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
       });
-      if (!account)
-        throw new BadRequestError("Connected destination unavailable. Choose an account connected to this workspace.");
-      if (prior && prior.destination?.platformAccountId === account.platformAccountId) {
+      if (prior && (!account || prior.destination?.platformAccountId === account.platformAccountId)) {
         v.destination = prior.destination;
         continue;
       }
+      if (!account)
+        throw new BadRequestError("Connected destination unavailable. Choose an account connected to this workspace.");
       v.destination = {
         label: account.displayName || account.username || account.platformAccountId,
         platformAccountId: account.platformAccountId,

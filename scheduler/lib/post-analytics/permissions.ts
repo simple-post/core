@@ -151,13 +151,20 @@ const REQUIRED_ACCOUNT_SCOPES: Partial<Record<string, string[]>> = {
 export function accountAnalyticsReadiness(account: { platform: string; scope: string | null }): {
   ready: boolean;
   message?: string;
+  reconnectRecommended?: boolean;
 } {
   const platform = mapPlatformName(account.platform);
   if (PAUSED_ANALYTICS_PLATFORMS.includes(platform) || !supportsAccountAnalytics(platform))
     return { ready: false, message: "Not available for this platform." };
   const granted = grantedScopes(account.scope);
   const missing = granted ? (REQUIRED_ACCOUNT_SCOPES[platform] ?? []).filter((scope) => !granted.has(scope)) : [];
-  return missing.length > 0
-    ? { ready: false, message: `Reconnect this account to read followers (missing ${missing.join(", ")}).` }
-    : { ready: true };
+  if (missing.length === 0) return { ready: true };
+  const reconnectRecommended = analyticsScopesEnabled(platform);
+  return {
+    ready: false,
+    reconnectRecommended,
+    message: reconnectRecommended
+      ? `Reconnect this account to read followers (missing ${missing.join(", ")}).`
+      : `Follower analytics need a permission that this installation does not request yet (missing ${missing.join(", ")}).`,
+  };
 }

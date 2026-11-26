@@ -477,7 +477,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "Claude で「カスタマイズ」→「コネクタ」を開き、この URL でカスタム Web コネクタを追加してください。",
   "Inbox": "受信箱",
   "Inbox items": "受信箱の項目",
-  "Inbox unavailable": "受信箱を利用できません",
   "Include the email address used for your SimplePost account": "SimplePost アカウントに使用しているメールアドレスを記載してください",
   "Incomplete": "未完了",
   "Incomplete and expired": "未完了・期限切れ",

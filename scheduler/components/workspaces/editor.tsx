@@ -44,8 +44,9 @@ export function PostEditor({
   const [uploading, setUploading] = useState(false);
   const [activePlatform, setActivePlatform] = useState(variants[0]?.platform);
   const active = variants.find((v) => v.platform === activePlatform) ?? variants[0];
+  const ownsConnections = w.member.userId === w.creatorId;
   const missingConnection = Boolean(
-    active?.accountId && !w.accounts.some((account) => account.id === active.accountId),
+    ownsConnections && active?.accountId && !w.accounts.some((account) => account.id === active.accountId),
   );
   const [initialPlan] = useState(() => {
     if (post) return localTime(post.plannedAt);
@@ -140,15 +141,6 @@ export function PostEditor({
                       </option>
                     ))}
                   </NativeSelect>
-                  {missingConnection && (
-                    <span className="text-sm text-muted-foreground">
-                      Choose another destination or{" "}
-                      <Link className="text-primary underline" href={workspaceHref("/accounts", w.id)}>
-                        connect an account
-                      </Link>{" "}
-                      to this workspace.
-                    </span>
-                  )}
                 </Label>
               )}
               <PostContentEditor
@@ -167,7 +159,7 @@ export function PostEditor({
                   onUploadingChange: setUploading,
                 }}
               />
-              {w.member.userId === w.creatorId ? (
+              {ownsConnections ? (
                 <Label className="min-w-0 flex-col items-stretch">
                   Destination
                   <NativeSelect
@@ -192,6 +184,15 @@ export function PostEditor({
                 <small className="block text-xs text-muted-foreground">
                   {active.destination?.label ?? "Native publishing"}
                 </small>
+              )}
+              {missingConnection && (
+                <p className="text-sm text-muted-foreground">
+                  Choose another destination or{" "}
+                  <Link className="text-primary underline" href={workspaceHref("/accounts", w.id)}>
+                    connect an account
+                  </Link>{" "}
+                  to this workspace.
+                </p>
               )}
               {active.platform === "tiktok" && (
                 <Label className="min-w-0 flex-col items-stretch">

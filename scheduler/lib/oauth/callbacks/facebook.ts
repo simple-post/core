@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { FACEBOOK_NO_PAGES_MESSAGE } from "@/lib/oauth/error-messages";
+import { OAuthCallbackError } from "@/lib/oauth/errors";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { prisma } from "@/lib/prisma";
 
@@ -32,7 +33,21 @@ async function fetchFacebookPages(accessToken: string) {
 
 export async function handleFacebookCallback(ctx: CallbackContext): Promise<NextResponse> {
   const pages = await fetchFacebookPages(ctx.accessToken);
-  const accounts = ctx.inboxIdentity ? pages.filter((page: { id: string }) => page.id === ctx.inboxIdentity) : pages;
+  const reconnect = ctx.reconnectAccountId
+    ? await prisma.connectedAccount.findFirst({
+        where: {
+          id: ctx.reconnectAccountId,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId ?? null,
+          platform: ctx.platform,
+        },
+        select: { platformAccountId: true },
+      })
+    : null;
+  const identity = reconnect?.platformAccountId ?? ctx.inboxIdentity;
+  const accounts = identity ? pages.filter((page: { id: string }) => page.id === identity) : pages;
+  if (ctx.reconnectAccountId && (!reconnect || accounts.length === 0))
+    throw new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect.");
 
   if (accounts.length === 0) {
     return NextResponse.redirect(`${ctx.baseURL}/accounts?error=${encodeURIComponent(FACEBOOK_NO_PAGES_MESSAGE)}`);

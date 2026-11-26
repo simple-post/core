@@ -26,6 +26,7 @@ export const inboxQuerySchema = z.object({
 
 export const inboxRefreshSchema = z.object({
   platform: inboxPlatformSchema.optional(),
+  platforms: z.array(inboxPlatformSchema).max(11).optional(),
   reset: z.boolean().optional(),
   automatic: z.boolean().optional(),
 });

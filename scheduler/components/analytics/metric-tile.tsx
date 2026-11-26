@@ -62,8 +62,9 @@ export function MetricTile({
           </Tooltip>
         ) : null}
       </span>
-      <span title={valueTitle} aria-label={valueTitle} className="text-2xl font-semibold tabular-nums tracking-tight">
-        {value}
+      <span title={valueTitle} className="text-2xl font-semibold tabular-nums tracking-tight">
+        <span aria-hidden={valueTitle ? true : undefined}>{value}</span>
+        {valueTitle && <span className="sr-only">{valueTitle}</span>}
       </span>
       {formattedChange ? (
         <span

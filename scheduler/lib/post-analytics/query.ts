@@ -225,8 +225,7 @@ export async function loadAnalyticsAccounts(
       const readiness = analyticsAccountReadiness({ platform, scope: account.scope, tokenMetadata });
       const capability = getAnalyticsCapability(platform);
       const followerReadiness = accountAnalyticsReadiness({ platform, scope: account.scope });
-      const needsFollowerGrant =
-        !followerReadiness.ready && followerReadiness.message?.startsWith("Reconnect") === true;
+      const needsFollowerGrant = followerReadiness.reconnectRecommended === true;
       return [
         account.id,
         {
@@ -238,7 +237,9 @@ export async function loadAnalyticsAccounts(
           postAnalytics: readiness.ready,
           reconnectRecommended: readiness.reconnectRecommended || needsFollowerGrant,
           missingScopes: readiness.missingScopes,
-          notice: readiness.message || (needsFollowerGrant ? (followerReadiness.message ?? null) : null),
+          notice:
+            readiness.message ||
+            (followerReadiness.reconnectRecommended === undefined ? null : (followerReadiness.message ?? null)),
           supportedMetrics: [...capability.postMetrics],
           supportedAccountMetrics: [...capability.accountMetrics],
         },
@@ -284,14 +285,23 @@ export interface PostAnalyticsView {
 
 export async function getPostAnalyticsView(userId: string, postId: string): Promise<PostAnalyticsView | null> {
   const post = await prisma.post.findFirst({
-    where: { id: postId, userId, workspaceReviewId: null },
+    where: {
+      id: postId,
+      userId,
+      OR: [{ workspaceReviewId: null }, { accounts: { some: { userId, workspaceId: null } } }],
+    },
     select: { id: true, status: true, publishedAt: true, accountResults: true },
   });
   if (!post) return null;
 
   const [rows, accounts] = await Promise.all([
     prisma.postAnalytics.findMany({
-      where: { postId, userId, platform: { notIn: PAUSED_ANALYTICS_PLATFORMS } },
+      where: {
+        postId,
+        userId,
+        account: { userId, workspaceId: null },
+        platform: { notIn: PAUSED_ANALYTICS_PLATFORMS },
+      },
       select: { ...ROW_SELECT, platformMetrics: true, account: { select: { updatedAt: true } } },
       orderBy: { platform: "asc" },
     }),
@@ -369,7 +379,6 @@ async function earliestPublishedAt(userId: string, workspaceId?: string | null):
     where: {
       userId,
       account: { workspaceId: workspaceId ?? null },
-      ...(workspaceId ? {} : { post: { workspaceReviewId: null } }),
     },
     orderBy: { publishedAt: "asc" },
     select: { publishedAt: true },
@@ -400,6 +409,7 @@ export interface SummaryFilters {
 export interface PostSummaryItem extends MetricTotals {
   postId: string;
   teamPostId?: string;
+  teamWorkspaceId?: string;
   message: string;
   publishedAt: string;
   platforms: Platform[];
@@ -495,7 +505,6 @@ async function loadRows(
       userId,
       publishedAt: publishedRange,
       account: { workspaceId: filters.workspaceId ?? null },
-      ...(filters.workspaceId ? {} : { post: { workspaceReviewId: null } }),
       platform: {
         notIn: PAUSED_ANALYTICS_PLATFORMS,
         ...(filters.platforms?.length ? { in: filters.platforms.map((p) => mapPlatformName(p)) } : {}),
@@ -977,7 +986,7 @@ async function summarizePosts(
     select: {
       id: true,
       message: true,
-      workspaceReview: { select: { postId: true } },
+      workspaceReview: { select: { postId: true, post: { select: { workspaceId: true } } } },
       accountResults: true,
       media: { select: { type: true, url: true, thumbnailUrl: true }, take: 1, orderBy: { createdAt: "asc" } },
     },
@@ -990,7 +999,10 @@ async function summarizePosts(
     const media = post?.media[0];
     return {
       postId,
-      ...(post?.workspaceReview && { teamPostId: post.workspaceReview.postId }),
+      ...(post?.workspaceReview && {
+        teamPostId: post.workspaceReview.postId,
+        teamWorkspaceId: post.workspaceReview.post.workspaceId,
+      }),
       message: post?.message ?? "",
       publishedAt: group.publishedAt.toISOString(),
       platforms: [...new Set(group.rows.map((row) => mapPlatformName(row.platform)))],

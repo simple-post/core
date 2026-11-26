@@ -166,9 +166,7 @@ export async function ensureAnalyticsRowsForUser(
     where: {
       userId,
       status: { in: ["published", "failed"] },
-      ...(options.workspaceId
-        ? { workspaceReview: { post: { workspaceId: options.workspaceId } } }
-        : { workspaceReviewId: null }),
+      accounts: { some: { userId, workspaceId: options.workspaceId ?? null } },
       ...(options.postIds ? { id: { in: options.postIds } } : {}),
       ...(options.since
         ? { OR: [{ publishedAt: { gte: options.since } }, { updatedAt: { gte: options.since } }] }
@@ -195,7 +193,7 @@ export async function ensureAnalyticsRowsForUser(
       publishedAt: true,
       updatedAt: true,
       accountResults: true,
-      accounts: { select: { id: true, platform: true } },
+      accounts: { where: { userId, workspaceId: options.workspaceId ?? null }, select: { id: true, platform: true } },
     },
     orderBy: { updatedAt: "desc" },
     take: options.limit ?? 500,
@@ -249,7 +247,6 @@ export async function refreshPostAnalytics(params: {
         ? {
             userId: params.userId,
             account: { workspaceId: params.workspaceId ?? null },
-            ...(params.workspaceId ? {} : { post: { workspaceReviewId: null } }),
           }
         : {}),
       ...(params.rowIds ? { id: { in: params.rowIds } } : {}),

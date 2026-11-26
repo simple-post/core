@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import Link from "next/link";
 
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowUpRight, Eye, Heart, MessageSquare, RefreshCw } from "lucide-react";
 
 import { PlatformFilter } from "@/components/platform-filter";
@@ -341,9 +341,10 @@ export function SocialInbox({
       return inboxRequest<InboxPage>(`${base}/inbox?${query}`);
     },
     getNextPageParam: (page) => page.nextCursor,
+    placeholderData: keepPreviousData,
     retry: false,
   });
-  const items = feed.data?.pages.flatMap((page) => page.items) ?? [];
+  const items = feed.isPlaceholderData ? [] : (feed.data?.pages.flatMap((page) => page.items) ?? []);
   const accounts = feed.data?.pages[0]?.accounts ?? [];
   const accountCounts = new Map<string, number>();
   for (const account of accounts) {
@@ -355,7 +356,11 @@ export function SocialInbox({
     .sort()
     .at(-1);
   const canSync = canManage && accounts.some((account) => account.canSync);
-  const showSyncMore = canManage && accounts.some((account) => account.hasMore);
+  const showSyncMore =
+    canManage &&
+    accounts.some(
+      (account) => account.hasMore && (selectedPlatforms.length === 0 || selectedPlatforms.includes(account.platform)),
+    );
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
   const autoSync = useQuery({
@@ -378,7 +383,10 @@ export function SocialInbox({
     setSyncing(true);
     setSyncError(undefined);
     try {
-      await inboxRequest(workspaceHref(`${base}/inbox/refresh`, workspaceId), jsonPost({ reset }));
+      await inboxRequest(
+        workspaceHref(`${base}/inbox/refresh`, workspaceId),
+        jsonPost({ reset, ...(selectedPlatforms.length > 0 ? { platforms: selectedPlatforms } : {}) }),
+      );
       await refresh();
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : copy("Could not refresh the inbox."));
@@ -479,7 +487,7 @@ export function SocialInbox({
         ))}
         {items.length === 0 && (
           <div className="border-t border-border px-5 py-12 text-center text-sm text-muted-foreground">
-            {feed.isPending ? (
+            {feed.isPending || feed.isPlaceholderData ? (
               copy("Loading inbox…")
             ) : feed.isError ? (
               feed.error.message
@@ -489,18 +497,16 @@ export function SocialInbox({
                 href={workspaceHref("/accounts", workspaceId)}>
                 {copy("Manage accounts")}
               </Link>
-            ) : canSync ? (
-              !lastSync && autoSync.isFetching ? (
-                copy("Checking for new activity…")
-              ) : (
-                copy("No activity matches these filters.")
-              )
+            ) : !lastSync && autoSync.isFetching ? (
+              copy("Checking for new activity…")
+            ) : !lastSync && autoSync.isError ? (
+              autoSync.error.message
             ) : (
-              copy("Inbox unavailable")
+              copy("No activity matches these filters.")
             )}
           </div>
         )}
-        {feed.hasNextPage && (
+        {feed.hasNextPage && !feed.isPlaceholderData && (
           <div className="border-t border-border p-3 text-center">
             <Button size="sm" variant="ghost" onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
               {copy("Load more")}

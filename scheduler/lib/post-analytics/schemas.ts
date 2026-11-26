@@ -169,6 +169,7 @@ export const PostSummaryItemSchema = z
     ...MetricTotalsShape,
     postId: z.string(),
     teamPostId: z.string().optional(),
+    teamWorkspaceId: z.string().optional(),
     message: z.string(),
     publishedAt: z.string(),
     platforms: z.array(PlatformSchema),

@@ -215,3 +215,40 @@ it("recognizes a like and direct reply made on X, and clears the like after a co
     provider.mockRestore();
   }
 });
+
+it("resumes automatic reads without disturbing manual pagination or prompting reconnection for a restricted edge", async () => {
+  jest.mocked(listSocialPostComments).mockImplementation(async (_, __, { cursor } = {}) => ({
+    ok: true,
+    data: { data: [], nextCursor: cursor ? `${cursor}-next` : "manual-page" },
+  }));
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+  await refreshSocialInbox(userId, { reset: true });
+  await prisma.socialActivitySync.update({ where: { accountId }, data: { lastAttemptAt: new Date(0) } });
+
+  jest
+    .mocked(listSocialPostComments)
+    .mockReset()
+    .mockImplementation(async (_, __, { cursor } = {}) => ({
+      ok: true,
+      data: { data: [], nextCursor: cursor ? String(Number(cursor) + 1) : "1" },
+    }));
+  await refreshSocialInbox(userId, { automatic: true });
+  await prisma.socialActivitySync.update({ where: { accountId }, data: { lastAttemptAt: new Date(0) } });
+  jest.mocked(listSocialPostComments).mockResolvedValueOnce({
+    ok: false,
+    error: { code: "permission_required", message: "This post is restricted" },
+  });
+  await refreshSocialInbox(userId, { automatic: true });
+
+  expect(listSocialPostComments).toHaveBeenNthCalledWith(4, expect.anything(), expect.anything(), {
+    cursor: "3",
+    limit: 50,
+  });
+  expect(listSocialPostQuotes).toHaveBeenCalled();
+  const stored = await prisma.socialActivitySync.findUniqueOrThrow({ where: { accountId } });
+  expect(stored).toMatchObject({ providerCursor: "manual-page-next-next", targetIndex: 0, phase: "comments" });
+  const inbox = await getSocialInbox(userId);
+  expect(inbox.accounts[0]).toMatchObject({ hasMore: true });
+  expect(inbox.accounts[0].permissionUrl).toBeUndefined();
+  expect(inbox.accounts[0].error).toBeUndefined();
+});

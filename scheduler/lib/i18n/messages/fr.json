@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "La plateforme de la demande d’autorisation ne correspond pas.",
   "oauthTokenExchangeFailed": "Impossible de terminer l’autorisation. Réessayez.",
   "oauthProfileFetchFailed": "Impossible de charger le profil de votre compte. Réessayez.",
+  "oauthReconnectAccountMismatch": "Choisissez le même compte pour le reconnecter.",
   "oauthYoutubeNoChannel": "Aucune chaîne YouTube n’a été autorisée. Reconnectez-vous et sélectionnez le compte Google ou le compte de marque propriétaire de la chaîne. Une invitation YouTube Studio ne suffit pas pour accéder à l’API.",
   "oauthYoutubeAmbiguous": "Impossible d’identifier une seule chaîne YouTube. Reconnectez-vous et sélectionnez la chaîne ou le compte de marque à utiliser.",
   "oauthNoToken": "Aucun jeton d’accès n’a été reçu. Réessayez.",

@@ -72,15 +72,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           select: { platformAccountId: true },
         })
       : null;
-    return NextResponse.json({
-      id: pending.id,
-      platform: pending.platform,
-      accounts: sanitizeAccounts(
-        data.reconnectAccountId
-          ? data.accounts.filter((account) => account.id === reconnect?.platformAccountId)
-          : data.accounts,
-      ),
-    });
+    const accounts = data.reconnectAccountId
+      ? data.accounts.filter((account) => account.id === reconnect?.platformAccountId)
+      : data.accounts;
+    if (data.reconnectAccountId && accounts.length === 0)
+      throw new GoneError(serverMessage("Pending connection expired"));
+    return NextResponse.json({ id: pending.id, platform: pending.platform, accounts: sanitizeAccounts(accounts) });
   } catch (error) {
     return handleApiError(error, _req);
   }

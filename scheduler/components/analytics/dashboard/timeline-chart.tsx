@@ -43,17 +43,16 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
       ]),
     ),
   ].sort();
-  const data = followerMetric
+  const data: Array<{ start: string | number; value: number | null }> = followerMetric
     ? followerDays.map((day) => {
         const counts = summary.followers.map(
           (account) => account.series.findLast((point) => point.day <= day)?.followers ?? account.baseline?.followers,
         );
         return {
-          start: day + "T00:00:00Z",
-          value:
-            counts.length > 0 && counts.every((count) => count !== undefined)
-              ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
-              : null,
+          start: Date.parse(day + "T00:00:00Z"),
+          value: counts.some((count) => count !== undefined)
+            ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+            : null,
         };
       })
     : summary.timeline.map((bucket) => ({
@@ -67,7 +66,7 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
                 ? bucket.engagementRate
                 : (bucket.metrics[metric] ?? null),
       }));
-  const hasValues = data.some((point) => point.value !== null);
+  const hasValues = data.some((point) => (metric === "posts" ? Boolean(point.value) : point.value !== null));
   const config: ChartConfig = { value: { label, theme: SERIES_COLOR } };
   const format = (value: number | null) =>
     metric === "engagementRate"
@@ -82,8 +81,13 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
     );
   }
 
-  const dateLabel = (value: string) =>
-    bucketLabel(value, followerMetric ? "day" : granularity, locale, followerMetric ? "UTC" : timeZone);
+  const dateLabel = (value: string | number) =>
+    bucketLabel(
+      typeof value === "number" ? new Date(value).toISOString() : value,
+      followerMetric ? "day" : granularity,
+      locale,
+      followerMetric ? "UTC" : timeZone,
+    );
 
   const axes = (
     <>
@@ -93,7 +97,10 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
         tickLine={false}
         axisLine={false}
         minTickGap={24}
-        tickFormatter={(value: string) => dateLabel(value)}
+        type={followerMetric ? "number" : "category"}
+        scale={followerMetric ? "time" : "auto"}
+        domain={followerMetric ? ["dataMin", "dataMax"] : undefined}
+        tickFormatter={dateLabel}
       />
       <YAxis
         domain={followerMetric ? ["dataMin - 1", "dataMax + 1"] : [0, "auto"]}
@@ -108,7 +115,7 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
         cursor={metric === "posts" ? { fillOpacity: 0.4 } : true}
         content={
           <ChartTooltipContent
-            labelFormatter={(_, payload) => dateLabel(String(payload?.[0]?.payload?.start))}
+            labelFormatter={(_, payload) => (payload?.[0]?.payload ? dateLabel(payload[0].payload.start) : "")}
             formatter={(value) => (
               <div className="flex w-full items-center justify-between gap-4">
                 <span className="text-muted-foreground">{label}</span>

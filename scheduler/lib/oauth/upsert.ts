@@ -91,7 +91,7 @@ export async function upsertConnectedAccount(data: UpsertAccountData, tx?: Trans
     select: { id: true, platform: true },
   });
   if (data.reconnectAccountId && existingAccount?.id !== data.reconnectAccountId)
-    throw new OAuthCallbackError("profile_fetch_failed", "Choose the same account to reconnect.");
+    throw new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect.");
   await assertCanConnectAccount(
     {
       ...identity,

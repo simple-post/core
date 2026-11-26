@@ -502,7 +502,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "في Claude، انتقل إلى تخصيص ← الموصلات وأضف موصل ويب مخصصًا باستخدام هذا الرابط.",
   "Inbox": "صندوق الوارد",
   "Inbox items": "عناصر صندوق الوارد",
-  "Inbox unavailable": "صندوق الوارد غير متاح",
   "Include the email address used for your SimplePost account": "اذكر عنوان البريد الإلكتروني المستخدم لحساب SimplePost",
   "Incomplete": "غير مكتمل",
   "Incomplete and expired": "غير مكتمل ومنتهي الصلاحية",

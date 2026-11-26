@@ -324,6 +324,7 @@ export function AnalyticsDashboard({ workspaceId, canManage = true }: { workspac
                   valueTitle={
                     metric === "followers" && followerTotal !== null ? formatNumber(followerTotal, locale) : undefined
                   }
+                  help={metric === "followers" ? undefined : labels.metricHelp[metric]}
                   change={tileChange(metric)}
                   changeLabel={summary?.previous && metric !== "followers" ? copy("vs previous") : undefined}
                   footer={

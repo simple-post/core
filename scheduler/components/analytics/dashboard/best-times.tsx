@@ -1,21 +1,35 @@
 "use client";
 
+import { useState } from "react";
+
 import type { AnalyticsSummary } from "@/hooks/use-analytics";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
 import { formatNumber } from "../format";
 
+const MIN_POSTS = 2;
+
 export function BestTimes({ bestTimes }: { bestTimes: AnalyticsSummary["bestTimes"] }) {
   const { copy, locale } = useUiCopy();
+  const [activeSlot, setActiveSlot] = useState<{ weekday: number; hour: number }>();
   const slots = bestTimes.bySlot;
-  const peak = Math.max(1, ...slots.map((slot) => slot.averageEngagements ?? 0));
+  const peak = Math.max(
+    1,
+    ...slots.filter((slot) => slot.posts >= MIN_POSTS).map((slot) => slot.averageEngagements ?? 0),
+  );
   const weekdayName = (weekday: number) =>
     new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(
       new Date(Date.UTC(2024, 0, 1 + weekday)),
     );
   const hourName = (hour: number) =>
     new Intl.DateTimeFormat(locale, { hour: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1, hour)));
+
+  const slotLabel = (slot: (typeof slots)[number]) =>
+    slot.averageEngagements === null
+      ? copy("No data")
+      : `${formatNumber(slot.averageEngagements, locale)} · ${copy("Based on {{count, number}} posts", { count: slot.posts })}`;
+  const selected = activeSlot && slots[activeSlot.weekday * 24 + activeSlot.hour];
 
   return (
     <>
@@ -44,19 +58,30 @@ export function BestTimes({ bestTimes }: { bestTimes: AnalyticsSummary["bestTime
                   {weekdayName(weekday)}
                 </th>
                 {slots.slice(weekday * 24, (weekday + 1) * 24).map(({ hour, posts, averageEngagements }) => {
-                  const label =
-                    averageEngagements === null
-                      ? copy("No data")
-                      : `${formatNumber(averageEngagements, locale)} · ${copy("Based on {{count, number}} posts", { count: posts })}`;
+                  const label = slotLabel(slots[weekday * 24 + hour]);
+                  const description = `${weekdayName(weekday)} · ${hourName(hour)} · ${label}`;
                   return (
-                    <td
-                      key={hour}
-                      title={`${weekdayName(weekday)} · ${hourName(hour)} · ${label}`}
-                      className={cn("h-5 rounded-sm", averageEngagements === null ? "bg-muted/60" : "bg-primary")}
-                      style={
-                        averageEngagements === null ? undefined : { opacity: 0.22 + 0.78 * (averageEngagements / peak) }
-                      }>
-                      <span className="sr-only">{label}</span>
+                    <td key={hour} className="h-5 rounded-sm bg-muted/60 p-0">
+                      {averageEngagements === null ? (
+                        <span className="sr-only">{label}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={description}
+                          aria-pressed={activeSlot?.weekday === weekday && activeSlot.hour === hour}
+                          title={description}
+                          onClick={() => setActiveSlot({ weekday, hour })}
+                          className={cn(
+                            "block h-5 w-full rounded-sm bg-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+                            activeSlot?.weekday === weekday &&
+                              activeSlot.hour === hour &&
+                              "ring-2 ring-inset ring-foreground",
+                          )}
+                          style={{
+                            backgroundColor: `color-mix(in oklab, var(--primary) ${posts < MIN_POSTS ? 14 : 22 + 78 * (averageEngagements / peak)}%, transparent)`,
+                          }}
+                        />
+                      )}
                     </td>
                   );
                 })}
@@ -66,7 +91,11 @@ export function BestTimes({ bestTimes }: { bestTimes: AnalyticsSummary["bestTime
         </table>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <p>{copy("Times are shown in your timezone.")}</p>
+        <p aria-live="polite">
+          {activeSlot && selected
+            ? `${weekdayName(activeSlot.weekday)} · ${hourName(activeSlot.hour)} · ${slotLabel(selected)}`
+            : copy("Times are shown in your timezone.")}
+        </p>
         <div className="flex items-center gap-1.5">
           <span>{copy("Lower")}</span>
           {[0.22, 0.48, 0.74, 1].map((opacity) => (

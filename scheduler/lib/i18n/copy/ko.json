@@ -477,7 +477,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "Claude에서 맞춤 설정 → 커넥터로 이동해 이 URL로 사용자 지정 웹 커넥터를 추가하세요.",
   "Inbox": "받은 편지함",
   "Inbox items": "받은 편지함 항목",
-  "Inbox unavailable": "받은 편지함 사용 불가",
   "Include the email address used for your SimplePost account": "SimplePost 계정에 사용한 이메일 주소를 포함하세요",
   "Incomplete": "미완료",
   "Incomplete and expired": "미완료 및 만료됨",

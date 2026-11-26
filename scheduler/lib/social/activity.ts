@@ -27,6 +27,7 @@ const RECENT_SYNC_INTERVAL_MS = 5 * 60_000;
 const SYNC_BUDGET_MS = 20_000;
 const MAX_ACCOUNTS = 12;
 const POSTS_PER_SNAPSHOT = 25;
+const RECENT_POSTS_PER_SNAPSHOT = 5;
 const MAX_CURSOR_LENGTH = 2048;
 const LEASE_MS = 8 * 60 * 1000;
 const ACTION_TIMEOUT_MS = 90_000;
@@ -184,13 +185,18 @@ function decodePostCursor(value: string | undefined): { createdAt: Date; id: str
  * are snapshot below, so a later refresh never has to rescan the whole post
  * history to resume a provider comment cursor.
  */
-async function ownedTargetPage(userId: string, accountId: string, workspaceId: string | null, after?: string) {
+async function ownedTargetPage(
+  userId: string,
+  accountId: string,
+  workspaceId: string | null,
+  after?: string,
+  limit = POSTS_PER_SNAPSHOT,
+) {
   const cursor = decodePostCursor(after);
   const posts = await prisma.post.findMany({
     where: {
       userId,
       accounts: { some: { id: accountId, userId, workspaceId } },
-      ...(workspaceId ? {} : { workspaceReviewId: null }),
       status: { in: ["published", "failed"] },
       ...(cursor
         ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }
@@ -198,13 +204,13 @@ async function ownedTargetPage(userId: string, accountId: string, workspaceId: s
     },
     include: { accounts: { where: { id: accountId, userId, workspaceId } } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: POSTS_PER_SNAPSHOT + 1,
+    take: limit + 1,
   });
-  const page = posts.slice(0, POSTS_PER_SNAPSHOT);
+  const page = posts.slice(0, limit);
   const last = page.at(-1);
   return {
     targets: targetsFromPosts(page),
-    nextPostCursor: posts.length > POSTS_PER_SNAPSHOT && last ? encodePostCursor(last) : undefined,
+    nextPostCursor: posts.length > limit && last ? encodePostCursor(last) : undefined,
   };
 }
 
@@ -393,7 +399,7 @@ async function saveItems(
   }
 }
 
-async function syncXLikes(account: ConnectedAccount, signal: AbortSignal) {
+async function syncXLikes(account: ConnectedAccount, leaseToken: string, signal: AbortSignal) {
   if (
     mapPlatformName(account.platform) !== "x" ||
     !/^\d+$/.test(account.platformAccountId) ||
@@ -424,21 +430,37 @@ async function syncXLikes(account: ConnectedAccount, signal: AbortSignal) {
       { likeAttemptAt: { lt: startedAt }, OR: [{ likeStatus: null }, { likeStatus: { not: "pending" } }] },
     ],
   };
-  await prisma.$transaction([
-    prisma.socialActivityItem.updateMany({
+  await prisma.$transaction(async (tx) => {
+    const lease = await tx.socialActivitySync.updateMany({
+      where: { accountId: account.id, leaseToken },
+      data: { leaseToken },
+    });
+    if (!lease.count) return;
+    await tx.socialActivityItem.updateMany({
       where: { ...where, nativeId: { in: ids } },
       data: { liked: true, likeStatus: "sent", likeError: null },
-    }),
-    // A truncated list only establishes positive matches.
-    ...(meta.next_token
-      ? []
-      : [
-          prisma.socialActivityItem.updateMany({
-            where: { ...where, liked: true, nativeId: { notIn: ids } },
-            data: { liked: false, likeStatus: null, likeError: null },
-          }),
-        ]),
-  ]);
+    });
+    // A truncated list only establishes positive matches. Give a recent
+    // local write time to become visible in a complete provider response.
+    if (!meta.next_token) {
+      await tx.socialActivityItem.updateMany({
+        where: {
+          ...where,
+          liked: true,
+          nativeId: { notIn: ids },
+          AND: [
+            {
+              OR: [
+                { likeAttemptAt: null },
+                { likeAttemptAt: { lt: new Date(startedAt.getTime() - ACTION_TIMEOUT_MS) } },
+              ],
+            },
+          ],
+        },
+        data: { liked: false, likeStatus: null, likeError: null },
+      });
+    }
+  });
 }
 
 const feedAccountSelect = {
@@ -478,7 +500,6 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
       where: {
         userId,
         account: { workspaceId: options.workspaceId ?? null },
-        ...(options.workspaceId ? {} : { post: { workspaceReviewId: null } }),
         kind: options.kind,
         platform: options.platforms?.length ? { in: options.platforms } : options.platform,
         accountId: options.accountId,
@@ -489,7 +510,17 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
       },
       include: {
         account: { select: feedAccountSelect },
-        post: { select: { message: true, accountOverrides: true, media: true, publishedAt: true } },
+        post: {
+          select: {
+            message: true,
+            accountOverrides: true,
+            media: {
+              select: { id: true, type: true, url: true, thumbnailUrl: true, filename: true, size: true },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            },
+            publishedAt: true,
+          },
+        },
         replies: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5 },
       },
       orderBy: [{ eventAt: "desc" }, { id: "desc" }],
@@ -509,9 +540,20 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
       const postedMessage = override.enabled === false ? undefined : override.message;
       const media = override.enabled !== false && Array.isArray(override.media) ? override.media : item.post.media;
       const sourcePreview = {
-        media: media.filter(
-          (entry) => (entry.type === "image" || entry.type === "video") && typeof entry.url === "string",
-        ) as MediaFile[],
+        media: media.flatMap((value: unknown) => {
+          const { id, type, url, thumbnailUrl, filename, size } = object(value);
+          if (typeof id !== "string" || (type !== "image" && type !== "video") || typeof url !== "string") return [];
+          return [
+            {
+              id,
+              type,
+              url,
+              thumbnailUrl: typeof thumbnailUrl === "string" ? thumbnailUrl : undefined,
+              filename: typeof filename === "string" ? filename : "",
+              size: typeof size === "number" ? size : 0,
+            } satisfies MediaFile,
+          ];
+        }),
         profilePicture: item.account.profilePicture,
         publishedAt: item.post.publishedAt?.toISOString(),
       };
@@ -554,9 +596,11 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
         canSync: supportsInbox(account.platform),
         hasMore: hasMoreInboxWork(account.socialActivitySync),
         permissionUrl:
-          ["authentication", "permission_required"].includes(account.socialActivitySync?.lastErrorCode ?? "") ||
-          (enabledInboxScopes(account.platform).length > 0 &&
-            !hasInboxScopes(account.scope, enabledInboxScopes(account.platform)))
+          account.socialActivitySync?.lastErrorCode === "authentication" ||
+          !hasInboxScopes(
+            account.scope,
+            enabledInboxScopes(mapPlatformName(account.platform)).filter((scope) => scope !== "like.read"),
+          )
             ? `/api/connect/${account.platform}?inboxAccountId=${encodeURIComponent(account.id)}`
             : undefined,
         lastSyncedAt: account.socialActivitySync?.lastSyncedAt?.toISOString(),
@@ -574,7 +618,7 @@ export type SocialInboxItem = SocialInbox["items"][number];
 function hasMoreInboxWork(
   sync: { targetIndex: number; targetSnapshot: unknown; providerCursor: string | null } | null,
 ) {
-  if (!sync?.targetSnapshot) return Boolean(sync);
+  if (!sync?.targetSnapshot || !Array.isArray(object(sync.targetSnapshot).targets)) return Boolean(sync);
   const snapshot = targetSnapshot(sync.targetSnapshot);
   return Boolean(sync.providerCursor || sync.targetIndex < snapshot.targets.length || snapshot.nextPostCursor);
 }
@@ -591,13 +635,27 @@ function retryAt(error: SocialActivityError) {
 
 export async function refreshSocialInbox(
   userId: string,
-  options: { reset?: boolean; platform?: string; automatic?: boolean; workspaceId?: string | null } = {},
+  options: {
+    reset?: boolean;
+    platform?: string;
+    platforms?: string[];
+    automatic?: boolean;
+    workspaceId?: string | null;
+  } = {},
 ) {
   await requireSocialInbox(userId);
   const stale = new Date(0);
   const workspaceId = options.workspaceId ?? null;
+  const platforms = options.platforms?.length ? options.platforms : options.platform ? [options.platform] : [];
   const connected = await prisma.connectedAccount.findMany({
-    where: { userId, workspaceId, platform: options.platform === "x" ? { in: ["x", "twitter"] } : options.platform },
+    where: {
+      userId,
+      workspaceId,
+      platform:
+        platforms.length > 0
+          ? { in: platforms.flatMap((platform) => (platform === "x" ? ["x", "twitter"] : [platform])) }
+          : undefined,
+    },
     select: feedAccountSelect,
   });
   const dueBefore = new Date(Date.now() - RECENT_SYNC_INTERVAL_MS);
@@ -634,32 +692,54 @@ export async function refreshSocialInbox(
       },
       data: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastAttemptAt: now },
     });
-    if (!claim.count) {
-      statuses.push({
-        accountId,
-        platform: account.platform,
-        processed: 0,
-        hasMore: true,
-        error: account.socialActivitySync?.lastError ?? undefined,
-      });
-      continue;
-    }
+    if (!claim.count) continue;
     const sync = await prisma.socialActivitySync.findUniqueOrThrow({ where: { accountId } });
-    let stored = targetSnapshot(sync.targetSnapshot);
-    let index = sync.targetIndex;
-    let cursor = sync.providerCursor ?? undefined;
-    let phase: "comments" | "quotes" = sync.phase === "quotes" ? "quotes" : "comments";
+    const recent = object(object(sync.targetSnapshot).recent);
+    const snapshot = options.automatic ? recent.snapshot : sync.targetSnapshot;
+    const hasSnapshot = Array.isArray(object(snapshot).targets);
+    let stored = targetSnapshot(snapshot);
+    let index = options.automatic ? Number(recent.index ?? 0) : sync.targetIndex;
+    let cursor = options.automatic
+      ? safeProviderCursor(typeof recent.cursor === "string" ? recent.cursor : undefined)
+      : (sync.providerCursor ?? undefined);
+    let phase: "comments" | "quotes" =
+      (options.automatic ? recent.phase : sync.phase) === "quotes" ? "quotes" : "comments";
     let processed = 0;
+    let attempted = 0;
     let failure: string | undefined;
+
+    // Keep recent polling independent of the manual older-post scan. A
+    // recent pass resumes across ticks and starts over only after it finishes.
+    function syncProgress(): Prisma.SocialActivitySyncUpdateManyMutationInput {
+      if (options.automatic) {
+        return {
+          targetSnapshot: {
+            ...object(sync.targetSnapshot),
+            recent: { snapshot: stored, index, cursor: cursor ?? null, phase },
+          } as unknown as Prisma.InputJsonValue,
+        };
+      }
+      return {
+        targetSnapshot: { ...stored, recent } as unknown as Prisma.InputJsonValue,
+        targetIndex: index,
+        providerCursor: cursor ?? null,
+        phase,
+      };
+    }
+
     try {
-      // Automatic reads start with recent posts on each cycle. Manual older
-      // reads can still resume the pagination cursor saved by the last read.
-      const startRecent = options.reset || options.automatic;
-      if (startRecent || !sync.targetSnapshot || index >= stored.targets.length) {
+      const startRecent = options.reset || (options.automatic && index >= stored.targets.length);
+      if (startRecent || !hasSnapshot || index >= stored.targets.length) {
         const after = startRecent ? undefined : stored.nextPostCursor;
-        if (startRecent || !sync.targetSnapshot || after) {
-          const page = await ownedTargetPage(userId, accountId, workspaceId, after);
-          stored = serializeTargetSnapshot(page.targets, page.nextPostCursor);
+        if (startRecent || !hasSnapshot || after) {
+          const page = await ownedTargetPage(
+            userId,
+            accountId,
+            workspaceId,
+            after,
+            options.automatic ? RECENT_POSTS_PER_SNAPSHOT : POSTS_PER_SNAPSHOT,
+          );
+          stored = serializeTargetSnapshot(page.targets, options.automatic ? undefined : page.nextPostCursor);
           index = 0;
           cursor = undefined;
           phase = "comments";
@@ -668,60 +748,49 @@ export async function refreshSocialInbox(
       const capabilities = getSocialActivityCapabilities(account.platform);
       const fresh = index < stored.targets.length ? await refreshedAccount(userId, accountId, workspaceId) : undefined;
       // A small per-account budget keeps busy destinations from starving others.
-      while (fresh && index < stored.targets.length && remaining > 0 && processed < 3 && Date.now() < deadline) {
+      while (fresh && index < stored.targets.length && remaining > 0 && attempted < 3 && Date.now() < deadline) {
         await requireSocialInbox(userId);
         remaining -= 1;
+        attempted += 1;
         const target = { ...stored.targets[index], accountId };
         if (phase === "comments" && !capabilities.has("comments")) phase = "quotes";
         const list = phase === "quotes" ? listSocialPostQuotes : listSocialPostComments;
-        const response = await list(socialAccount(fresh), target, { cursor, limit: 50 });
-        if (!response.ok) {
-          failure = response.error.message;
-          // A deleted source or unavailable quote edge must not block later posts.
-          if (["not_found", "unsupported", "invalid_request", "permission_required"].includes(response.error.code)) {
-            if (phase === "comments" && capabilities.has("quotes")) phase = "quotes";
-            else {
-              index += 1;
-              phase = "comments";
-            }
-            cursor = undefined;
-          }
-        }
         const itemPhase = phase;
-        if (response.ok) {
-          const next = safeProviderCursor(response.data.nextCursor);
-          if (next && next !== cursor) cursor = next;
+        const response = await list(socialAccount(fresh), target, { cursor, limit: 50 });
+        const skippable =
+          !response.ok &&
+          ["not_found", "unsupported", "invalid_request", "permission_required"].includes(response.error.code);
+        failure = !response.ok && !skippable ? response.error.message : undefined;
+        const next = response.ok ? safeProviderCursor(response.data.nextCursor) : undefined;
+        if (next && next !== cursor) cursor = next;
+        else if (response.ok || skippable) {
+          cursor = undefined;
+          if (phase === "comments" && capabilities.has("quotes")) phase = "quotes";
           else {
-            cursor = undefined;
-            if (phase === "comments" && capabilities.has("quotes")) phase = "quotes";
-            else {
-              index += 1;
-              phase = "comments";
-            }
+            index += 1;
+            phase = "comments";
           }
-          processed += 1;
         }
-        await prisma.$transaction(
+        if (response.ok) processed += 1;
+        const saved = await prisma.$transaction(
           async (tx) => {
             const saved = await tx.socialActivitySync.updateMany({
               where: { accountId, leaseToken: token },
               data: {
-                targetSnapshot: stored as unknown as Prisma.InputJsonValue,
-                targetIndex: index,
-                providerCursor: cursor ?? null,
-                phase,
+                ...syncProgress(),
                 lastSyncedAt: response.ok ? new Date() : undefined,
                 lastError: failure ?? null,
-                lastErrorCode: response.ok ? null : response.error.code,
+                lastErrorCode: response.ok || skippable ? null : response.error.code,
                 coverage: response.ok ? (response.data.coverage ?? undefined) : undefined,
                 retryAt: response.ok ? null : retryAt(response.error),
               },
             });
             if (saved.count && response.ok) await saveItems(tx, userId, fresh, target, itemPhase, response.data.data);
+            return saved.count > 0;
           },
           { timeout: 15_000 },
         );
-        if (!response.ok) break;
+        if (!saved || (!response.ok && !skippable)) break;
       }
       if (
         fresh &&
@@ -731,7 +800,7 @@ export async function refreshSocialInbox(
         hasInboxScopes(fresh.scope, ["like.read"])
       ) {
         remaining -= 1;
-        await syncXLikes(fresh, AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now())))).catch(
+        await syncXLikes(fresh, token, AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now())))).catch(
           () => {},
         );
       }
@@ -739,10 +808,7 @@ export async function refreshSocialInbox(
         await prisma.socialActivitySync.updateMany({
           where: { accountId, leaseToken: token },
           data: {
-            targetSnapshot: stored as unknown as Prisma.InputJsonValue,
-            targetIndex: index,
-            providerCursor: cursor ?? null,
-            phase,
+            ...syncProgress(),
             lastSyncedAt: new Date(),
             lastError: null,
             lastErrorCode: null,
@@ -784,7 +850,7 @@ async function ownedItem(userId: string, itemId: string, workspaceId: string | n
       id: itemId,
       userId,
       account: { userId, workspaceId },
-      post: { userId, ...(workspaceId ? {} : { workspaceReviewId: null }) },
+      post: { userId },
     },
   });
   if (!item) throw new NotFoundError("Social inbox item not found");

@@ -477,7 +477,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "在 Claude 中打开自定义 → 连接器，使用此网址添加自定义网页连接器。",
   "Inbox": "收件箱",
   "Inbox items": "收件箱动态",
-  "Inbox unavailable": "收件箱不可用",
   "Include the email address used for your SimplePost account": "请附上 SimplePost 账号使用的邮箱地址",
   "Incomplete": "未完成",
   "Incomplete and expired": "未完成且已过期",

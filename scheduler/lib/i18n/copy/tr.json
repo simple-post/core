@@ -482,7 +482,6 @@
   "In Claude, go to Customize → Connectors and add a custom web connector with this URL.": "Claude’da Özelleştir → Bağlayıcılar’a git ve bu URL ile özel bir web bağlayıcısı ekle.",
   "Inbox": "Gelen kutusu",
   "Inbox items": "Gelen kutusu öğeleri",
-  "Inbox unavailable": "Gelen kutusu kullanılamıyor",
   "Include the email address used for your SimplePost account": "SimplePost hesabın için kullandığın e-posta adresini belirt",
   "Incomplete": "Tamamlanmadı",
   "Incomplete and expired": "Tamamlanmadı ve süresi doldu",

@@ -3,6 +3,8 @@ import { uploadFromBuffer, deleteFromStorage } from "@simple-post/sdk";
 
 import { PostsModel } from "@/lib/db";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
+import { listPostAnalytics } from "@/lib/post-analytics/query";
+import { ensureAnalyticsRowsForUser } from "@/lib/post-analytics/service";
 import { prisma } from "@/lib/prisma";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { acceptInvite, createWorkspace, readWorkspace } from "@/lib/workspaces/access";
@@ -351,4 +353,55 @@ it("stores the same native identity independently in Personal and two workspaces
       }) as Parameters<typeof runCommand>[2],
     ),
   ).rejects.toThrow("Connected destination unavailable");
+});
+
+it("allows editors to update a legacy destination without releasing through Personal", async () => {
+  const { id: postId } = await setup();
+  const account = await prisma.connectedAccount.create({
+    data: { userId: admin.id, platform: "linkedin", platformAccountId: "legacy-brand", accessToken: "fixture" },
+  });
+  const destination = { platformAccountId: account.platformAccountId, label: "Legacy brand" };
+  const variant = { ...fields.variants[0], accountId: account.id };
+  await prisma.teamPost.update({ where: { id: postId }, data: { variants: [{ ...variant, destination }] } });
+
+  await send(editor, {
+    action: "edit",
+    postId,
+    revision: 1,
+    ...fields,
+    variants: [{ ...variant, caption: "Updated" }],
+  });
+  const edited = await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } });
+  expect(edited.variants).toMatchObject([{ accountId: account.id, caption: "Updated", destination }]);
+  await send(editor, { action: "submit", postId, revision: edited.revision });
+  const reviewId = (await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } })).currentReviewId!;
+  await send(viewer, { action: "decide", postId, reviewId, outcome: "approved", body: "" });
+  await expect(release(admin, wid, postId, reviewId)).rejects.toThrow("reviewed destination is unavailable");
+});
+
+it("retains analytics for old team deliveries under the publishing connection", async () => {
+  const { id: postId } = await setup();
+  await send(editor, { action: "submit", postId, revision: 1 });
+  const reviewId = (await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } })).currentReviewId!;
+  const account = await prisma.connectedAccount.create({
+    data: { userId: admin.id, platform: "instagram", platformAccountId: "legacy-profile", accessToken: "fixture" },
+  });
+  const delivery = await prisma.post.create({
+    data: {
+      workspaceReviewId: reviewId,
+      userId: admin.id,
+      message: "Legacy team delivery",
+      status: "published",
+      publishedAt: new Date(Date.now() - 60_000),
+      accounts: { connect: { id: account.id } },
+      accountResults: {
+        [account.id]: { accountId: account.id, platform: "instagram", postId: "legacy-native-post", success: true },
+      },
+    },
+  });
+  await ensureAnalyticsRowsForUser(admin.id, { postIds: [delivery.id] });
+  const personal = await listPostAnalytics(admin.id, { period: "last_7d" });
+  expect(personal.posts).toMatchObject([{ postId: delivery.id, teamPostId: postId, teamWorkspaceId: wid }]);
+  const team = await listPostAnalytics(admin.id, { period: "last_7d", workspaceId: wid });
+  expect(team.posts).toEqual([]);
 });

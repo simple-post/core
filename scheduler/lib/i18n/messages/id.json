@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "Platform dalam permintaan otorisasi tidak cocok.",
   "oauthTokenExchangeFailed": "Otorisasi tidak dapat diselesaikan. Coba lagi.",
   "oauthProfileFetchFailed": "Profil akun Anda tidak dapat dimuat. Coba lagi.",
+  "oauthReconnectAccountMismatch": "Pilih akun yang sama untuk menghubungkannya kembali.",
   "oauthYoutubeNoChannel": "Tidak ada kanal YouTube yang diotorisasi. Hubungkan kembali dan pilih Akun Google atau Akun Bisnis yang memiliki kanal Anda. Undangan YouTube Studio saja tidak memberikan akses API.",
   "oauthYoutubeAmbiguous": "Tidak dapat mengidentifikasi satu kanal YouTube. Hubungkan kembali dan pilih kanal atau Akun Bisnis tertentu yang ingin Anda gunakan.",
   "oauthNoToken": "Token akses tidak diterima. Coba lagi.",

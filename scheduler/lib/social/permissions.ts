@@ -1,5 +1,5 @@
 const permissions: Readonly<Record<string, readonly string[]>> = {
-  x: ["like.write"],
+  x: ["like.read", "like.write"],
   facebook: ["pages_read_engagement", "pages_read_user_content", "pages_manage_engagement"],
   instagram: ["instagram_business_manage_comments"],
   threads: ["threads_read_replies"],

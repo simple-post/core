@@ -1,24 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { requireSocialInbox } from "@/lib/features";
 import { requireAuth } from "@/lib/middleware/auth";
 import { getSocialInbox } from "@/lib/social/activity";
 import { inboxQuerySchema } from "@/lib/social/schemas";
 import { handleApiError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth(req);
+    await requireSocialInbox(session.user.id);
+    const { userId, workspaceId } = await workspaceConnections(
+      session.user.id,
+      req.nextUrl.searchParams.get("workspace"),
+    );
     const query = req.nextUrl.searchParams;
     const needsReply = query.get("needsReply");
     const options = inboxQuerySchema.parse({
-      platform: query.get("platform") ?? undefined,
+      platforms: query.has("platform") ? query.getAll("platform") : undefined,
       kind: query.get("kind") ?? undefined,
       accountId: query.get("accountId") ?? undefined,
       cursor: query.get("cursor") ?? undefined,
       needsReply: needsReply === "true" ? true : needsReply === "false" ? false : (needsReply ?? undefined),
       limit: query.has("limit") ? Number(query.get("limit")) : undefined,
     });
-    return NextResponse.json(await getSocialInbox(session.user.id, options), {
+    return NextResponse.json(await getSocialInbox(userId, { ...options, workspaceId }), {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {

@@ -223,6 +223,10 @@ describe("post analytics", () => {
     expect(summary.change.engagements).toBeCloseTo(17.75);
     expect(summary.byPlatform.map((entry: { platform: string }) => entry.platform)).toEqual(["x", "bluesky"]);
     expect(summary.timeline).toHaveLength(8);
+    expect(summary.bestTimes.bySlot).toHaveLength(168);
+    expect(summary.bestTimes.bySlot.filter((slot: { posts: number }) => slot.posts > 0)).toEqual([
+      expect.objectContaining({ posts: 1, averageEngagements: 75 }),
+    ]);
     expect(summary.timeline.reduce((sum: number, bucket: { posts: number }) => sum + bucket.posts, 0)).toBe(1);
     expect(summary.topPosts[0]).toEqual(expect.objectContaining({ postId: "recent", engagements: 75 }));
     expect(summary.followers).toEqual(

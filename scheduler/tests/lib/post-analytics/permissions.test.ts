@@ -23,9 +23,7 @@ describe("analytics permissions", () => {
     expect(withAnalyticsScopes("tiktok", "video.upload,video.publish")).toContain("video.list,user.info.stats");
     expect(withAnalyticsScopes("facebook", "public_profile,pages_show_list")).not.toContain("read_insights");
     process.env.OAUTH_ANALYTICS_SCOPES = "all";
-    expect(withAnalyticsScopes("linkedin", "openid profile")).toBe(
-      "openid profile r_member_postAnalytics r_member_profileAnalytics",
-    );
+    expect(withAnalyticsScopes("linkedin", "openid profile")).toBe("openid profile");
     expect(withAnalyticsScopes("x", "tweet.read")).toBe("tweet.read");
   });
 

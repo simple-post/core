@@ -789,6 +789,7 @@ export async function assertCanCreatePost(
 export async function assertCanConnectAccount(
   params: {
     userId: string;
+    workspaceId?: string | null;
     platform: string;
     platformAccountId: string;
     accountLabel?: string | null;
@@ -799,13 +800,12 @@ export async function assertCanConnectAccount(
     return;
   }
 
-  const existingAccount = await client.connectedAccount.findUnique({
+  const existingAccount = await client.connectedAccount.findFirst({
     where: {
-      userId_platform_platformAccountId: {
-        userId: params.userId,
-        platform: params.platform,
-        platformAccountId: params.platformAccountId,
-      },
+      userId: params.userId,
+      workspaceId: params.workspaceId ?? null,
+      platform: params.platform,
+      platformAccountId: params.platformAccountId,
     },
     select: { id: true },
   });

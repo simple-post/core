@@ -6,6 +6,7 @@ import { resolvePeriod } from "@/lib/post-analytics/periods";
 import { analyticsRefreshRequestSchema } from "@/lib/post-analytics/schemas";
 import { refreshAnalyticsForUser } from "@/lib/post-analytics/service";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 /**
  * Refreshes stale analytics from the platforms (all recent posts, a period,
@@ -16,6 +17,11 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req, { action: "refresh_analytics" });
     await requirePostAnalytics(session.user.id);
+    const { userId, workspaceId } = await workspaceConnections(
+      session.user.id,
+      req.nextUrl.searchParams.get("workspace"),
+      true,
+    );
     const body = analyticsRefreshRequestSchema.parse(await req.json().catch(() => ({})));
     let since: Date | undefined;
     if (!body.postIds && body.period !== "all_time" && body.mode !== "activity") {
@@ -25,7 +31,8 @@ export async function POST(req: NextRequest) {
         throw new BadRequestError(error instanceof Error ? error.message : "Invalid period");
       }
     }
-    const result = await refreshAnalyticsForUser(session.user.id, {
+    const result = await refreshAnalyticsForUser(userId, {
+      workspaceId,
       since,
       postIds: body.postIds,
       force: body.force,

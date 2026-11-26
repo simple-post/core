@@ -4,19 +4,48 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImageIcon, Play } from "lucide-react";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
-import { useAnalyticsPosts, type AnalyticsFilters, type SortableMetric } from "@/hooks/use-analytics";
+import {
+  useAnalyticsPosts,
+  type AnalyticsFilters,
+  type PostSummaryItem,
+  type SortableMetric,
+} from "@/hooks/use-analytics";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { cn } from "@/lib/utils";
 
+import { formatMetricValue, formatPercent } from "../format";
 import { useAnalyticsLabels } from "../labels";
 
-import { PostMetricValue, PostThumb } from "./top-posts";
-
 import type { PostMetric } from "@simple-post/sdk/analytics";
+
+function PostMetricValue({ post, metric, locale }: { post: PostSummaryItem; metric: SortableMetric; locale: string }) {
+  if (metric === "engagementRate") return <>{formatPercent(post.engagementRate, locale, 2)}</>;
+  if (metric === "engagements") return <>{formatMetricValue("engagements", post.engagements, locale)}</>;
+  if (metric === "publishedAt")
+    return <>{new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(post.publishedAt))}</>;
+  return <>{formatMetricValue(metric, post.metrics[metric], locale)}</>;
+}
+
+function PostThumb({ post }: { post: PostSummaryItem }) {
+  return (
+    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
+      {post.thumbnailUrl ? (
+        <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+          {post.mediaType === "video" ? <Play className="h-4 w-4" /> : <ImageIcon className="h-4 w-4 opacity-40" />}
+        </div>
+      )}
+      {post.mediaType === "video" && post.thumbnailUrl ? (
+        <Play className="absolute bottom-1 end-1 h-3 w-3 fill-white text-white drop-shadow" />
+      ) : null}
+    </div>
+  );
+}
 
 const BASE_COLUMNS: SortableMetric[] = ["views", "likes", "comments", "shares", "engagements", "engagementRate"];
 
@@ -75,6 +104,24 @@ export function PostsTable({
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label={copy("Sort posts")}>
+        {(["publishedAt", ...columns] as SortableMetric[]).map((metric) => (
+          <Button
+            key={metric}
+            type="button"
+            size="sm"
+            variant={sortBy === metric && order === "desc" ? "secondary" : "outline"}
+            className="h-8 rounded-full"
+            aria-pressed={sortBy === metric && order === "desc"}
+            onClick={() => {
+              setSortBy(metric);
+              setOrder("desc");
+              setPage(1);
+            }}>
+            {labels.metric[metric]}
+          </Button>
+        ))}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[44rem] text-sm">
           <thead>
@@ -88,7 +135,13 @@ export function PostsTable({
             {(data?.posts ?? []).map((post) => (
               <tr key={post.postId} className="border-b border-border/60 hover:bg-secondary/40">
                 <td className="max-w-xs py-2">
-                  <Link href={`/posts/${post.postId}`} className="flex items-center gap-3">
+                  <Link
+                    href={
+                      post.teamWorkspaceId && post.teamPostId
+                        ? `/posts/${post.teamPostId}?workspace=${encodeURIComponent(post.teamWorkspaceId)}`
+                        : `/posts/${post.postId}`
+                    }
+                    className="flex items-center gap-3">
                     <PostThumb post={post} />
                     <div className="min-w-0">
                       <p className="line-clamp-2 text-sm" dir="auto">

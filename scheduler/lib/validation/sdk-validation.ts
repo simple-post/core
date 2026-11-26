@@ -48,6 +48,7 @@ export async function validatePostForAccounts(params: {
   checkAccountReadiness?: boolean;
   imageFit?: ImageFit;
   userId: string;
+  workspaceId?: string;
   message: string;
   media: MediaFile[];
   accountIds: string[];
@@ -59,6 +60,7 @@ export async function validatePostForAccounts(params: {
   const accounts = await prisma.connectedAccount.findMany({
     where: {
       userId: params.userId,
+      workspaceId: params.workspaceId ?? null,
       id: { in: params.accountIds },
     },
   });

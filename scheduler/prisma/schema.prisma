@@ -29,6 +29,8 @@ model UserFeature {
 }
 
 model User {
+  personalWorkspaceName String @default("Personal")
+  personalWorkspaceColor String @default("slate")
   ownedWorkspaces TeamWorkspace[]
   teamMemberships TeamMember[]
   features                     UserFeature[]
@@ -260,6 +262,8 @@ model Verification {
 // Separate model for connected social media accounts (for posting)
 // This is different from the Account model which is used for authentication
 model ConnectedAccount {
+  workspaceId String?
+  workspace TeamWorkspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   id     String @id @default(cuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -300,7 +304,8 @@ model ConnectedAccount {
   socialActivitySync SocialActivitySync?
   socialActivityReplies SocialActivityReply[]
 
-  @@unique([userId, platform, platformAccountId])
+  // Partial unique indexes enforce one native identity per personal or team workspace.
+  @@index([workspaceId])
   @@index([userId])
   @@index([credentialRefreshBlockedAt, credentialRefreshRetryAt, expiresAt], map: "connected_account_refresh_sweep_idx")
   @@map("connected_account")
@@ -589,6 +594,7 @@ model SocialActivitySync {
   leaseUntil           DateTime?
   coverage             String?
   lastError            String?
+  lastErrorCode        String?
   updatedAt            DateTime @updatedAt
 
   @@map("social_activity_sync")
@@ -981,6 +987,8 @@ model AccountAnalyticsSnapshot {
 }
 
 model TeamWorkspace {
+  color String @default("indigo")
+  connectedAccounts ConnectedAccount[]
   id String @id @default(cuid())
   creatorId String
   creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)

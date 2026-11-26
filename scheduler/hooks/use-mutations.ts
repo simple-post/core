@@ -11,6 +11,9 @@ import type { PostingMode, SocialPost } from "@/types";
 
 import type { PlacementResult } from "@simple-post/sdk";
 
+const workspaceQuery = (workspaceId?: string | null) =>
+  workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : "";
+
 const POSTING_PROGRESS_CONTENT_TYPE = "application/x-ndjson";
 
 // Delete post mutation
@@ -37,8 +40,8 @@ export function useDeletePost() {
 }
 
 // Disconnect account mutation
-async function disconnectAccount(accountId: string, copy: SourceCopy): Promise<void> {
-  const response = await fetch(`/api/v1/accounts/${accountId}`, {
+async function disconnectAccount(accountId: string, copy: SourceCopy, workspaceId?: string | null): Promise<void> {
+  const response = await fetch(`/api/v1/accounts/${accountId}${workspaceQuery(workspaceId)}`, {
     method: "DELETE",
   });
   if (!response.ok) {
@@ -46,15 +49,18 @@ async function disconnectAccount(accountId: string, copy: SourceCopy): Promise<v
   }
 }
 
-export function useDisconnectAccount() {
+export function useDisconnectAccount(workspaceId?: string | null) {
   const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (accountId: string) => disconnectAccount(accountId, copy),
+    mutationFn: (accountId: string) => disconnectAccount(accountId, copy, workspaceId),
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+      void queryClient.invalidateQueries({ queryKey: ["social-inbox"] });
+      void queryClient.invalidateQueries({ queryKey: ["team-workspace"] });
       // The first connected account completes an onboarding step.
       queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
     },
@@ -69,8 +75,12 @@ interface ConnectTelegramParams {
   channelName?: string;
 }
 
-async function connectTelegram(params: ConnectTelegramParams, copy: SourceCopy): Promise<void> {
-  const response = await fetch("/api/connect/telegram", {
+async function connectTelegram(
+  params: ConnectTelegramParams,
+  copy: SourceCopy,
+  workspaceId?: string | null,
+): Promise<void> {
+  const response = await fetch(`/api/connect/telegram${workspaceQuery(workspaceId)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -84,12 +94,12 @@ async function connectTelegram(params: ConnectTelegramParams, copy: SourceCopy):
   }
 }
 
-export function useConnectTelegram() {
+export function useConnectTelegram(workspaceId?: string | null) {
   const { copy } = useUiCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (params: ConnectTelegramParams) => connectTelegram(params, copy),
+    mutationFn: (params: ConnectTelegramParams) => connectTelegram(params, copy, workspaceId),
     onSuccess: () => {
       // Invalidate accounts query to refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
@@ -98,12 +108,12 @@ export function useConnectTelegram() {
     },
   });
 }
-export function useConnectForem() {
+export function useConnectForem(workspaceId?: string | null) {
   const { copy } = useUiCopy();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (params: { instanceUrl: string; apiKey: string; handoffToken?: string }) => {
-      const response = await fetch("/api/connect/forem", {
+      const response = await fetch(`/api/connect/forem${workspaceQuery(workspaceId)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),

@@ -16,7 +16,7 @@ it("defaults only owned TikTok targets and preserves other settings without muta
   const options = { "tiktok-1": { allowComment: true }, "youtube-1": { privacyStatus: "private" } };
   const result = await resolveMcpAccountOptions("user-1", ["tiktok-1", "tiktok-2", "youtube-1"], options);
   expect(prisma.connectedAccount.findMany).toHaveBeenCalledWith({
-    where: { userId: "user-1", id: { in: ["tiktok-1", "tiktok-2", "youtube-1"] } },
+    where: { userId: "user-1", workspaceId: null, id: { in: ["tiktok-1", "tiktok-2", "youtube-1"] } },
     select: { id: true, platform: true },
   });
   expect(result).toEqual({

@@ -16,7 +16,7 @@ export function stale(): never {
 export async function runCommand(
   actor: Actor,
   workspaceId: string,
-  cmd: Exclude<WorkspaceCommand, { action: "release" }>,
+  cmd: Exclude<WorkspaceCommand, { action: "release" | "cancelDelivery" }>,
 ) {
   return prisma.$transaction(async (tx) => {
     await lockWorkspace(tx, workspaceId);
@@ -109,16 +109,17 @@ export async function runCommand(
         continue;
       }
       const prior = current?.variants.find((old) => old.platform === v.platform && old.accountId === v.accountId);
-      if (prior) {
+      if (!prior && actor.id !== workspace.creatorId)
+        throw new ForbiddenError("Only the creator can select a connected destination");
+      const account = await tx.connectedAccount.findFirst({
+        where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
+      });
+      if (prior && (!account || prior.destination?.platformAccountId === account.platformAccountId)) {
         v.destination = prior.destination;
         continue;
       }
-      if (actor.id !== workspace.creatorId)
-        throw new ForbiddenError("Only the creator can select a connected destination");
-      const account = await tx.connectedAccount.findFirst({
-        where: { id: v.accountId, userId: actor.id, platform: v.platform },
-      });
-      if (!account) throw new BadRequestError("Connected destination unavailable");
+      if (!account)
+        throw new BadRequestError("Connected destination unavailable. Choose an account connected to this workspace.");
       v.destination = {
         label: account.displayName || account.username || account.platformAccountId,
         platformAccountId: account.platformAccountId,

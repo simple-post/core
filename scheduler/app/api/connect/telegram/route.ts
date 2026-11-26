@@ -8,6 +8,7 @@ import { createLogger, serializeError } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 const log = createLogger("api:connect:telegram");
 
@@ -17,6 +18,11 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth(req, { action: "connect_social_account", platform: "telegram" });
     measurementUserId = session.user.id;
+    const { workspaceId } = await workspaceConnections(
+      session.user.id,
+      req.nextUrl.searchParams.get("workspace"),
+      true,
+    );
     const body = await req.json();
     source = handoffSource(body.handoffToken, session.user.id, "telegram");
     await recordFunnelEvent(measurementUserId, "social_connection_started", {
@@ -81,6 +87,7 @@ export async function POST(req: NextRequest) {
 
       await upsertConnectedAccount({
         userId: session.user.id,
+        ...(workspaceId && { workspaceId }),
         platform: "telegram",
         platformAccountId: numericChatId,
         accessToken: trimmedToken,

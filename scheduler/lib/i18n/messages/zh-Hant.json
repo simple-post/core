@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "授權要求中的平台不符。",
   "oauthTokenExchangeFailed": "無法完成授權。請再試一次。",
   "oauthProfileFetchFailed": "無法載入帳號個人檔案。請再試一次。",
+  "oauthReconnectAccountMismatch": "請選擇同一帳號以重新連結。",
   "oauthYoutubeNoChannel": "沒有授權任何 YouTube 頻道。請重新連結，選擇擁有該頻道的 Google 帳戶或品牌帳戶。僅有 YouTube Studio 邀請無法取得 API 存取權。",
   "oauthYoutubeAmbiguous": "無法辨識唯一的 YouTube 頻道。請重新連結並選擇要使用的頻道或品牌帳戶。",
   "oauthNoToken": "未收到存取權杖。請再試一次。",

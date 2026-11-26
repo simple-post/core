@@ -22,7 +22,7 @@ interface YouTubeList {
 }
 
 async function ownerClient(userId: string, accountId: string) {
-  const stored = await prisma.connectedAccount.findFirst({ where: { id: accountId, userId } });
+  const stored = await prisma.connectedAccount.findFirst({ where: { id: accountId, userId, workspaceId: null } });
   if (!stored) throw new NotFoundError(serverMessage("Account not found"));
   if (stored.platform.toLowerCase() !== "youtube")
     throw new BadRequestError(serverMessage("A YouTube account is required"));

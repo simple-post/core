@@ -27,7 +27,9 @@ it("rejects default destinations belonging to another user", async () => {
   await expect(updatePublishingPreferences("owner", { defaultAccountIds: ["foreign"] })).rejects.toThrow(
     "no longer connected",
   );
-  expect(prisma.connectedAccount.count).toHaveBeenCalledWith({ where: { userId: "owner", id: { in: ["foreign"] } } });
+  expect(prisma.connectedAccount.count).toHaveBeenCalledWith({
+    where: { userId: "owner", workspaceId: null, id: { in: ["foreign"] } },
+  });
   expect(prisma.userPublishingPreferences.upsert).not.toHaveBeenCalled();
 });
 it("deduplicates defaults and persists only fields being changed", async () => {

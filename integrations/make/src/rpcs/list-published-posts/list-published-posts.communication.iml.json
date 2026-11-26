@@ -7,11 +7,17 @@
 		"limit": 100
 	},
 	"response": {
-		"limit": 100,
+		"limit": 300,
 		"iterate": "{{body.posts}}",
 		"output": {
 			"label": "[{{capitalize(item.status)}}] {{substring(ifempty(item.message, item.id), 0, 70)}} ({{item.id}})",
 			"value": "{{item.id}}"
 		}
+	},
+	"pagination": {
+		"qs": {
+			"page": "{{body.pagination.page + 1}}"
+		},
+		"condition": "{{body.pagination.hasNextPage && body.pagination.page < 3}}"
 	}
 }

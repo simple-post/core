@@ -18,5 +18,6 @@
 			"type": "{{if(contains(body.type, 'video/'), 'video', 'image')}}",
 			"contentType": "{{body.type}}"
 		}
-	}
+	},
+	"timeout": 300000
 }

@@ -27,10 +27,12 @@ const IML_SCHEMAS = [
   "sources.json",
 ];
 const MAKECOMAPP_SCHEMA = "makecomapp.schema.json";
+const MODULE_TIMEOUT_SCHEMA = "module-timeout-api.json";
 
 // Mirrors `contributes.jsonValidation` in the extension's package.json.
 const FILE_SCHEMAS = [
   [/\.(params|mappable-params|static-params|interface)\.iml\.json$/, "parameters.json"],
+  [/^modules\/(create-post|upload-media-file)\/\1\.communication\.iml\.json$/, MODULE_TIMEOUT_SCHEMA],
   [/\.(communication|attach|detach)\.iml\.json$/, "api.json"],
   [/\.samples\.iml\.json$/, "samples.json"],
   [/\.scope\.iml\.json$/, "scope.json"],
@@ -76,11 +78,12 @@ addFormats(ajv);
 for (const name of [...IML_SCHEMAS, MAKECOMAPP_SCHEMA]) {
   const schema = await loadSchema(name);
   delete schema.$id;
-  if (name === "base.json") {
-    // The Base documentation permits an IML expression here, while the pinned
-    // editor schema only accepts literal milliseconds.
-    const request = schema.definitions.request.properties;
-    request.timeout = { anyOf: [request.timeout, { type: "string", pattern: "^\\{\\{[^\\r\\n]+\\}\\}$" }] };
+  if (name === "api.json") {
+    // Make review requested a literal timeout on these two module requests.
+    // The pinned editor schema only declares the directive in its Base schema.
+    const moduleTimeoutSchema = structuredClone(schema);
+    moduleTimeoutSchema.definitions.request.properties.timeout = { $ref: "sources.json#/definitions/timeout" };
+    ajv.addSchema(moduleTimeoutSchema, MODULE_TIMEOUT_SCHEMA);
   }
   ajv.addSchema(schema, name);
 }

@@ -1,11 +1,39 @@
 [
 	{
 		"name": "postId",
-		"type": "select",
+		"type": "text",
 		"label": "Post ID",
 		"required": true,
 		"help": "ID of the SimplePost post.",
-		"options": "rpc://listPosts",
-		"mode": "edit"
+		"rpc": {
+			"label": "Find a post",
+			"url": "rpc://listPosts",
+			"parameters": [
+				{
+					"name": "type",
+					"type": "select",
+					"label": "Post status",
+					"required": true,
+					"options": [
+						{
+							"label": "Scheduled",
+							"value": "scheduled"
+						},
+						{
+							"label": "Drafts",
+							"value": "drafts"
+						},
+						{
+							"label": "Published",
+							"value": "past"
+						},
+						{
+							"label": "Failed",
+							"value": "failed"
+						}
+					]
+				}
+			]
+		}
 	}
 ]

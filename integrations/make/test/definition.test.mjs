@@ -116,7 +116,7 @@ test("module labels and descriptions follow Make naming conventions", () => {
   assert.equal(universal[0][1].label, "Make an API call");
   assert.equal(
     universal[0][1].description,
-    "Sends a custom API call to SimplePost. You can use this to call endpoints that aren't covered by existing modules.",
+    "Performs an arbitrary authorized API call.",
   );
 });
 
@@ -138,6 +138,7 @@ test("base and connection authenticate with the API key and sanitize it", () => 
   assert.equal(apiKey.editable, true);
   assert.equal(baseUrl.default, "https://app.simplepost.social");
   assert.equal(baseUrl.editable, false);
+  assert.match(baseUrl.help, /To use a different URL after setup, create a new connection\./);
   assert.equal(baseUrl.advanced, true);
 });
 
@@ -245,30 +246,38 @@ test("instant triggers register and remove SimplePost webhooks", () => {
 
     const communication = readJson(webhook.codeFiles.communication);
     assert.equal(communication.condition, `{{body.event = '${attach.body.events[0]}'}}`);
-    assert.match(communication.output.createdAt, /parseDate\(body\.createdAt,/);
-    assert.match(communication.output.post.publishedAt, /parseDate\(body\.post\.publishedAt,/);
+    assert.equal(communication.output.createdAt, isoDateExpression("body.createdAt"));
+    assert.equal(communication.output.post.publishedAt, isoDateExpression("body.post.publishedAt"));
   }
 });
 
-test("date outputs are parsed with the API format and preserve empty values", () => {
+function isoDateExpression(field) {
+  return `{{if(${field}, parseDate(${field}, if(contains(${field}, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), ${field})}}`;
+}
+
+test("date outputs parse ISO offsets and fractions and preserve empty values", () => {
   const create = moduleCode("createPost", "communication").response;
   for (const [mapping, source] of [
-    [create.output.post, "body.post"],
+    [create.wrapper.post, "body.post"],
     [moduleCode("getPost", "communication").response.output, "body.post"],
     [moduleCode("searchPosts", "communication").response.output, "item"],
   ]) {
     for (const key of ["scheduledFor", "publishedAt", "createdAt", "repostDueAt", "repostedAt"]) {
       const field = `${source}.${key}`;
-      assert.equal(mapping[key], `{{if(${field}, parseDate(${field}, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), ${field})}}`);
+      assert.equal(mapping[key], isoDateExpression(field));
     }
   }
-  assert.match(create.temp.trialWarning.trialExpiresAt, /parseDate\(body\.warnings\[1\]\.trialExpiresAt,/);
-  assert.match(create.output.warnings, /temp\.trialWarning/);
+  // Make can process the wrapper even when the service omits the warnings array.
+  assert.equal(create.temp.hasWarnings, "{{length(ifempty(body.warnings, emptyarray)) > 0}}");
+  assert.equal(create.iterate, "{{if(temp.hasWarnings, body.warnings, add(emptyarray, body))}}");
+  assert.equal(create.output["{{...}}"], "{{omit(item, 'trialExpiresAt')}}");
+  assert.equal(create.output.trialExpiresAt, isoDateExpression("item.trialExpiresAt"));
+  assert.equal(create.wrapper.warnings, "{{if(temp.hasWarnings, output, emptyarray)}}");
 
   const account = moduleCode("listAccounts", "communication").response.output;
-  assert.match(account.createdAt, /parseDate\(item\.createdAt,/);
-  assert.match(account.updatedAt, /parseDate\(item\.updatedAt,/);
-  assert.match(account.credentialStatus.expiresAt, /parseDate\(item\.credentialStatus\.expiresAt,/);
+  assert.equal(account.createdAt, isoDateExpression("item.createdAt"));
+  assert.equal(account.updatedAt, isoDateExpression("item.updatedAt"));
+  assert.equal(account.credentialStatus.expiresAt, isoDateExpression("item.credentialStatus.expiresAt"));
 });
 
 test("repost defaults are inherited unless the caller supplied an override", () => {
@@ -280,25 +289,26 @@ test("repost defaults are inherited unless the caller supplied an override", () 
   );
 });
 
-test("only immediate publishing and file uploads get the extended timeout", () => {
-  const { timeout } = readJson(app.generalCodeFiles.base);
-  assert.equal(
-    timeout,
-    "{{if(parameters.postingMode = 'now' || (parameters.fileName != undefined && parameters.data != undefined), 300000, 40000)}}",
-  );
-  const longOperationFields = ["postingMode", "fileName", "data"];
-  for (const [id] of modules.filter(([name]) => !["createPost", "uploadMediaFile"].includes(name))) {
-    const fields = topLevelParameterNames(moduleCode(id, "mappableParams"));
-    assert.ok(fields.every((field) => !longOperationFields.includes(field)), id);
+test("only Create a post and Upload a media file request the extended timeout", () => {
+  assert.equal(readJson(app.generalCodeFiles.base).timeout, undefined);
+  for (const [id] of modules) {
+    const expected = id === "createPost" || id === "uploadMediaFile" ? 300000 : undefined;
+    assert.equal(moduleCode(id, "communication").timeout, expected, id);
   }
 });
 
-test("post pickers are bounded and leave Get and Delete ready for mapping", () => {
+test("post pickers preserve mappable IDs and fetch at most three pages", () => {
+  const statuses = ["scheduled", "drafts", "past", "failed"];
   for (const id of ["getPost", "deletePost"]) {
     const [postId] = moduleCode(id, "mappableParams");
-    assert.equal(postId.type, "select");
-    assert.equal(postId.mode, "edit");
-    assert.equal(postId.options, "rpc://listPosts");
+    assert.equal(postId.name, "postId");
+    assert.equal(postId.type, "text");
+    assert.equal(postId.required, true);
+    assert.equal(postId.rpc.url, "rpc://listPosts");
+    const [status] = postId.rpc.parameters;
+    assert.equal(status.name, "type");
+    assert.equal(status.required, true);
+    assert.deepEqual(status.options.map(({ value }) => value), statuses);
   }
   assert.equal(moduleCode("deletePost", "communication").response.output, "{{undefined}}");
   assert.deepEqual(moduleCode("deletePost", "interface"), []);
@@ -306,11 +316,19 @@ test("post pickers are bounded and leave Get and Delete ready for mapping", () =
     moduleCode("createPost", "mappableParams").find(({ name }) => name === "quotePostId").options,
     "rpc://listPublishedPosts",
   );
-  const recentPosts = readJson(app.components.rpc.listPosts.codeFiles.communication);
-  assert.deepEqual(recentPosts.map(({ qs }) => qs.type), ["drafts", "scheduled", "failed", "past"]);
-  assert.equal(recentPosts.reduce((sum, { qs }) => sum + qs.limit, 0), 100);
-  assert.equal(recentPosts.at(-1).response.limit, 100);
+  const recent = readJson(app.components.rpc.listPosts.codeFiles.communication);
   const published = readJson(app.components.rpc.listPublishedPosts.codeFiles.communication);
+  assert.equal(recent.qs.type, "{{switch(parameters.type, 'drafts', 'drafts', 'past', 'past', 'failed', 'failed', 'scheduled')}}");
   assert.equal(published.qs.type, "past");
-  assert.equal(published.qs.limit, 100);
+  for (const rpc of [recent, published]) {
+    assert.equal(rpc.url, "/api/v1/posts");
+    assert.equal(rpc.qs.page, 1);
+    assert.equal(rpc.qs.limit, 100);
+    assert.equal(rpc.response.limit, 300);
+    assert.equal(rpc.response.output.value, "{{item.id}}");
+    assert.deepEqual(rpc.pagination, {
+      qs: { page: "{{body.pagination.page + 1}}" },
+      condition: "{{body.pagination.hasNextPage && body.pagination.page < 3}}",
+    });
+  }
 });

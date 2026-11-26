@@ -195,7 +195,7 @@
 			},
 			"makeApiCall": {
 				"label": "Make an API call",
-				"description": "Sends a custom API call to SimplePost. You can use this to call endpoints that aren't covered by existing modules.",
+				"description": "Performs an arbitrary authorized API call.",
 				"moduleType": "universal",
 				"actionCrud": null,
 				"connection": "simplepost",

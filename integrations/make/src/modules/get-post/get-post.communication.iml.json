@@ -4,11 +4,11 @@
 	"response": {
 		"output": {
 			"{{...}}": "{{omit(body.post, 'scheduledFor', 'publishedAt', 'createdAt', 'repostDueAt', 'repostedAt')}}",
-			"scheduledFor": "{{if(body.post.scheduledFor, parseDate(body.post.scheduledFor, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.scheduledFor)}}",
-			"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.publishedAt)}}",
-			"createdAt": "{{if(body.post.createdAt, parseDate(body.post.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.createdAt)}}",
-			"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostDueAt)}}",
-			"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostedAt)}}"
+			"scheduledFor": "{{if(body.post.scheduledFor, parseDate(body.post.scheduledFor, if(contains(body.post.scheduledFor, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.scheduledFor)}}",
+			"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, if(contains(body.post.publishedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.publishedAt)}}",
+			"createdAt": "{{if(body.post.createdAt, parseDate(body.post.createdAt, if(contains(body.post.createdAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.createdAt)}}",
+			"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, if(contains(body.post.repostDueAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostDueAt)}}",
+			"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, if(contains(body.post.repostedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostedAt)}}"
 		}
 	}
 }

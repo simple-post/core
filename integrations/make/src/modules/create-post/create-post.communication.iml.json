@@ -7,22 +7,25 @@
 	},
 	"response": {
 		"temp": {
-			"trialWarning": {
-				"{{...}}": "{{omit(body.warnings[1], 'trialExpiresAt')}}",
-				"trialExpiresAt": "{{if(body.warnings[1].trialExpiresAt, parseDate(body.warnings[1].trialExpiresAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.warnings[1].trialExpiresAt)}}"
-			}
+			"hasWarnings": "{{length(ifempty(body.warnings, emptyarray)) > 0}}"
 		},
+		"iterate": "{{if(temp.hasWarnings, body.warnings, add(emptyarray, body))}}",
 		"output": {
+			"{{...}}": "{{omit(item, 'trialExpiresAt')}}",
+			"trialExpiresAt": "{{if(item.trialExpiresAt, parseDate(item.trialExpiresAt, if(contains(item.trialExpiresAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), item.trialExpiresAt)}}"
+		},
+		"wrapper": {
 			"{{...}}": "{{omit(body, 'post', 'warnings')}}",
 			"post": {
 				"{{...}}": "{{omit(body.post, 'scheduledFor', 'publishedAt', 'createdAt', 'repostDueAt', 'repostedAt')}}",
-				"scheduledFor": "{{if(body.post.scheduledFor, parseDate(body.post.scheduledFor, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.scheduledFor)}}",
-				"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.publishedAt)}}",
-				"createdAt": "{{if(body.post.createdAt, parseDate(body.post.createdAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.createdAt)}}",
-				"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostDueAt)}}",
-				"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, 'YYYY-MM-DDTHH:mm:ss.SSSZ'), body.post.repostedAt)}}"
+				"scheduledFor": "{{if(body.post.scheduledFor, parseDate(body.post.scheduledFor, if(contains(body.post.scheduledFor, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.scheduledFor)}}",
+				"publishedAt": "{{if(body.post.publishedAt, parseDate(body.post.publishedAt, if(contains(body.post.publishedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.publishedAt)}}",
+				"createdAt": "{{if(body.post.createdAt, parseDate(body.post.createdAt, if(contains(body.post.createdAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.createdAt)}}",
+				"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, if(contains(body.post.repostDueAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostDueAt)}}",
+				"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, if(contains(body.post.repostedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostedAt)}}"
 			},
-			"warnings": "{{if(body.warnings[1].trialExpiresAt, merge(add(emptyarray, temp.trialWarning), slice(body.warnings, 1)), body.warnings)}}"
+			"warnings": "{{if(temp.hasWarnings, output, emptyarray)}}"
 		}
-	}
+	},
+	"timeout": 300000
 }

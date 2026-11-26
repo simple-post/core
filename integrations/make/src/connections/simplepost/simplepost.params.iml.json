@@ -18,6 +18,6 @@
 		"validate": {
 			"pattern": "^https://[^/?#]+$"
 		},
-		"help": "Leave as `https://app.simplepost.social` unless you run your own self-hosted SimplePost Scheduler. Enter the HTTPS address of that Scheduler without a trailing slash."
+		"help": "Leave as `https://app.simplepost.social` unless you run your own self-hosted SimplePost Scheduler. Enter the HTTPS address of that Scheduler without a trailing slash. To use a different URL after setup, create a new connection."
 	}
 ]

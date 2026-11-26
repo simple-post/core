@@ -7,6 +7,7 @@ export type SocialActivityErrorCode =
   /** A write may have reached the provider; reconcile before sending again. */
   | "uncertain"
   | "permission_required"
+  | "app_permission_required"
   | "authentication"
   | "not_found"
   | "rate_limited"

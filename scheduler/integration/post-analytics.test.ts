@@ -240,6 +240,35 @@ describe("post analytics", () => {
     expect(list.posts.map((post) => post.postId)).toEqual(["recent", "older"]);
   });
 
+  it("reports a Threads app restriction without asking the account to reconnect again", async () => {
+    await createAccount("threads1", "threads", "threads_basic threads_manage_insights");
+    await createPost("threads-post", new Date(Date.now() - HOUR), {
+      threads1: { platform: "threads", postId: "601" },
+    });
+    mockedPostAnalytics.mockImplementation(async ({ platform, targets }) => ({
+      platform,
+      results: targets.map((target) => ({
+        platform,
+        postId: target.postId,
+        status: "missing_permission",
+        metrics: {},
+        message:
+          "Threads did not grant permission to read analytics: Application does not have permission for this action Reconnect the account to approve the analytics permission.",
+        fetchedAt: new Date().toISOString(),
+      })),
+    }));
+    await refreshAnalyticsForUser(userId, { postIds: ["threads-post"] });
+
+    const summary = await getAnalyticsSummary(userId, { period: "last_7d", platforms: ["threads"] });
+    expect(summary.notices).toEqual([
+      expect.objectContaining({
+        platform: "threads",
+        reconnectRecommended: false,
+        message: expect.stringContaining("app level"),
+      }),
+    ]);
+  });
+
   it("reports metrics gained during a period from snapshots", async () => {
     const now = Date.now();
     await createPost("evergreen", new Date(now - 40 * 24 * HOUR), { bsky1: { platform: "bluesky", postId: "at://e" } });

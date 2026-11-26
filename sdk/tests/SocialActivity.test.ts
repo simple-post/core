@@ -84,6 +84,16 @@ describe("social activity adapters", () => {
     get.mockRestore();
   });
 
+  it("distinguishes a Meta app restriction from an account that needs to reconnect", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ error: { code: 10, message: "Application does not have permission for this action" } }, 403),
+    );
+    await expect(listSocialPostComments(account("threads"), post("200"))).resolves.toMatchObject({
+      ok: false,
+      error: { code: "app_permission_required", message: expect.stringContaining("app level") },
+    });
+  });
+
   it("resolves X thread segments to their root conversation and keeps empty search pages successful", async () => {
     fetchMock
       .mockResolvedValueOnce(json({ data: { id: "200", conversation_id: "100" } }))

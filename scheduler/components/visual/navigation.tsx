@@ -37,7 +37,7 @@ export function WorkspaceNavigation({
   const { t } = useUiTranslation();
   const { copy } = useUiCopy();
   return (
-    <nav className="simplepost-visual ms-1 flex items-center gap-1 sm:ms-3" aria-label={t("workspaceSections")}>
+    <nav className="simplepost-visual flex items-center gap-0.5 sm:ms-3 sm:gap-1" aria-label={t("workspaceSections")}>
       {[
         { id: "posts" as const, label: t("posts"), Icon: LayoutGrid },
         ...(includeInbox ? [{ id: "inbox" as const, label: copy("Inbox"), Icon: Inbox }] : []),
@@ -49,7 +49,7 @@ export function WorkspaceNavigation({
             id,
             label,
             className: cn(
-              "inline-flex h-9 items-center gap-2 rounded-lg px-2 text-sm font-medium transition-colors sm:px-3",
+              "inline-flex h-9 items-center gap-2 rounded-lg px-1.5 text-sm font-medium transition-colors sm:px-3",
               active === id
                 ? "bg-secondary text-foreground"
                 : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",

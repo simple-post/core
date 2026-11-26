@@ -321,7 +321,7 @@ export function SocialInbox({
   workspaceId?: string;
   canManage?: boolean;
 }) {
-  const { copy } = useUiCopy();
+  const { copy, locale } = useUiCopy();
   const { data: session } = useSession();
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [needsReply, setNeedsReply] = useState(false);
@@ -353,6 +353,10 @@ export function SocialInbox({
   const platforms = [...accountCounts.keys()].sort((a, b) => platformLabel(a).localeCompare(platformLabel(b)));
   const lastSync = accounts
     .flatMap((account) => account.lastSyncedAt ?? [])
+    .sort()
+    .at(-1);
+  const lastChecked = accounts
+    .flatMap((account) => account.lastCheckedAt ?? [])
     .sort()
     .at(-1);
   const canSync = canManage && accounts.some((account) => account.canSync);
@@ -417,19 +421,32 @@ export function SocialInbox({
     <main className="mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] pt-6 pb-16">
       <header className="mb-5 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">{copy("Inbox")}</h1>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={copy("Refresh inbox")}
-          title={copy("Refresh inbox")}
-          onClick={() => sync(true)}
-          disabled={syncing || !canSync}>
-          <RefreshCw
-            className={cn("size-4", (syncing || autoSync.isFetching) && "motion-safe:animate-spin")}
-            aria-hidden
-          />
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted-foreground" role="status">
+            {syncing || autoSync.isFetching
+              ? copy("Checking for new activity…")
+              : lastChecked
+                ? copy("Last checked {{time}}", {
+                    time: new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(
+                      new Date(lastChecked),
+                    ),
+                  })
+                : null}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={copy("Refresh inbox")}
+            title={copy("Refresh inbox")}
+            onClick={() => sync(true)}
+            disabled={syncing || !canSync}>
+            <RefreshCw
+              className={cn("size-4", (syncing || autoSync.isFetching) && "motion-safe:animate-spin")}
+              aria-hidden
+            />
+          </Button>
+        </div>
       </header>
       {(syncError || connection) && (
         <p role="status" className="mb-4 text-sm text-amber-600 dark:text-amber-300">
@@ -438,7 +455,10 @@ export function SocialInbox({
       )}
       <div className="mb-4 space-y-2">
         {accounts
-          .filter((account) => account.error || account.permissionUrl)
+          .filter(
+            (account) =>
+              account.error || account.permissionUrl || account.needsLikePermission || account.noTrackedPosts,
+          )
           .map((account) => (
             <div
               key={account.id}
@@ -446,9 +466,17 @@ export function SocialInbox({
               <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />
               <PlatformIconBadge platform={account.platform} className="size-5" />
               <span className="min-w-48 flex-1">
-                {account.name} · {account.error ?? copy("Reconnect to enable inbox activity.")}
+                {account.name} ·{" "}
+                {account.error ??
+                  (account.permissionUrl
+                    ? copy("Reconnect to enable inbox activity.")
+                    : account.needsLikePermission
+                      ? copy("Reconnect to sync likes from X.")
+                      : copy(
+                          "No posts with a saved platform ID. Activity starts with posts published through SimplePost.",
+                        ))}
               </span>
-              {account.permissionUrl && canManage && (
+              {(account.permissionUrl || account.needsLikePermission) && canManage && (
                 <Button asChild variant="outline" size="sm">
                   <Link href={reconnectHref(account.id, workspaceHref("/inbox", workspaceId), workspaceId)}>
                     {copy("Reconnect")}

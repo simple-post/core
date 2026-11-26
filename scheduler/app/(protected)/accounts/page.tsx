@@ -13,7 +13,7 @@ import { AccountAvatar } from "@/components/account-avatar";
 import { AssistantConnectionHandoff } from "@/components/accounts/assistant-connection-handoff";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
-import { PlatformIcon } from "@/components/platform-icons";
+import { PlatformIcon, PlatformIconBadge } from "@/components/platform-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -373,6 +373,9 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
     }
   };
 
+  const connectingName =
+    getPlatformById(connectingPlatform?.platform ?? "")?.name ?? connectingPlatform?.platform ?? "";
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -559,19 +562,30 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
 
       <Dialog open={connectingPlatform?.pilot === true}>
         <DialogContent
-          className="sm:max-w-sm [&>button]:hidden"
+          className="p-5 sm:max-w-sm"
+          showCloseButton={false}
           onEscapeKeyDown={(event) => event.preventDefault()}
           onPointerDownOutside={(event) => event.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>
-              {copy("Opening {{platform}}", {
-                platform:
-                  getPlatformById(connectingPlatform?.platform ?? "")?.name ?? connectingPlatform?.platform ?? "",
-              })}
-            </DialogTitle>
-            <DialogDescription>{copy("Continue on the platform to authorize this connection.")}</DialogDescription>
-          </DialogHeader>
-          <Loader2 className="size-5 motion-safe:animate-spin text-primary" aria-hidden />
+          <div className="flex items-center gap-4">
+            <div className="relative flex size-12 shrink-0 items-center justify-center" aria-hidden>
+              <span className="absolute inset-0 rounded-full border-2 border-primary/20 border-t-primary motion-safe:animate-spin" />
+              <PlatformIconBadge
+                platform={connectingPlatform?.platform ?? ""}
+                className="size-9 border-0"
+                iconClassName="text-base"
+              />
+            </div>
+            <DialogHeader className="min-w-0 gap-1 text-start">
+              <DialogTitle>
+                {connectingPlatform?.accountId
+                  ? copy("Reconnect {{platform}}", { platform: connectingName })
+                  : copy("Opening {{platform}}", { platform: connectingName })}
+              </DialogTitle>
+              <DialogDescription>
+                {copy("Finish on {{platform}} to return to SimplePost.", { platform: connectingName })}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
         </DialogContent>
       </Dialog>
       {/* Platform Selector Dialog */}

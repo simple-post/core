@@ -132,10 +132,13 @@ describe("dispatchPostWebhooks", () => {
       { id: "w1", url: "https://example.com/hook", secret: "s1" },
     ]);
     fetchMock.mockResolvedValue({ ok: false, status: 410 });
+    prismaMock.webhookEndpoint.deleteMany.mockResolvedValue({ count: 1 });
 
     await dispatchPostWebhooks("u1", "post.published", post);
 
-    expect(prismaMock.webhookEndpoint.deleteMany).toHaveBeenCalledWith({ where: { id: "w1" } });
+    expect(prismaMock.webhookEndpoint.deleteMany).toHaveBeenCalledWith({
+      where: { id: "w1", url: "https://example.com/hook" },
+    });
     expect(prismaMock.webhookEndpoint.update).not.toHaveBeenCalled();
   });
 

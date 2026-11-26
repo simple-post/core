@@ -16,8 +16,8 @@
 	},
 	"pagination": {
 		"qs": {
-			"page": "{{pagination.page}}"
+			"page": "{{body.pagination.page + 1}}"
 		},
-		"condition": "{{body.pagination.hasNextPage && pagination.page <= 3}}"
+		"condition": "{{body.pagination.hasNextPage && body.pagination.page < 3}}"
 	}
 }

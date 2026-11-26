@@ -6,7 +6,10 @@
 		"repost": "{{if(parameters.repost.enabled != undefined || parameters.repost.delayHours != undefined, parameters.repost, undefined)}}"
 	},
 	"response": {
-		"iterate": "{{ifempty(body.warnings, emptyarray)}}",
+		"temp": {
+			"hasWarnings": "{{length(ifempty(body.warnings, emptyarray)) > 0}}"
+		},
+		"iterate": "{{if(temp.hasWarnings, body.warnings, add(emptyarray, body))}}",
 		"output": {
 			"{{...}}": "{{omit(item, 'trialExpiresAt')}}",
 			"trialExpiresAt": "{{if(item.trialExpiresAt, parseDate(item.trialExpiresAt, if(contains(item.trialExpiresAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), item.trialExpiresAt)}}"
@@ -21,7 +24,7 @@
 				"repostDueAt": "{{if(body.post.repostDueAt, parseDate(body.post.repostDueAt, if(contains(body.post.repostDueAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostDueAt)}}",
 				"repostedAt": "{{if(body.post.repostedAt, parseDate(body.post.repostedAt, if(contains(body.post.repostedAt, '.'), 'YYYY-MM-DDTHH:mm:ss.SSSZ', 'YYYY-MM-DDTHH:mm:ssZ')), body.post.repostedAt)}}"
 			},
-			"warnings": "{{output}}"
+			"warnings": "{{if(temp.hasWarnings, output, emptyarray)}}"
 		}
 	},
 	"timeout": 300000

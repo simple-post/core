@@ -267,10 +267,12 @@ test("date outputs parse ISO offsets and fractions and preserve empty values", (
       assert.equal(mapping[key], isoDateExpression(field));
     }
   }
-  assert.equal(create.iterate, "{{ifempty(body.warnings, emptyarray)}}");
+  // Make can process the wrapper even when the service omits the warnings array.
+  assert.equal(create.temp.hasWarnings, "{{length(ifempty(body.warnings, emptyarray)) > 0}}");
+  assert.equal(create.iterate, "{{if(temp.hasWarnings, body.warnings, add(emptyarray, body))}}");
   assert.equal(create.output["{{...}}"], "{{omit(item, 'trialExpiresAt')}}");
   assert.equal(create.output.trialExpiresAt, isoDateExpression("item.trialExpiresAt"));
-  assert.equal(create.wrapper.warnings, "{{output}}");
+  assert.equal(create.wrapper.warnings, "{{if(temp.hasWarnings, output, emptyarray)}}");
 
   const account = moduleCode("listAccounts", "communication").response.output;
   assert.equal(account.createdAt, isoDateExpression("item.createdAt"));
@@ -325,8 +327,8 @@ test("post pickers preserve mappable IDs and fetch at most three pages", () => {
     assert.equal(rpc.response.limit, 300);
     assert.equal(rpc.response.output.value, "{{item.id}}");
     assert.deepEqual(rpc.pagination, {
-      qs: { page: "{{pagination.page}}" },
-      condition: "{{body.pagination.hasNextPage && pagination.page <= 3}}",
+      qs: { page: "{{body.pagination.page + 1}}" },
+      condition: "{{body.pagination.hasNextPage && body.pagination.page < 3}}",
     });
   }
 });

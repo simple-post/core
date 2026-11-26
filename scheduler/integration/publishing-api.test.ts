@@ -118,6 +118,40 @@ it("keeps JSON and Pabbly form requests on their own routes", async () => {
   expect(await prisma.post.count({ where: { userId } })).toBe(1);
 });
 
+it.each([
+  [PostErrorType.NO_ERROR, "published", "post.published"],
+  [PostErrorType.INVALID_CONTENT, "failed", "post.failed"],
+  [PostErrorType.API_ERROR, "failed", null],
+] as const)("dispatches the expected webhook after an immediate %s outcome", async (error, status, event) => {
+  jest
+    .mocked(sdkPost)
+    .mockResolvedValue(
+      new Map([
+        ["x", { error, ...(error === PostErrorType.NO_ERROR ? { id: "posted" } : { message: "Provider error" }) }],
+      ]),
+    );
+  const response = await create(
+    new NextRequest("http://localhost/api/v1/posts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: "Root", accountIds: ["account"], postingMode: "now" }),
+    }),
+  );
+  expect(response.status).toBe(201);
+  const saved = await prisma.post.findFirstOrThrow({ where: { userId } });
+  expect(saved.status).toBe(status);
+  expect(dispatchPostWebhooks).not.toHaveBeenCalled();
+  if (!event) {
+    expect(after).not.toHaveBeenCalled();
+    return;
+  }
+  expect(after).toHaveBeenCalledTimes(1);
+  const [notify] = jest.mocked(after).mock.calls[0];
+  if (typeof notify !== "function") throw new Error("Expected an after-response callback");
+  await notify();
+  expect(dispatchPostWebhooks).toHaveBeenCalledWith(userId, event, expect.objectContaining({ id: saved.id, status }));
+});
+
 async function failedPost() {
   return new PostsModel(userId).createPost(
     {
@@ -131,6 +165,20 @@ async function failedPost() {
     userId,
   );
 }
+
+it.each([
+  [{ error: "Provider error", stack: "internal" }, { error: "Provider error" }],
+  [["legacy detail"], ["legacy detail"]],
+  ["legacy detail", "legacy detail"],
+] satisfies [Prisma.InputJsonValue, unknown][])(
+  "preserves stored error details shape for %j",
+  async (stored, expected) => {
+    const post = await failedPost();
+    await prisma.post.update({ where: { id: post.id }, data: { errorDetails: stored } });
+    const read = await new PostsModel(userId).getPostById(post.id);
+    expect(read?.errorDetails).toEqual(expected);
+  },
+);
 
 it("PATCH retries the saved thread ID and publishes only the missing reply", async () => {
   const post = await failedPost();
@@ -289,24 +337,9 @@ it.each(["create", "edit"])(
       expect(sdkPost).toHaveBeenCalledTimes(1);
       const saved = await prisma.post.findFirstOrThrow({ where: { userId } });
       expect(saved.status).toBe("failed");
-      if (mode === "create") {
-        expect(saved.errorDetails).toBeNull();
-        expect(after).toHaveBeenCalledTimes(1);
-        expect(dispatchPostWebhooks).not.toHaveBeenCalled();
-        const [notify] = jest.mocked(after).mock.calls[0];
-        if (typeof notify !== "function") throw new Error("Expected an after-response callback");
-        await notify();
-        expect(dispatchPostWebhooks).toHaveBeenCalledTimes(1);
-        expect(dispatchPostWebhooks).toHaveBeenCalledWith(
-          userId,
-          "post.failed",
-          expect.objectContaining({
-            id: saved.id,
-            status: "failed",
-            errorMessage: expect.stringContaining("Check Posts"),
-          }),
-        );
-      }
+      if (mode === "create") expect(saved.errorDetails).toBeNull();
+      expect(after).not.toHaveBeenCalled();
+      expect(dispatchPostWebhooks).not.toHaveBeenCalled();
       expect(await prisma.publishCheckpoint.count({ where: { postId: saved.id } })).toBe(1);
     } finally {
       summary.mockRestore();

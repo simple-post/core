@@ -390,15 +390,18 @@ export async function createPost(
             repostStatus: "not_applicable",
           });
           postStateSaved = true;
-          after(() =>
-            dispatchPostWebhooks(userId, "post.failed", {
-              id: post.id,
-              status: "failed",
-              message: validated.message,
-              errorMessage,
-              accountResults,
-            }),
-          );
+          // An unresolved platform outcome is not a confirmed failure.
+          if (!failedResults.some((result) => result.error === "PUBLISH_OUTCOME_UNKNOWN")) {
+            after(() =>
+              dispatchPostWebhooks(userId, "post.failed", {
+                id: post.id,
+                status: "failed",
+                message: validated.message,
+                errorMessage,
+                accountResults,
+              }),
+            );
+          }
         }
 
         const updatedPost = await repository.getPostById(post.id);
@@ -428,14 +431,6 @@ export async function createPost(
           repostDueAt: null,
           repostStatus: "not_applicable",
         });
-        after(() =>
-          dispatchPostWebhooks(userId, "post.failed", {
-            id: post.id,
-            status: "failed",
-            message: validated.message,
-            errorMessage,
-          }),
-        );
         throw new ApiError(message, 500);
       }
     }

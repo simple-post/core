@@ -552,9 +552,11 @@ export class PostsModel {
       durationSec: number | null;
     }>;
   }): PostSnapshot {
-    const errorDetails = (post.errorDetails as Record<string, unknown> | null) ?? undefined;
-    const publicErrorDetails = errorDetails && { ...errorDetails };
-    if (publicErrorDetails) delete publicErrorDetails.stack;
+    let errorDetails = (post.errorDetails as Record<string, unknown> | null) ?? undefined;
+    if (errorDetails && typeof errorDetails === "object" && !Array.isArray(errorDetails)) {
+      errorDetails = { ...errorDetails };
+      delete errorDetails.stack;
+    }
     return {
       id: post.id,
       ...(post.workspaceReviewId ? { workspaceReviewId: post.workspaceReviewId } : {}),
@@ -572,7 +574,7 @@ export class PostsModel {
       scheduledFor: post.scheduledFor ? new Date(post.scheduledFor) : null,
       status: post.status as SocialPost["status"],
       errorMessage: post.errorMessage ?? undefined,
-      errorDetails: publicErrorDetails,
+      errorDetails,
       createdAt: new Date(post.createdAt),
       updatedAt: new Date(post.updatedAt),
       publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,

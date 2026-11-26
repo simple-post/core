@@ -251,11 +251,6 @@ export function AnalyticsDashboard({ workspaceId, canManage = true }: { workspac
         />
       </header>
       <div className="space-y-5">
-        <PlatformFilter
-          platforms={platforms}
-          selected={filters.platforms}
-          onChange={(update) => updateFilters((current) => ({ platforms: update(current.platforms) }))}
-        />
         {summary && summary.notices.length > 0 && (
           <div className="space-y-2">
             {summary.notices.map((notice) => (
@@ -295,6 +290,12 @@ export function AnalyticsDashboard({ workspaceId, canManage = true }: { workspac
             ))}
           </div>
         )}
+
+        <PlatformFilter
+          platforms={platforms}
+          selected={filters.platforms}
+          onChange={(update) => updateFilters((current) => ({ platforms: update(current.platforms) }))}
+        />
 
         {customIncomplete ? (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">

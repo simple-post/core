@@ -168,3 +168,10 @@ export function accountAnalyticsReadiness(account: { platform: string; scope: st
       : `Follower analytics need a permission that this installation does not request yet (missing ${missing.join(", ")}).`,
   };
 }
+
+/** The grant is present, but Meta rejects this app at the API level. */
+export function threadsAppAccessDenied(platform: string, message: string | null | undefined): boolean {
+  return platform === "threads" && /application does not have permission for this action/i.test(message ?? "");
+}
+
+export const THREADS_ANALYTICS_APP_NOTICE = "Meta is blocking Threads analytics for SimplePost at the app level.";

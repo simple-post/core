@@ -6,6 +6,8 @@ import { OAuthCallbackError } from "@/lib/oauth/errors";
 import { readMetaError } from "@/lib/oauth/meta-error";
 import type { CallbackContext } from "@/lib/oauth/types";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
+import { prisma } from "@/lib/prisma";
+import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
 async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{ accessToken: string; expiresIn: number }> {
   const config = getPlatformOAuthConfig("instagram")!;
@@ -34,19 +36,27 @@ async function exchangeForLongLivedToken(shortLivedToken: string): Promise<{ acc
   };
 }
 
-async function fetchInstagramProfile(accessToken: string) {
+type InstagramProfile = {
+  id?: string;
+  user_id?: string;
+  username: string;
+  name?: string;
+  profile_picture_url?: string;
+};
+
+async function fetchInstagramProfile(accessToken: string): Promise<InstagramProfile> {
   const url = new URL("https://graph.instagram.com/me");
-  url.searchParams.set("fields", "user_id,username,name,profile_picture_url,account_type");
+  url.searchParams.set("fields", "id,user_id,username,name,profile_picture_url,account_type");
   const headers = { Authorization: `Bearer ${accessToken}` };
-  let response = await fetch(url.toString(), { headers });
+  let response = await fetch(url.toString(), { headers, redirect: "error", signal: AbortSignal.timeout(8000) });
 
   if (!response.ok) {
     const providerError = await readMetaError(response);
     // Optional profile fields must not prevent connecting an otherwise valid
     // publishing account. Retry only Meta's invalid-field/parameter response.
     if (response.status === 400 && providerError?.code === 100) {
-      url.searchParams.set("fields", "user_id,username");
-      response = await fetch(url.toString(), { headers });
+      url.searchParams.set("fields", "id,user_id,username");
+      response = await fetch(url.toString(), { headers, redirect: "error", signal: AbortSignal.timeout(8000) });
     } else {
       authLogger.error(
         { platform: "instagram", status: response.status, providerError },
@@ -63,7 +73,15 @@ async function fetchInstagramProfile(accessToken: string) {
     throw new OAuthCallbackError("profile_fetch_failed", "Failed to fetch Instagram profile");
   }
 
-  return response.json();
+  // Meta IDs can exceed JavaScript's safe integer range. Preserve the
+  // original digits when Graph encodes an identifier as a JSON number.
+  return JSON.parse(await response.text(), (key, value: unknown, context?: { source?: string }) =>
+    (key === "id" || key === "user_id") && typeof value === "number" ? context?.source : value,
+  );
+}
+
+function profileIds(profile: InstagramProfile) {
+  return [profile.user_id, profile.id].filter((id): id is string => typeof id === "string" && /^\d+$/u.test(id));
 }
 
 export async function handleInstagramCallback(ctx: CallbackContext): Promise<NextResponse> {
@@ -71,19 +89,49 @@ export async function handleInstagramCallback(ctx: CallbackContext): Promise<Nex
     ctx.accessToken,
   );
   const profile = await fetchInstagramProfile(longLivedToken);
-  const platformAccountId = profile.user_id ?? profile.id;
+  const grantedIds = profileIds(profile);
+  let [platformAccountId] = grantedIds;
   if (!platformAccountId)
     throw new OAuthCallbackError("profile_fetch_failed", "Instagram did not return an account ID");
 
-  if (ctx.inboxIdentity && ctx.inboxIdentity !== String(platformAccountId)) {
-    return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+  let previousIdentity: { platformAccountId: string; updatedAt: Date } | undefined;
+  if (ctx.reconnectAccountId) {
+    const stored = await prisma.connectedAccount.findFirst({
+      where: {
+        id: ctx.reconnectAccountId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId ?? null,
+        platform: "instagram",
+      },
+    });
+    if (!stored) throw new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect.");
+    if (grantedIds.includes(stored.platformAccountId)) {
+      // Either Graph ID can be returned by Instagram. Keep the identity
+      // already used by the connection and its publishing history.
+      platformAccountId = stored.platformAccountId;
+    } else {
+      // Older grants may expose a different identifier. Require both tokens
+      // to identify the same profile before changing a stored identity.
+      const previousProfile = await Promise.resolve()
+        .then(() => fetchInstagramProfile(decryptConnectedAccountSecrets(stored).accessToken))
+        .catch(() => null);
+      if (!previousProfile || !profileIds(previousProfile).some((id) => grantedIds.includes(id)))
+        throw new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect.");
+      previousIdentity = { platformAccountId: stored.platformAccountId, updatedAt: stored.updatedAt };
+    }
+  }
+  if (ctx.inboxIdentity) {
+    if (!grantedIds.includes(ctx.inboxIdentity))
+      return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=account`);
+    if (!ctx.reconnectAccountId) platformAccountId = ctx.inboxIdentity;
   }
   await upsertConnectedAccount({
     userId: ctx.userId,
     ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
     ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: "instagram",
-    platformAccountId: String(platformAccountId),
+    platformAccountId,
+    ...(previousIdentity && { previousIdentity }),
     accessToken: longLivedToken,
     refreshToken: null,
     expiresAt: new Date(Date.now() + longLivedExpiresIn * 1000),

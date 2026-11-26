@@ -88,7 +88,7 @@ export function WorkspaceSwitcher() {
                 aria-hidden
                 className={cn("size-2.5 shrink-0 rounded-full", workspaceColorStyle[active?.color ?? "slate"]?.swatch)}
               />
-              <span className="max-w-24 truncate sm:max-w-44">{active?.name ?? "Personal"}</span>
+              <span className="max-w-14 truncate min-[375px]:max-w-24 sm:max-w-44">{active?.name ?? "Personal"}</span>
               <ChevronDown className="size-3" />
             </Button>
           </DropdownMenuTrigger>

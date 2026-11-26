@@ -69,7 +69,6 @@ export function Navbar({ actions }: NavbarProps) {
           <WorkspaceNavigation
             showAnalytics={hasFeature("POST_ANALYTICS")}
             active={activeSection}
-            includeAccounts={false}
             includeInbox={!readOnly && hasFeature("SOCIAL_INBOX")}
             renderItem={({ id: section, label, className, children }) => (
               <Link
@@ -92,7 +91,7 @@ export function Navbar({ actions }: NavbarProps) {
                 </Link>
               </Button>
             )}
-            <UserMenu accountsHref={workspaceHref("/accounts", id)} />
+            <UserMenu />
           </div>
         </div>
       </header>

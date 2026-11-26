@@ -252,3 +252,79 @@ it("resumes automatic reads without disturbing manual pagination or prompting re
   expect(inbox.accounts[0].permissionUrl).toBeUndefined();
   expect(inbox.accounts[0].error).toBeUndefined();
 });
+
+it("reports provider restrictions and missing X like permissions alongside a connection with no tracked posts", async () => {
+  await prisma.connectedAccount.createMany({
+    data: [
+      {
+        id: "social-review-threads",
+        userId,
+        platform: "threads",
+        platformAccountId: "208",
+        accessToken: "local-fixture-token",
+        scope: "threads_read_replies",
+      },
+      {
+        id: "social-review-instagram",
+        userId,
+        platform: "instagram",
+        platformAccountId: "209",
+        accessToken: "local-fixture-token",
+        scope: "instagram_business_manage_comments",
+      },
+    ],
+  });
+  await prisma.post.create({
+    data: {
+      userId,
+      message: "Threads fixture",
+      status: "published",
+      publishedAt: new Date(),
+      accounts: { connect: { id: "social-review-threads" } },
+      accountResults: { "social-review-threads": { accountId: "social-review-threads", success: true, postId: "601" } },
+    },
+  });
+  jest.mocked(listSocialPostComments).mockImplementation(async ({ platform }) =>
+    platform === "threads"
+      ? {
+          ok: false,
+          error: {
+            code: "app_permission_required",
+            message: "Meta is blocking Inbox access for SimplePost at the app level.",
+          },
+        }
+      : { ok: true, data: { data: [] } },
+  );
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+
+  await refreshSocialInbox(userId, { automatic: true });
+  const { accounts } = await getSocialInbox(userId);
+  expect(accounts.find(({ platform }) => platform === "threads")).toMatchObject({
+    error: expect.stringContaining("app level"),
+    permissionUrl: undefined,
+  });
+  expect(accounts.find(({ platform }) => platform === "x")).toMatchObject({ needsLikePermission: true });
+  expect(accounts.find(({ platform }) => platform === "instagram")).toMatchObject({
+    noTrackedPosts: true,
+    lastCheckedAt: expect.any(String),
+  });
+});
+
+it("finds a native X like on the second page during a focused manual refresh", async () => {
+  await prisma.connectedAccount.update({ where: { id: accountId }, data: { scope: "like.read like.write" } });
+  jest.mocked(listSocialPostComments).mockResolvedValue({ ok: true, data: { data: [] } });
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+  const provider = jest.spyOn(globalThis, "fetch");
+  try {
+    provider
+      .mockResolvedValueOnce(Response.json({ data: [{ id: "600" }], meta: { result_count: 1, next_token: "older" } }))
+      .mockResolvedValueOnce(Response.json({ data: [{ id: "501" }], meta: { result_count: 1 } }));
+    await refreshSocialInbox(userId, { reset: true, platforms: ["x"] });
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(new URL(String(provider.mock.calls[1][0])).searchParams.get("pagination_token")).toBe("older");
+    const inbox = await getSocialInbox(userId);
+    expect(inbox.items[0]).toMatchObject({ liked: true });
+  } finally {
+    provider.mockRestore();
+  }
+});

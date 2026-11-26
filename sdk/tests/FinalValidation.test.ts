@@ -107,3 +107,22 @@ it("applies dimension and animation boundaries to actual metadata", () => {
     expect.objectContaining({ code: "media_pixel_count_unsupported" }),
   );
 });
+
+it("validates a Story's attachment requirements and validates the Reel caption only when selected", () => {
+  const content = { text: "x".repeat(2300), media: [video] };
+  expect(validateContentForPlatform("instagram", content, { instagram: { placement: "story" } })).toMatchObject({
+    isValid: true,
+    warnings: [expect.objectContaining({ code: "story_caption_ignored" })],
+  });
+  expect(validateContentForPlatform("instagram", content, { instagram: { placement: "both" } }).errors).toContainEqual(
+    expect.objectContaining({ code: "caption_too_long" }),
+  );
+  expect(
+    validateContentForPlatform("instagram", { media: [image, video] }, { instagram: { placement: "both" } }).errors,
+  ).toContainEqual(expect.objectContaining({ code: "story_video_required" }));
+  expect(
+    validateContentForPlatform("facebook", content, {
+      facebook: { placement: "story", publishAt: "2099-01-01T00:00:00Z" },
+    }).errors,
+  ).toContainEqual(expect.objectContaining({ code: "story_native_schedule_unsupported" }));
+});

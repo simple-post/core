@@ -33,7 +33,7 @@ const OAUTH_CONFIGS: Record<string, PlatformOAuthConfig> = {
     tokenUrl: "https://graph.facebook.com/v25.0/oauth/access_token",
     clientId: process.env.FACEBOOK_CLIENT_ID || "",
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "",
-    scope: "public_profile,pages_show_list,pages_manage_posts,business_management",
+    scope: "public_profile,pages_show_list,pages_manage_posts,pages_read_engagement,business_management",
     responseType: "code",
     userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email,picture",
     requiresPkce: false,

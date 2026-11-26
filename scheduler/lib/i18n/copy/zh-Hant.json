@@ -1334,5 +1334,17 @@
   "Yesterday": "昨天",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "你在{{day}} {{hour}}左右發佈的貼文互動最多。",
   "Your posts published on {{day}} get the most engagement.": "你在{{day}}發佈的貼文互動最多。",
-  "Pick a start and end date for the custom range.": "請為自訂期間選擇開始和結束日期。"
+  "Pick a start and end date for the custom range.": "請為自訂期間選擇開始和結束日期。",
+  "Page video": "粉絲專頁影片",
+  "Page video and Story": "粉絲專頁影片和限時動態",
+  "Page video only": "僅粉絲專頁影片",
+  "Reel": "Reel 短片",
+  "Reel and Story": "Reel 短片和限時動態",
+  "Reel only": "僅 Reel 短片",
+  "Retry uses the original placements and skips any that already published.": "重試時會沿用原本的發布位置，並略過已發布的位置。",
+  "Story": "限時動態",
+  "Story only": "僅限時動態",
+  "Video placement": "影片發布位置",
+  "View": "查看",
+  "View Story": "查看限時動態"
 }

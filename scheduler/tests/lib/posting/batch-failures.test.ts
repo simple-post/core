@@ -18,7 +18,11 @@ jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findMany: jest.
 jest.mock("@/lib/security/connected-account-secrets", () => ({
   decryptConnectedAccountSecrets: (account: unknown) => account,
 }));
-jest.mock("@/lib/posting/credentials", () => ({ buildPostOptions: () => ({}) }));
+jest.mock("@/lib/posting/credentials", () => ({
+  buildPostOptions: (account: { id: string; platform: string }, options?: Record<string, unknown>) => ({
+    [account.platform]: options?.[account.id] ?? {},
+  }),
+}));
 jest.mock("@/lib/posting/account-lock", () => ({
   withAccountLock: (_id: string, fn: () => Promise<unknown>) => fn(),
   reloadAccountSecrets: async (account: unknown) => account,
@@ -178,3 +182,63 @@ jest.mock("@/lib/posting/durable-publish", () => ({
     return publish();
   },
 }));
+
+it("retries only the failed Story of an Instagram Reel and Story post", async () => {
+  jest.mocked(prisma.connectedAccount.findMany).mockResolvedValue([{ id: "ig", platform: "instagram" }] as never);
+  const video = { ...media[0], type: "video" as const, url: "https://example.com/video.mp4" };
+  mockResolve.mockResolvedValue([video]);
+  const publish = jest.mocked(sdkPost);
+  publish
+    .mockResolvedValueOnce(new Map([["instagram", { id: "reel", error: "NO_ERROR" }]]) as never)
+    .mockResolvedValueOnce(new Map([["instagram", { error: "PUBLISH_REJECTED", message: "Story rejected" }]]) as never)
+    .mockResolvedValueOnce(new Map([["instagram", { id: "story", error: "NO_ERROR" }]]) as never);
+  const options = { ig: { placement: "both" } };
+  const context = { postId: "saved-post" };
+  const [initial] = await postToAccounts(
+    "user",
+    "caption",
+    [video],
+    ["ig"],
+    options,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    context,
+  );
+  expect(initial).toMatchObject({
+    success: false,
+    postId: "reel",
+    placementResults: [
+      { placement: "post", success: true, postId: "reel" },
+      { placement: "story", success: false, error: "PUBLISH_REJECTED" },
+    ],
+  });
+  const [retry] = await postToAccounts(
+    "user",
+    "changed caption",
+    [video],
+    ["ig"],
+    options,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    context,
+    false,
+    { ig: { ...initial, completedAt: "2026-11-26T12:00:00Z" } },
+  );
+  expect(retry).toMatchObject({
+    success: true,
+    postId: "reel",
+    placementResults: [
+      { placement: "post", success: true, postId: "reel" },
+      { placement: "story", success: true, postId: "story" },
+    ],
+  });
+  expect(publish.mock.calls.map(([request]) => request.options?.instagram?.placement)).toEqual([
+    "post",
+    "story",
+    "story",
+  ]);
+});

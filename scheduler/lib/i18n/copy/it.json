@@ -1410,5 +1410,17 @@
   "Yesterday": "Ieri",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "I tuoi post pubblicati di {{day}} intorno alle {{hour}} ottengono più interazioni.",
   "Your posts published on {{day}} get the most engagement.": "I tuoi post pubblicati di {{day}} ottengono più interazioni.",
-  "Pick a start and end date for the custom range.": "Scegli una data di inizio e di fine per l'intervallo personalizzato."
+  "Pick a start and end date for the custom range.": "Scegli una data di inizio e di fine per l'intervallo personalizzato.",
+  "Page video": "Video della Pagina",
+  "Page video and Story": "Video della Pagina e storia",
+  "Page video only": "Solo video della Pagina",
+  "Reel": "Reel",
+  "Reel and Story": "Reel e storia",
+  "Reel only": "Solo reel",
+  "Retry uses the original placements and skips any that already published.": "Il nuovo tentativo usa le destinazioni originali e salta quelle in cui il video è già stato pubblicato.",
+  "Story": "Storia",
+  "Story only": "Solo storia",
+  "Video placement": "Destinazione del video",
+  "View": "Visualizza",
+  "View Story": "Visualizza storia"
 }

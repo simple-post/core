@@ -11,6 +11,7 @@ import { X_VALIDATION_RULES, validateXContent } from "./publishers/x/validation"
 import { YOUTUBE_VALIDATION_RULES, validateYouTubeContent } from "./publishers/youtube/validation";
 import { describeDisplayMessage, getDisplayMessage } from "./validation/display-message";
 import { validateFinalOptions } from "./validation/final-options";
+import { validateStoryPlacement } from "./validation/story-placement";
 
 import type { Content, Platform, PostOptions } from "./types/post";
 import type { PlatformValidationRules, ValidationResult } from "./types/validation";
@@ -43,6 +44,10 @@ export function validateContentForPlatform(
   content: Content,
   options?: PostOptions,
 ): ValidationResult {
+  const placement = (options?.[platform] as { placement?: unknown } | undefined)?.placement;
+  const story = validateStoryPlacement(platform, content, placement, options?.facebook?.publishAt);
+  if (placement === "story" && (platform === "instagram" || platform === "facebook")) return story;
+
   let result: ValidationResult;
   switch (platform) {
     case "tiktok": {
@@ -92,6 +97,8 @@ export function validateContentForPlatform(
   const extra = validateFinalOptions(platform, content, options);
   if (platform === "telegram")
     result.errors = result.errors.filter((issue) => !["text_too_long", "caption_too_long"].includes(issue.code));
+  result.errors.push(...story.errors);
+  result.warnings.push(...story.warnings);
   result.errors.push(...extra.filter((issue) => issue.severity === "error"));
   result.warnings.push(...extra.filter((issue) => issue.severity === "warning"));
   result.isValid = result.errors.length === 0;

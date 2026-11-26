@@ -1334,5 +1334,17 @@
   "{{count, number}} waiting for their first read._other": "{{count, number}} 件が初回の取得待ちです。",
   "Based on {{count, number}} posts": "{{count, number}} 件の投稿に基づく",
   "{{count, number}} waiting for their first read.": "{{count, number}} 件が初回の取得待ちです。",
-  "Pick a start and end date for the custom range.": "カスタム期間の開始日と終了日を選択してください。"
+  "Pick a start and end date for the custom range.": "カスタム期間の開始日と終了日を選択してください。",
+  "Page video": "ページ動画",
+  "Page video and Story": "ページ動画とストーリーズ",
+  "Page video only": "ページ動画のみ",
+  "Reel": "リール",
+  "Reel and Story": "リールとストーリーズ",
+  "Reel only": "リールのみ",
+  "Retry uses the original placements and skips any that already published.": "再試行では元の掲載先を使い、公開済みの掲載先はスキップします。",
+  "Story": "ストーリーズ",
+  "Story only": "ストーリーズのみ",
+  "Video placement": "動画の掲載先",
+  "View": "表示",
+  "View Story": "ストーリーズを見る"
 }

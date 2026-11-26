@@ -1,5 +1,5 @@
 import { normalizePreviewPlatform } from "@simple-post/preview";
-import { AccountIdsSchema } from "@simple-post/sdk";
+import { AccountIdsSchema, AccountOptionsMapSchema, StoryPlacementSchema } from "@simple-post/sdk";
 import { z } from "zod";
 
 import { PostsModel } from "@/lib/db";
@@ -31,6 +31,9 @@ export const showPostPreviewSchema = z.object({
   accountIds: AccountIdsSchema.optional().describe(
     "Connected account IDs for an unsaved preview. Use list_accounts first. Ignored when postId is provided.",
   ),
+  accountOptions: AccountOptionsMapSchema.optional().describe(
+    "Options keyed by account ID, including Instagram and Facebook video placement. Ignored when postId is provided.",
+  ),
   media: mcpMediaArraySchema
     .optional()
     .describe("Optional media for an unsaved preview. Ignored when postId is provided."),
@@ -58,6 +61,7 @@ const renderedPlatformPreviewSchema = z.object({
   platform: z.string(),
   platformLabel: z.string(),
   accountLabel: z.string(),
+  placement: StoryPlacementSchema.optional(),
   data: z.object({
     platform: z.string(),
     account: z.object({
@@ -193,7 +197,7 @@ async function resolveSource(userId: string, input: z.infer<typeof showPostPrevi
     media: toMediaFiles(input.media),
     thread: toThreadSegments(input.thread),
     accountIds: [...new Set(input.accountIds)],
-    accountOptions: {},
+    accountOptions: input.accountOptions ?? {},
     accountOverrides: toAccountOverrides(input.accountOverrides) ?? {},
   };
 }
@@ -228,20 +232,27 @@ export async function showPostPreview(
 
   for (const account of orderedAccounts) {
     const platform = normalizePreviewPlatform(account.platform);
-    if (!platform || seenPlatforms.has(platform)) continue;
-    seenPlatforms.add(platform);
-
+    if (!platform) continue;
+    const options = source.accountOptions[account.id] ?? {};
+    const placement =
+      platform === "instagram" || platform === "facebook"
+        ? StoryPlacementSchema.safeParse(options.placement).data
+        : undefined;
+    if (!placement || placement === "post") {
+      if (seenPlatforms.has(platform)) continue;
+      seenPlatforms.add(platform);
+    }
     const override = source.accountOverrides[account.id];
     const message = override?.message ?? source.message;
     const media = override?.media ?? source.media;
     const thread = override?.thread ?? source.thread;
-    const options = (source.accountOptions[account.id] ?? {}) as Record<string, unknown>;
 
     previews.push({
       accountId: account.id,
       platform,
       platformLabel: platformLabel(platform),
       accountLabel: accountLabel(account),
+      ...(placement && { placement }),
       data: {
         platform,
         account: {
@@ -251,7 +262,7 @@ export async function showPostPreview(
           username: account.username,
           profilePicture: account.profilePicture,
         },
-        message,
+        message: placement === "story" ? "" : message,
         media: toPreviewMedia(media),
         options,
         thread: toPreviewThread(thread),
@@ -273,7 +284,7 @@ export async function showPostPreview(
     previews,
     summary: {
       accountCount: orderedAccounts.length,
-      platformCount: previews.length,
+      platformCount: new Set(previews.map((preview) => preview.platform)).size,
       mediaCount: source.media.length,
       threadSegmentCount: source.thread.length,
     },

@@ -1410,5 +1410,17 @@
   "{{count, number}} waiting for their first read._other": "{{count, number}} aguardando a primeira leitura.",
   "Based on {{count, number}} posts": "Com base em {{count, number}} publicações",
   "{{count, number}} waiting for their first read.": "{{count, number}} aguardando a primeira leitura.",
-  "Pick a start and end date for the custom range.": "Escolha uma data de início e de término para o período personalizado."
+  "Pick a start and end date for the custom range.": "Escolha uma data de início e de término para o período personalizado.",
+  "Page video": "Vídeo da Página",
+  "Page video and Story": "Vídeo da Página e story",
+  "Page video only": "Somente vídeo da Página",
+  "Reel": "Reel",
+  "Reel and Story": "Reel e story",
+  "Reel only": "Somente reel",
+  "Retry uses the original placements and skips any that already published.": "A nova tentativa usa os destinos originais e ignora os que já foram publicados.",
+  "Story": "Story",
+  "Story only": "Somente story",
+  "Video placement": "Destino do vídeo",
+  "View": "Ver",
+  "View Story": "Ver story"
 }

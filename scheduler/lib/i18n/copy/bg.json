@@ -1372,5 +1372,17 @@
   "{{period}} · gained per interval": "{{period}} · прираст за интервал",
   "Based on {{count, number}} posts": "Въз основа на {{count, number}} публикации",
   "{{count, number}} waiting for their first read.": "{{count, number}} очакват първо отчитане.",
-  "Pick a start and end date for the custom range.": "Изберете начална и крайна дата за персонализирания период."
+  "Pick a start and end date for the custom range.": "Изберете начална и крайна дата за персонализирания период.",
+  "Page video": "Видео на страницата",
+  "Page video and Story": "Видео на страницата и история",
+  "Page video only": "Само видео на страницата",
+  "Reel": "Рийл",
+  "Reel and Story": "Рийл и история",
+  "Reel only": "Само рийл",
+  "Retry uses the original placements and skips any that already published.": "При повторния опит се използват първоначалните места за публикуване и се пропускат вече публикуваните.",
+  "Story": "История",
+  "Story only": "Само история",
+  "Video placement": "Място за публикуване на видеото",
+  "View": "Преглед",
+  "View Story": "Преглед на историята"
 }

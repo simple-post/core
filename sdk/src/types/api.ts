@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { ImageFitSchema } from "../image-fit";
+import { StoryPlacementSchema, type Platform } from "./post";
 
-import type { Platform } from "./post";
+import { ImageFitSchema } from "../image-fit";
 
 export const MediaFileSchema = z.object({
   id: z.string(),
@@ -31,6 +31,7 @@ export const AccountOptionsValueSchema = z
     thumbnailUrl: z.url().optional(),
     selfDeclaredMadeForKids: z.boolean().optional(),
     publishAt: z.string().optional(),
+    placement: StoryPlacementSchema.optional(),
     privacyStatus: z.enum(["public", "private", "unlisted"]).optional(),
     publishMode: z
       .enum(["draft", "public"])
@@ -203,6 +204,17 @@ export interface ThreadSegmentResult {
   details?: unknown;
 }
 
+export const PlacementResultSchema = z.object({
+  placement: z.enum(["post", "story"]),
+  success: z.boolean(),
+  postId: z.string().optional(),
+  postUrl: z.string().optional(),
+  error: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export type PlacementResult = z.infer<typeof PlacementResultSchema>;
+
 export interface PostingResult {
   accountId: string;
   platform: Platform | string;
@@ -215,6 +227,7 @@ export interface PostingResult {
   // Present when the post is a thread. The first entry (index 0) corresponds
   // to the root post; postId/postUrl above always reflect the root.
   threadResults?: ThreadSegmentResult[];
+  placementResults?: PlacementResult[];
 }
 
 export interface PostingSummary {

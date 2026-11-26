@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Writable } from "node:stream";
+import { type Readable, Writable } from "node:stream";
 
 import { FacebookVideoUpload } from "../src/publishers/facebook/video-upload";
 import { PostErrorType } from "../src/types";
@@ -381,4 +381,62 @@ it("does not turn a status-read credential failure into a safe retry", async () 
     errorType: PostErrorType.API_ERROR,
     details: { videoId: "video", httpStatus: 401 },
   });
+});
+
+it("uploads a Page Story separately and returns the canonical URL from the Stories edge", async () => {
+  const uploadUrl = "https://rupload.facebook.com/video-upload/v25.0/story-video";
+  post
+    .mockResolvedValueOnce({ data: { video_id: "story-video", upload_url: uploadUrl } })
+    .mockImplementationOnce(async (_url: string, video: Readable) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of video) chunks.push(Buffer.from(chunk));
+      expect(Buffer.concat(chunks)).toEqual(Buffer.alloc(10));
+      return { data: { success: true } };
+    })
+    .mockResolvedValueOnce({ data: { success: true, post_id: "story-post" } });
+  const storyUrl = "https://www.facebook.com/stories/page/story-token";
+  get.mockResolvedValueOnce({ data: { data: [{ post_id: "story-post", url: storyUrl }] } });
+
+  await expect(uploader.publishStory(filePath)).resolves.toEqual({
+    id: "story-post",
+    url: storyUrl,
+    error: PostErrorType.NO_ERROR,
+  });
+  expect(post).toHaveBeenNthCalledWith(1, "/page/video_stories", { upload_phase: "start" }, expect.anything());
+  expect(post).toHaveBeenNthCalledWith(
+    2,
+    uploadUrl,
+    expect.anything(),
+    expect.objectContaining({
+      maxRedirects: 0,
+      headers: expect.objectContaining({ Authorization: "OAuth SECRET", offset: "0", file_size: "10" }),
+    }),
+  );
+  expect(post).toHaveBeenNthCalledWith(
+    3,
+    "/page/video_stories",
+    {
+      upload_phase: "finish",
+      video_id: "story-video",
+    },
+    expect.anything(),
+  );
+});
+
+it("preserves an ambiguous Facebook Story publish as an unknown outcome", async () => {
+  post
+    .mockResolvedValueOnce({
+      data: { video_id: "story-video", upload_url: "https://rupload.facebook.com/video-upload/test" },
+    })
+    .mockImplementationOnce(async (_url: string, video: Readable) => {
+      await new Promise<void>((resolve, reject) => video.on("end", resolve).on("error", reject).resume());
+      return { data: { success: true } };
+    })
+    .mockRejectedValueOnce(new Error("Connection lost"));
+  await expect(uploader.publishStory(filePath)).rejects.toMatchObject({
+    errorType: PostErrorType.API_ERROR,
+    details: { videoId: "story-video" },
+  });
+  expect(post).toHaveBeenCalledTimes(3);
+  expect(get).not.toHaveBeenCalled();
 });

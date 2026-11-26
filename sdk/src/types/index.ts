@@ -1,3 +1,5 @@
+import type { PlacementResult } from "./api";
+
 export enum PostErrorType {
   NO_ERROR = "NO_ERROR",
   CREDENTIALS_ERROR = "CREDENTIALS_ERROR",
@@ -26,6 +28,7 @@ export class PostError extends Error {
 }
 
 export interface PostResult {
+  placementResults?: PlacementResult[];
   id?: string;
   /**
    * Canonical public URL of the published post when the platform exposes one

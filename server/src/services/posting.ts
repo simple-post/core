@@ -97,6 +97,21 @@ async function postToAccountWithPreparedMedia(
     const results = await sdkPost(postData);
     const result = results.get(account.platform);
 
+    if (result?.placementResults) {
+      const primary = result.placementResults[0];
+      return {
+        accountId: account.id,
+        platform: account.platform,
+        success: result.error === PostErrorType.NO_ERROR,
+        postId: primary.postId,
+        postUrl: primary.postUrl,
+        error: result.error === PostErrorType.NO_ERROR ? undefined : result.error,
+        message: result.message,
+        details: result.details,
+        placementResults: result.placementResults,
+      };
+    }
+
     if (result?.error === PostErrorType.NO_ERROR && result?.id) {
       const postUrl =
         result.url ??

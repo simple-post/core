@@ -56,6 +56,8 @@ export async function validatePostMedia(
         if (item.type === "video") item.durationSec = inspection.video?.durationSec;
         failures.push(
           ...validateInspectedMedia(platform, inspection, {
+            placement:
+              platform === "instagram" || platform === "facebook" ? post.options?.[platform]?.placement : undefined,
             mediaCount: post.content.media?.length ?? 0,
             thumbnail: field === "thumbnail",
           }).map((issue) => copyDisplayMessage(issue, { ...issue, field })),

@@ -511,6 +511,7 @@ async function publishScheduledPost(post: DuePost): Promise<DispatchPostResult> 
         ...(post.user?.name ? { userName: post.user.name } : {}),
       },
       post.tiktokRetryApproved,
+      previousResults,
     );
 
     postingResults.push(...pausedResults);

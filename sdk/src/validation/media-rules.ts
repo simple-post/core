@@ -14,7 +14,7 @@ import type { MediaInspection } from "../utils/media-inspection";
 export function validateInspectedMedia(
   platform: Platform,
   media: MediaInspection,
-  context: { mediaCount: number; thumbnail?: boolean },
+  context: { mediaCount: number; thumbnail?: boolean; placement?: unknown },
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const add = (
@@ -132,6 +132,7 @@ export function validateInspectedMedia(
         displayMessage("{{platform}}: export the audio track as AAC.", { platform: String(platform) }),
       );
   };
+  const story = context.placement === "story" || context.placement === "both";
   if (platform === "instagram" || platform === "threads") {
     codec(["h264", "hevc"]);
     if (platform === "instagram") {
@@ -149,15 +150,35 @@ export function validateInspectedMedia(
     }
     audio();
     const maxDuration = platform === "threads" ? 300 : 900;
-    range(
-      "duration_seconds",
-      video.durationSec,
-      platform === "instagram" ? 3 : 0.001,
-      platform === "instagram" && context.mediaCount > 1 ? 60 : maxDuration,
-    );
+    if (platform !== "instagram" || !story)
+      range(
+        "duration_seconds",
+        video.durationSec,
+        platform === "instagram" ? 3 : 0.001,
+        platform === "instagram" && context.mediaCount > 1 ? 60 : maxDuration,
+      );
     range("frames_per_second", video.fps, 23, 60);
     if (platform === "instagram" && context.mediaCount > 1) range("aspect_ratio", ratio, 0.8, 1.91);
     if (video.bitrate) range("bitrate", video.bitrate, 1, 25_000_000);
+  }
+  if (story && platform === "instagram") {
+    range("story_duration_seconds", video.durationSec, 3, 60);
+    range("story_aspect_ratio", ratio, 0.1, 10);
+    range("story_size_bytes", media.size, 1, 100 * 1024 * 1024);
+  }
+  if (story && platform === "facebook") {
+    codec(["h264", "hevc", "vp9", "av1"]);
+    audio();
+    range("story_duration_seconds", video.durationSec, 3, 60);
+    range("story_frames_per_second", video.fps, 24, 60);
+    if (video.width < 540 || video.height < 960)
+      add("story_resolution_too_low", displayMessage("Facebook Page Story videos must be at least 540×960 pixels."));
+    if (video.audioProfile && video.audioProfile !== "LC")
+      add("audio_profile_unsupported", displayMessage("Facebook Page Stories require AAC Low Complexity audio."));
+    if (video.audioSampleRate && video.audioSampleRate !== 48_000)
+      add("audio_sample_rate_unsupported", displayMessage("Facebook Page Stories require 48 kHz audio."));
+    if (video.width * 16 !== video.height * 9)
+      add("story_aspect_ratio_unsupported", displayMessage("Facebook Page Stories require a vertical 9:16 video."));
   }
   if (platform === "tiktok") {
     codec(["h264", "hevc", "vp8", "vp9"]);
@@ -197,7 +218,11 @@ export function validateInspectedMedia(
     );
   if (platform === "youtube") range("duration_seconds", video.durationSec, 0.001, 43_200);
   // These providers accept multiple encodings. Warn rather than apply ad/Reel limits to organic posts.
-  if (["facebook", "linkedin"].includes(platform) && !["h264", "hevc"].includes(video.codec))
+  if (
+    ["facebook", "linkedin"].includes(platform) &&
+    context.placement !== "story" &&
+    !["h264", "hevc"].includes(video.codec)
+  )
     add(
       "video_encoding_recommendation",
       displayMessage(

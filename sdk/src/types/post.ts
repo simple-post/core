@@ -117,7 +117,16 @@ export const YouTubeOptionsSchema = z.object({
     .optional(),
 });
 
+export const StoryPlacementSchema = z
+  .enum(["post", "story", "both"])
+  .describe(
+    'Instagram and Facebook Page video placement. "post" uses the regular destination (Instagram Reel or Facebook Page video), "story" publishes only a Story, and "both" publishes to both.',
+  );
+
+export type StoryPlacement = z.infer<typeof StoryPlacementSchema>;
+
 export const FacebookOptionsSchema = z.object({
+  placement: StoryPlacementSchema.optional(),
   publishAt: z.string().optional(),
   credentials: z
     .object({
@@ -128,6 +137,7 @@ export const FacebookOptionsSchema = z.object({
 });
 
 export const InstagramOptionsSchema = z.object({
+  placement: StoryPlacementSchema.optional(),
   credentials: z
     .object({
       accessToken: z.string(),

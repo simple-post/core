@@ -206,6 +206,32 @@ export function PostLinksModal({
                   {result.accountName && (
                     <p className="truncate text-xs text-muted-foreground sm:hidden">{result.accountName}</p>
                   )}
+                  {result.placementResults?.length ? (
+                    <ul className="mt-1 space-y-1">
+                      {result.placementResults.map((placement) => (
+                        <li key={placement.placement} className="flex flex-wrap items-center gap-x-2 text-xs">
+                          <span>
+                            {placement.placement === "story"
+                              ? copy("Story")
+                              : result.platform === "instagram"
+                                ? copy("Reel")
+                                : copy("Page video")}
+                          </span>
+                          <span className={placement.success ? "text-primary" : "text-destructive"}>
+                            {placement.success ? copy("Posted") : copy("Failed")}
+                          </span>
+                          {placement.postUrl && (
+                            <a href={placement.postUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                              {copy("View")}
+                            </a>
+                          )}
+                          {!placement.success && placement.message && (
+                            <span className="break-words text-muted-foreground">{placement.message}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {result.success && result.message && (
                     <p className="mt-1 text-xs text-muted-foreground">{result.message}</p>
                   )}

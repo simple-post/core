@@ -33,12 +33,13 @@ import {
   encryptConnectedAccountSecrets,
 } from "@/lib/security/connected-account-secrets";
 import { sanitizeForJson } from "@/lib/utils/errors";
-import type { AccountOptionsMap, AccountOverridesMap, ConnectedAccount, MediaFile } from "@/types";
+import type { AccountOptionsMap, AccountOverridesMap, AccountResultsMap, ConnectedAccount, MediaFile } from "@/types";
 
 import { reloadAccountSecrets, withAccountLock } from "./account-lock";
 import { buildPostOptions } from "./credentials";
 
 import type {
+  PlacementResult,
   Post,
   PostOptionsWithCredentials,
   Media,
@@ -60,6 +61,7 @@ export interface PostingResult {
   message?: string;
   details?: unknown;
   threadResults?: ThreadSegmentResult[];
+  placementResults?: PlacementResult[];
   platformData?: Record<string, unknown>;
   extraData?: {
     refreshedCredentials?: {
@@ -246,12 +248,14 @@ async function postSingleSegment(
       // alone). Fall back to building the URL from the post id otherwise.
       const postUrl =
         result.url ??
-        generatePostUrl(platform, result.id, {
-          username: account.username ?? undefined,
-          platformAccountId: account.platformAccountId ?? undefined,
-          mediaType: preparedMedia[0]?.type,
-          publishMode: options?.tiktok?.publishMode,
-        });
+        ((platform === "facebook" || platform === "instagram") && options[platform]?.placement === "story"
+          ? undefined
+          : generatePostUrl(platform, result.id, {
+              username: account.username ?? undefined,
+              platformAccountId: account.platformAccountId ?? undefined,
+              mediaType: preparedMedia[0]?.type,
+              publishMode: options?.tiktok?.publishMode,
+            }));
       const durationMs = Date.now() - startTime;
       log.info(
         {
@@ -343,6 +347,7 @@ async function postSegmentsToAccount(
   quoteTarget?: AccountQuoteTarget,
   postId: string = randomUUID(),
   tiktokRetryApproved = false,
+  previousPlacements?: PlacementResult[],
 ): Promise<PostingResult> {
   if (account.id === env.QA_PUBLISH_FAILURE_ACCOUNT_ID && segments[0]?.message === QA_PUBLISH_FAILURE_MESSAGE) {
     // Return a terminal result so the caller persists the failure and sends the normal webhook.
@@ -367,6 +372,28 @@ async function postSegmentsToAccount(
   const platform = mapPlatformName(account.platform);
   const threadAware = isThreadCapable(platform);
   const effectiveSegments = threadAware ? segments : segments.slice(0, 1);
+  const settings = accountOptions?.[account.id];
+  const placement = settings?.placement;
+  if ((placement === "story" || placement === "both") && quoteTarget) {
+    return {
+      accountId: account.id,
+      platform: account.platform,
+      success: false,
+      error: "INVALID_CONTENT",
+      message: "Stories cannot quote existing posts.",
+    };
+  }
+  const placements: PlacementResult["placement"][] =
+    placement === "both" ? ["post", "story"] : placement === "story" ? ["story"] : [];
+  // Meta accounts do not support threads. Slot 0 is the regular post; slot 1 is always the Story.
+  const jobs =
+    placements.length > 0
+      ? placements.map((placement) => ({
+          segment: effectiveSegments[0],
+          index: placement === "story" ? 1 : 0,
+          placement,
+        }))
+      : effectiveSegments.map((segment, index) => ({ segment, index, placement: undefined }));
 
   if (!threadAware && segments.length > 1) {
     log.warn({ requestedSegments: segments.length }, "Platform does not support threads — only root will be posted");
@@ -374,6 +401,8 @@ async function postSegmentsToAccount(
 
   const chain: ThreadChainState = {};
   const segmentResults: ThreadSegmentResult[] = [];
+  const placementResults: PlacementResult[] = [];
+  let firstPlacementFailure: PostingResult | undefined;
   let rootResult: PostingResult | undefined;
 
   // Hold the account lock for the whole thread so segments of concurrent
@@ -400,7 +429,14 @@ async function postSegmentsToAccount(
     }
     freshAccount = refreshResult.account;
 
-    for (const [i, segment] of effectiveSegments.entries()) {
+    for (const [jobIndex, { segment, index: i, placement }] of jobs.entries()) {
+      const completed = previousPlacements?.find((result) => result.success && result.placement === placement);
+      if (completed) {
+        placementResults.push(completed);
+        if (jobIndex === 0) rootResult = { accountId: account.id, platform: account.platform, ...completed };
+        continue;
+      }
+      const options = placement ? { ...accountOptions, [account.id]: { ...settings, placement } } : accountOptions;
       const media: Media[] = mapMediaFilesToSdk(segment.mediaFiles);
       // The resolver is shared across every account and segment of this
       // postToAccounts call: downloads/uploads are cached by source, so the
@@ -420,7 +456,7 @@ async function postSegmentsToAccount(
             segments: effectiveSegments
               .slice(0, i + 1)
               .map((entry) => ({ message: entry.message, media: mapMediaFilesToSdk(entry.mediaFiles) })),
-            options: accountOptions?.[account.id],
+            options: options?.[account.id],
             quoteTarget,
           }),
         },
@@ -429,7 +465,7 @@ async function postSegmentsToAccount(
             segment.message,
             preparedMedia,
             freshAccount,
-            accountOptions,
+            options,
             overlay,
             segmentLog,
             i === 0 ? quoteTarget : undefined,
@@ -466,8 +502,14 @@ async function postSegmentsToAccount(
         details: segmentResult.details,
       });
 
-      if (i === 0) rootResult = segmentResult;
-      if (!segmentResult.success) break;
+      if (jobIndex === 0) rootResult = segmentResult;
+      if (placement) {
+        if (!segmentResult.success) firstPlacementFailure ??= segmentResult;
+        const { success, postId, postUrl, error, message } = segmentResult;
+        placementResults.push({ placement, success, postId, postUrl, error, message });
+      } else if (!segmentResult.success) {
+        break;
+      }
 
       // Give the platform time to index the post before we reply to it.
       // Threads in particular needs ~2 seconds before a reply_to_id lookup succeeds.
@@ -488,7 +530,34 @@ async function postSegmentsToAccount(
   });
 
   if (credentialFailure) {
-    return credentialFailure;
+    if (placements.length === 0) return credentialFailure;
+    rootResult = credentialFailure;
+  }
+
+  if (placements.length > 0) {
+    const base = rootResult ?? { accountId: account.id, platform: account.platform, success: false };
+    const outcomes = placements.map(
+      (placement) =>
+        placementResults.find((entry) => entry.placement === placement) ??
+        previousPlacements?.find((entry) => entry.placement === placement && entry.success) ?? {
+          placement,
+          success: false,
+          error: base.error ?? "OTHER",
+          message: base.message,
+        },
+    );
+    const primary = outcomes[0];
+    const failure = outcomes.find((entry) => !entry.success);
+    return {
+      ...base,
+      success: !failure,
+      postId: primary.postId,
+      postUrl: primary.postUrl,
+      error: failure?.error,
+      message: failure?.message,
+      details: firstPlacementFailure?.details ?? base.details,
+      placementResults: outcomes,
+    };
   }
 
   // Fill in skipped segments so the UI can show the correct X/Y total
@@ -575,6 +644,7 @@ async function postToAccountsInternal(
   onResult?: PostingResultCallback,
   observability?: PostingObservabilityContext,
   tiktokRetryApproved = false,
+  previousResults?: AccountResultsMap | null,
 ): Promise<PostingResult[]> {
   const startTime = Date.now();
   const log = postingLogger.child({
@@ -660,6 +730,7 @@ async function postToAccountsInternal(
                 quoteTargetByAccountId.get(account.id),
                 observability?.postId,
                 tiktokRetryApproved,
+                previousResults?.[account.id]?.placementResults,
               ),
           );
 

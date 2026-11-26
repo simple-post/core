@@ -1521,5 +1521,17 @@
   "Yesterday": "أمس",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "تحصل منشوراتك التي تُنشر يوم {{day}} نحو الساعة {{hour}} على أكبر قدر من التفاعل.",
   "Your posts published on {{day}} get the most engagement.": "تحصل منشوراتك التي تُنشر يوم {{day}} على أكبر قدر من التفاعل.",
-  "Pick a start and end date for the custom range.": "اختر تاريخ البداية والنهاية للفترة المخصصة."
+  "Pick a start and end date for the custom range.": "اختر تاريخ البداية والنهاية للفترة المخصصة.",
+  "Page video": "فيديو الصفحة",
+  "Page video and Story": "فيديو الصفحة والقصة",
+  "Page video only": "فيديو الصفحة فقط",
+  "Reel": "ريلز",
+  "Reel and Story": "ريلز وقصة",
+  "Reel only": "ريلز فقط",
+  "Retry uses the original placements and skips any that already published.": "تستخدم إعادة المحاولة مواضع النشر الأصلية وتتخطى المواضع التي تم النشر فيها بالفعل.",
+  "Story": "قصة",
+  "Story only": "قصة فقط",
+  "Video placement": "موضع نشر الفيديو",
+  "View": "عرض",
+  "View Story": "عرض القصة"
 }

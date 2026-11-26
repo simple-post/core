@@ -1331,5 +1331,17 @@
   "Yesterday": "어제",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "{{day}} {{hour}}쯤 게시한 게시물의 참여가 가장 많습니다.",
   "Your posts published on {{day}} get the most engagement.": "{{day}}에 게시한 게시물의 참여가 가장 많습니다.",
-  "Pick a start and end date for the custom range.": "사용자 지정 기간의 시작일과 종료일을 선택하세요."
+  "Pick a start and end date for the custom range.": "사용자 지정 기간의 시작일과 종료일을 선택하세요.",
+  "Page video": "페이지 동영상",
+  "Page video and Story": "페이지 동영상 및 스토리",
+  "Page video only": "페이지 동영상만",
+  "Reel": "릴스",
+  "Reel and Story": "릴스 및 스토리",
+  "Reel only": "릴스만",
+  "Retry uses the original placements and skips any that already published.": "다시 시도할 때 기존 게시 위치를 사용하며 이미 게시된 위치는 건너뜁니다.",
+  "Story": "스토리",
+  "Story only": "스토리만",
+  "Video placement": "동영상 게시 위치",
+  "View": "보기",
+  "View Story": "스토리 보기"
 }

@@ -1058,3 +1058,36 @@ describe("InstagramPublisher", () => {
 // are exercised in ValidationBoundary.test.ts and VideoInspection.test.ts.
 jest.mock("../src/utils/post-media-validation", () => ({ validatePostMedia: async () => [] }));
 beforeEach(() => jest.spyOn(InstagramPublisher.prototype, "validateReadiness").mockResolvedValue([]));
+
+it("publishes the same video as a Reel and a separate Story and returns both outcomes", async () => {
+  const post = jest
+    .fn()
+    .mockResolvedValueOnce({ data: { id: "reel-container" } })
+    .mockResolvedValueOnce({ data: { id: "reel" } })
+    .mockResolvedValueOnce({ data: { id: "story-container" } })
+    .mockRejectedValueOnce({ response: { status: 400, data: { error: { code: 100, message: "Story rejected" } } } });
+  const get = jest
+    .fn()
+    .mockResolvedValueOnce({ data: { status_code: "FINISHED" } })
+    .mockResolvedValueOnce({ data: { permalink: "https://www.instagram.com/reel/test/" } })
+    .mockResolvedValueOnce({ data: { status_code: "FINISHED" } });
+  mockedAxios.create.mockReturnValue({ post, get } as never);
+  const publisher = new InstagramPublisher({
+    instagram: { placement: "both", credentials: { accessToken: "test", businessAccountId: "account" } },
+  });
+  jest.spyOn(publisher as unknown as { validateBeforeSend(): Promise<void> }, "validateBeforeSend").mockResolvedValue();
+
+  const result = await publisher.post({
+    text: "Caption for the Reel",
+    media: [{ type: "video", url: "https://example.com/video.mp4" }],
+  });
+  expect(post.mock.calls[0][1]).toMatchObject({ media_type: "REELS", caption: "Caption for the Reel" });
+  expect(post.mock.calls[2][1]).toMatchObject({ media_type: "STORIES", caption: undefined });
+  expect(result).toMatchObject({
+    error: PostErrorType.PUBLISH_REJECTED,
+    placementResults: [
+      { placement: "post", success: true, postId: "reel" },
+      { placement: "story", success: false, error: PostErrorType.PUBLISH_REJECTED },
+    ],
+  });
+});

@@ -1369,5 +1369,17 @@
   "{{count, number}} waiting for their first read._other": "{{count, number}} warten auf den ersten Abruf.",
   "Based on {{count, number}} posts": "Basierend auf {{count, number}} Beiträgen",
   "{{count, number}} waiting for their first read.": "{{count, number}} warten auf den ersten Abruf.",
-  "Pick a start and end date for the custom range.": "Wähle ein Start- und Enddatum für den benutzerdefinierten Zeitraum."
+  "Pick a start and end date for the custom range.": "Wähle ein Start- und Enddatum für den benutzerdefinierten Zeitraum.",
+  "Page video": "Seitenvideo",
+  "Page video and Story": "Seitenvideo und Story",
+  "Page video only": "Nur Seitenvideo",
+  "Reel": "Reel",
+  "Reel and Story": "Reel und Story",
+  "Reel only": "Nur Reel",
+  "Retry uses the original placements and skips any that already published.": "Beim erneuten Versuch bleiben die ursprünglichen Platzierungen erhalten. Bereits veröffentlichte Platzierungen werden übersprungen.",
+  "Story": "Story",
+  "Story only": "Nur Story",
+  "Video placement": "Videoplatzierung",
+  "View": "Ansehen",
+  "View Story": "Story ansehen"
 }

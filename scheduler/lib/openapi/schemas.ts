@@ -1,5 +1,6 @@
 import {
   AccountOptionsMapSchema,
+  PlacementResultSchema,
   AccountOverridesMapSchema,
   MediaFileSchema,
   PlatformSchema,
@@ -175,6 +176,7 @@ export const PostingResultSchema = z
     details: JsonValueSchema.optional(),
     platformData: z.record(z.string(), JsonValueSchema).optional(),
     threadResults: z.array(ThreadSegmentResultSchema).optional(),
+    placementResults: z.array(PlacementResultSchema).optional(),
   })
   .meta({ id: "PostingResult" });
 

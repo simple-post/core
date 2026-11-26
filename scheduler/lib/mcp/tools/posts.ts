@@ -5,6 +5,8 @@ import {
   IMAGE_FIT_HELP,
   AccountIdsSchema,
   AccountOptionsMapSchema,
+  PlacementResultSchema,
+  StoryPlacementSchema,
 } from "@simple-post/sdk";
 import { z } from "zod";
 
@@ -25,11 +27,12 @@ import { McpToolError } from "@/lib/mcp/tool-errors";
 import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
-import { toAccountResultsMap } from "@/lib/posting/account-results";
+import { toAccountResultsMap, videoPlacementsChanged } from "@/lib/posting/account-results";
 import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { longestThreadLength } from "@/lib/posting/thread-length";
 import { getTikTokPostRecovery, recoveryForResult } from "@/lib/posting/tiktok-recovery";
+import { executePostUpdate } from "@/lib/posting/update-post";
 import { prisma } from "@/lib/prisma";
 import { assertNoUnresolvedQuotes, validateQuoteSource } from "@/lib/quote/source";
 import { buildQuoteTargets } from "@/lib/quote/targets";
@@ -65,7 +68,7 @@ export const createPostSchema = z.object({
     "IDs of connected accounts to post to. Use list_accounts to get available IDs.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    'Platform settings keyed by account ID, not platform name. YouTube supports title, description, privacyStatus and selfDeclaredMadeForKids; playlist assignment is unavailable. Pinterest requires a real boardId supplied by the user; no MCP board-listing tool is available. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. For TikTok photo carousels pass 1–35 image URLs, autoAddMusic (defaults to true for photo Direct Post; pass false for no music), photoCoverIndex (zero-based, default 0), title (90 characters, defaults to the start of message), and description (4000 characters, defaults to the full message including hashtags). Set publishMode:"draft" to upload to the TikTok inbox and manually add music/edit/publish; omit autoAddMusic or set false. Use postingMode:"now" (or "schedule") for the upload to run; postingMode:"draft" only saves a SimplePost draft. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
+    'Platform settings keyed by account ID, not platform name. For a single video on Instagram or Facebook Pages, set placement to "post" (default), "story", or "both". YouTube supports title, description, privacyStatus and selfDeclaredMadeForKids; playlist assignment is unavailable. Pinterest requires a real boardId supplied by the user; no MCP board-listing tool is available. TikTok defaults to PUBLIC_TO_EVERYONE when privacy is omitted. Pass privacyLevel to override, e.g. {"ACCOUNT_ID":{"privacyLevel":"SELF_ONLY"}} for only me. Explicit privacyLevel or legacy visibility choices are preserved. Use get_tiktok_creator_info to inspect allowed choices. For TikTok photo carousels pass 1–35 image URLs, autoAddMusic (defaults to true for photo Direct Post; pass false for no music), photoCoverIndex (zero-based, default 0), title (90 characters, defaults to the start of message), and description (4000 characters, defaults to the full message including hashtags). Set publishMode:"draft" to upload to the TikTok inbox and manually add music/edit/publish; omit autoAddMusic or set false. Use postingMode:"now" (or "schedule") for the upload to run; postingMode:"draft" only saves a SimplePost draft. Also supports allowComment, allowDuet, allowStitch and commercial disclosure choices.',
   ),
   media: mcpMediaArraySchema
     .optional()
@@ -152,6 +155,7 @@ const postingResultSchema = z.object({
   postUrl: z.string().optional(),
   postId: z.string().optional(),
   threadResults: z.array(threadSegmentResultSchema).optional(),
+  placementResults: z.array(PlacementResultSchema).optional(),
   recovery: recoverySchema.optional(),
 });
 
@@ -168,7 +172,7 @@ export const previewPostOutputSchema = z.object({
   scheduledFor: z.string().nullable(),
   quotePostId: z.string().nullable(),
   mediaCount: z.number(),
-  accounts: z.array(mcpAccountIdentitySchema),
+  accounts: z.array(mcpAccountIdentitySchema.extend({ placement: StoryPlacementSchema.optional() })),
   validation: validatePostOutputSchema,
   summary: z.object({
     accountCount: z.number(),
@@ -250,7 +254,7 @@ export const updateScheduledPostSchema = z.object({
     "Replacement connected account IDs. Use list_accounts to get valid IDs. Omit to keep current targets.",
   ),
   accountOptions: AccountOptionsMapSchema.optional().describe(
-    "Replacement platform settings keyed by account ID, including TikTok privacyLevel, publishMode (public or draft for TikTok inbox upload), autoAddMusic (photo Direct Post only), title, description, and photoCoverIndex. Use get_tiktok_creator_info for allowed privacy choices. Omit to keep current settings; when supplied, this replaces the entire map.",
+    "Replacement platform settings keyed by account ID. Instagram and Facebook video placement accepts post, story, or both. Also includes TikTok privacyLevel, publishMode (public or draft for TikTok inbox upload), autoAddMusic (photo Direct Post only), title, description, and photoCoverIndex. Use get_tiktok_creator_info for allowed privacy choices. Omit to keep current settings; when supplied, this replaces the entire map.",
   ),
   media: mcpMediaArraySchema
     .nullable()
@@ -329,6 +333,7 @@ const managedPostSchema = z.object({
   publishedAt: z.string().nullable(),
   status: managedPostStatusSchema,
   errorMessage: z.string().nullable(),
+  placementResults: z.record(z.string(), z.array(PlacementResultSchema)).optional(),
   recovery: recoverySchema.optional(),
   repostEnabled: z.boolean(),
   repostDelayHours: z.number(),
@@ -391,6 +396,7 @@ export const updateScheduledPostOutputSchema = z.object({
   kind: z.literal("scheduled_post_update"),
   post: managedPostSchema,
   validation: validatePostOutputSchema.optional(),
+  retryKind: z.literal("story").optional(),
   warnings: z.array(scheduleWarningSchema).optional(),
   summary: z.object({
     updated: z.boolean(),
@@ -537,7 +543,13 @@ function mapManagedPost(
   accountMap: Awaited<ReturnType<typeof getAccountMap>>,
 ): ManagedPost {
   const thread = mapStoredThread(post.thread);
+  const placementResults = Object.fromEntries(
+    Object.values(post.accountResults ?? {}).flatMap((result) =>
+      result.placementResults ? [[result.accountId, result.placementResults]] : [],
+    ),
+  );
   return {
+    ...(Object.keys(placementResults).length > 0 && { placementResults }),
     id: post.id,
     message: post.message,
     accountIds: post.accountIds,
@@ -779,6 +791,7 @@ export async function previewPost(
       username: account.username,
       displayName: account.displayName,
       profilePicture: account.profilePicture,
+      placement: StoryPlacementSchema.safeParse(input.accountOptions?.[account.accountId]?.placement).data,
     })),
     validation,
     summary: {
@@ -913,6 +926,63 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
         "To recover this TikTok failure, provide only scheduledFor, postingMode='schedule', postId and expectedUpdatedAt. The existing content and successful destinations will be preserved.",
       );
   }
+  const failedPlacements = Object.values(currentPost.accountResults ?? {})
+    .flatMap((result) => result.placementResults ?? [])
+    .filter((placement) => !placement.success);
+  if (currentPost.status === "failed" && failedPlacements.length > 0) {
+    const hasContentChanges = Object.keys(input).some(
+      (key) => !["postId", "postingMode", "scheduledFor", "expectedUpdatedAt"].includes(key),
+    );
+    const retryAccountIds = currentPost.accountIds.filter((id) => !currentPost.accountResults?.[id]?.success);
+    const canRetry =
+      retryAccountIds.every((id) =>
+        currentPost.accountResults?.[id]?.placementResults?.some((result) => !result.success),
+      ) &&
+      failedPlacements.every((placement) =>
+        [
+          "PREPARATION_ERROR",
+          "INVALID_CONTENT",
+          "PUBLISH_REJECTED",
+          "LOCAL_RATE_LIMIT",
+          "CREDENTIALS_ERROR",
+          "RATE_LIMIT_ERROR",
+        ].includes(placement.error ?? ""),
+      );
+    if (!canRetry || !input.scheduledFor || input.postingMode === "draft" || hasContentChanges) {
+      throw new Error(
+        "To retry confirmed Meta placement failures, use the original postId and provide scheduledFor, postingMode='schedule', and expectedUpdatedAt only. If any outcome is uncertain or you need to change the video, review the original post in SimplePost.",
+      );
+    }
+    const updated = await executePostUpdate(userId, input.postId, {
+      expectedUpdatedAt: input.expectedUpdatedAt ?? currentPost.updatedAt.toISOString(),
+      message: currentPost.message,
+      accountIds: retryAccountIds,
+      accountOptions: currentPost.accountOptions,
+      accountOverrides: currentPost.accountOverrides,
+      media: currentPost.media,
+      thread: currentPost.thread,
+      postingMode: "schedule",
+      scheduledFor: new Date(input.scheduledFor).toISOString(),
+    });
+    if (!updated.post) throw new Error(POST_NOT_FOUND_MESSAGE);
+    return {
+      kind: "scheduled_post_update" as const,
+      retryKind: "story" as const,
+      post: mapManagedPost(updated.post, await getAccountMap(userId)),
+      warnings: updated.warnings,
+      summary: {
+        updated: true,
+        messageChanged: false,
+        accountsChanged: false,
+        mediaChanged: false,
+        threadChanged: false,
+        accountOverridesChanged: false,
+        statusChanged: true,
+        scheduledForChanged: true,
+        quoteChanged: false,
+      },
+    };
+  }
   assertEditableManagedPost(currentPost);
   if (input.expectedUpdatedAt && input.expectedUpdatedAt !== currentPost.updatedAt.toISOString()) {
     throw new ConflictError(serverMessage("This post changed. Reload it before saving."));
@@ -920,6 +990,17 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
 
   const message = input.message ?? currentPost.message;
   const accountIds = [...new Set(input.accountIds ?? currentPost.accountIds)];
+  if (
+    input.accountOptions &&
+    Object.values(currentPost.accountResults ?? {}).some((result) => result.placementResults?.length) &&
+    videoPlacementsChanged(
+      accountIds.filter((id) => currentPost.accountIds.includes(id)),
+      currentPost.accountOptions,
+      input.accountOptions,
+    )
+  ) {
+    throw new Error("Retries use the original video placements.");
+  }
   // Snapshot before anything can rewrite a URL, so replaced originals stay
   // identifiable for cleanup. Copied, because a rewrite in place would
   // otherwise change the very values being compared against.
@@ -1145,6 +1226,7 @@ function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof
     recovery: recoveryForResult(r),
     postUrl: r.postUrl,
     postId: r.postId,
+    placementResults: r.placementResults,
     threadResults: r.threadResults?.map((s) => ({
       index: s.index,
       success: s.success,
@@ -1185,6 +1267,7 @@ function buildReplayResponse(
       message: result.message,
       postUrl: result.postUrl,
       postId: result.postId,
+      placementResults: result.placementResults,
     })),
     warnings,
     summary: {

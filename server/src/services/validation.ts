@@ -136,7 +136,9 @@ export async function validatePostForAccounts(params: {
   const inspectionFailures = await hydrateRemoteMediaSizesForAccounts({
     media: params.media,
     accounts,
-    accountOptions: params.accountOptions,
+    accountOptions: Object.fromEntries(
+      accounts.map((account) => [account.id, { ...account.options, ...params.accountOptions?.[account.id] }])
+    ),
     accountOverrides: params.accountOverrides,
     thread: params.thread,
   });

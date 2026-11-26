@@ -59,6 +59,7 @@ import { getTikTokCreatorInfo, getTikTokCreatorInfoSchema, getTikTokCreatorInfoO
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
 import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "./ui/resources";
 
+import type { PlacementResult } from "@simple-post/sdk";
 import type { z } from "zod";
 
 const log = createLogger("mcp:tools");
@@ -479,6 +480,7 @@ function formatPostingResults(
     postUrl?: string;
     postId?: string;
     recovery?: { automaticRetry: boolean };
+    placementResults?: PlacementResult[];
     threadResults?: Array<{
       index: number;
       success: boolean;
@@ -522,11 +524,24 @@ function formatPostingResults(
               .join("\n")}`
           : "";
 
+      const placementResults = (result.placementResults ?? [])
+        .map((placement) => {
+          const name =
+            placement.placement === "story"
+              ? serverT("Story")
+              : result.platform === "instagram"
+                ? serverT("Reel")
+                : serverT("Page video");
+          const outcome = statusLabel(placement.success ? "published" : "failed");
+          const detail = placement.postUrl ?? placement.postId ?? placement.message ?? placement.error;
+          return `\n  - ${name}: ${outcome}${detail ? ` (${detail})` : ""}`;
+        })
+        .join("");
       return `- ${serverT("{{platform}} (account ID: {{accountId}})", { platform: platformLabel(result.platform), accountId: result.accountId })}: ${
         result.recovery?.automaticRetry && !result.success
           ? mcpText("mcpRetryQueued")
           : statusLabel(result.success ? "published" : "failed")
-      }${details ? ` (${details})` : ""}${threadResults}`;
+      }${details ? ` (${details})` : ""}${threadResults}${placementResults}`;
     })
     .join("\n")}`;
 }
@@ -1202,7 +1217,7 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
     "update_scheduled_post",
     {
       title: mcpText("mcpUpdateScheduled"),
-      description: `Change a draft or future scheduled SimplePost post. Also reschedule a recoverable TikTok failure when inspect_posts returns recovery.canScheduleRetry: pass the original postId, postingMode='schedule', scheduledFor and expectedUpdatedAt only. Preserve content and successful account results. Ask for or honor the user's exact retry time and timezone; never promise TikTok will accept it. Other failed, posted, pending and due posts cannot be edited here.`,
+      description: `Change a draft or future scheduled SimplePost post. Also reschedule a recoverable TikTok failure or confirmed Meta video placement failure. Use inspect_posts to inspect recovery or placementResults, then pass only the original postId, postingMode='schedule', scheduledFor and expectedUpdatedAt for a retry. Successful placements are skipped. Use the user's exact retry time and timezone.`,
       inputSchema: fittingSchema(updateScheduledPostSchema, context.imageFittingEnabled),
       outputSchema: updateScheduledPostOutputSchema,
       annotations: MCP_TOOL_ANNOTATIONS.update_scheduled_post,
@@ -1220,29 +1235,31 @@ export function registerTools(server: McpServer, context: McpToolAuthContext): v
             {
               type: "text",
               text:
-                mcpUiTranslation().locale === "en"
-                  ? result.validation
-                    ? result.post.status === "draft"
-                      ? `Updated the draft${
-                          result.validation.isValid
-                            ? ""
-                            : ` — it can't be published as it stands (${plural(
-                                result.validation.summary.errorCount,
-                                "problem",
-                              )} to fix first)`
-                        }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                      : `Updated the post — it's now scheduled for ${formatDateTime(
-                          result.post.scheduledFor ?? "",
-                        )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
-                    : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`
-                  : [
-                      result.validation ? mcpText("mcpPostUpdated") : mcpText("mcpTikTokRetry"),
-                      warningText,
-                      formatManagedPostDetails(result.post),
-                      result.validation && formatValidationDetails(result.validation),
-                    ]
-                      .filter(Boolean)
-                      .join("\n\n"),
+                result.retryKind === "story"
+                  ? `${serverT("Retry scheduled for {{date}}. Placements that already published will be skipped.", { date: formatDateTime(result.post.scheduledFor ?? "") })}\n\n${formatManagedPostDetails(result.post)}`
+                  : mcpUiTranslation().locale === "en"
+                    ? result.validation
+                      ? result.post.status === "draft"
+                        ? `Updated the draft${
+                            result.validation.isValid
+                              ? ""
+                              : ` — it can't be published as it stands (${plural(
+                                  result.validation.summary.errorCount,
+                                  "problem",
+                                )} to fix first)`
+                          }.\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                        : `Updated the post — it's now scheduled for ${formatDateTime(
+                            result.post.scheduledFor ?? "",
+                          )}.${warningText ? `\n\n${warningText}` : ""}\n\n${formatManagedPostDetails(result.post)}\n\n${formatValidationDetails(result.validation)}`
+                      : `TikTok retry scheduled for ${formatDateTime(result.post.scheduledFor ?? "")}. The original post and its content were kept; accounts that already succeeded will be skipped. TikTok may still reject the upload. In inbox mode, the user still finishes publishing in TikTok.\n\n${formatManagedPostDetails(result.post)}`
+                    : [
+                        result.validation ? mcpText("mcpPostUpdated") : mcpText("mcpTikTokRetry"),
+                        warningText,
+                        formatManagedPostDetails(result.post),
+                        result.validation && formatValidationDetails(result.validation),
+                      ]
+                        .filter(Boolean)
+                        .join("\n\n"),
             },
           ],
         };

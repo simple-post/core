@@ -5,7 +5,9 @@ import FormData from "form-data";
 
 import { PostError, PostErrorType } from "../../types";
 import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
+import { isMetaPublishRejection } from "../meta-publish-rejection";
 
+import type { PostResult } from "../../types";
 import type { AxiosInstance } from "axios";
 
 const MAX_CHUNK_BYTES = 64 * 1024 * 1024;
@@ -171,6 +173,85 @@ export class FacebookVideoUpload {
         ...(identifier(provider?.fbtrace_id) && { traceId: provider.fbtrace_id }),
       });
     }
+  }
+
+  async publishStory(filePath: string): Promise<PostResult> {
+    const endpoint = `/${this.pageId}/video_stories`;
+    const auth = { Authorization: `Bearer ${this.accessToken}` };
+    let videoId: string | undefined;
+    let publishSubmitted = false;
+    let storyId: string;
+    try {
+      const size = fs.statSync(filePath).size;
+      const { data: session } = await this.client.post<{ video_id?: string; upload_url?: string }>(
+        endpoint,
+        { upload_phase: "start" },
+        { headers: auth },
+      );
+      if (!identifier(session.video_id) || !session.upload_url) throw new Error("Missing Story upload session");
+      videoId = session.video_id;
+      const uploadUrl = new URL(session.upload_url);
+      if (
+        uploadUrl.origin !== "https://rupload.facebook.com" ||
+        !uploadUrl.pathname.startsWith("/video-upload/") ||
+        uploadUrl.username ||
+        uploadUrl.password
+      )
+        throw new Error("Invalid Story upload destination");
+
+      const stream = fs.createReadStream(filePath);
+      try {
+        const { data } = await this.client.post<{ success?: boolean }>(uploadUrl.href, stream, {
+          headers: {
+            Authorization: `OAuth ${this.accessToken}`,
+            offset: "0",
+            file_size: String(size),
+            "Content-Length": String(size),
+            "Content-Type": "application/octet-stream",
+          },
+          timeout: UPLOAD_TIMEOUT_MS,
+          maxRedirects: 0,
+        });
+        if (data.success !== true) throw new Error("Missing Story upload confirmation");
+      } finally {
+        stream.destroy();
+      }
+
+      publishSubmitted = true;
+      const { data } = await this.client.post<{ success?: boolean; post_id?: string | number }>(
+        endpoint,
+        { upload_phase: "finish", video_id: videoId },
+        { headers: auth },
+      );
+      storyId = String(data.post_id ?? "");
+      if (data.success !== true || !identifier(storyId)) throw new Error("Missing Story publish confirmation");
+    } catch (error) {
+      this.checkCredentials(error);
+      if (!publishSubmitted)
+        throw new PostError(PostErrorType.PREPARATION_ERROR, "Facebook Story upload failed before publication.", {
+          videoId,
+        });
+      if (isMetaPublishRejection(error))
+        throw new PostError(PostErrorType.PUBLISH_REJECTED, "Facebook rejected the video Story.", { videoId });
+      throw new PostError(
+        PostErrorType.API_ERROR,
+        "Facebook did not confirm Story publication. Check the Page before retrying.",
+        { videoId },
+      );
+    }
+
+    // The Story post ID is not a public URL. Read the link from Meta when it is available.
+    let url: string | undefined;
+    try {
+      const { data } = await this.client.get<{ data?: { post_id: string | number; url?: string }[] }>(
+        `/${this.pageId}/stories`,
+        { headers: auth, params: { fields: "post_id,url" } },
+      );
+      url = data.data?.find((story) => String(story.post_id) === storyId)?.url;
+    } catch {
+      // Publication already succeeded, even if the Story link is unavailable.
+    }
+    return { id: storyId, url, error: PostErrorType.NO_ERROR };
   }
 
   private async startSession(

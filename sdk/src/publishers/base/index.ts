@@ -23,6 +23,7 @@ import type {
   RefreshedAnalyticsCredentials,
 } from "../../analytics";
 import type { PostResult, QuoteResult, RepostResult } from "../../types";
+import type { PlacementResult } from "../../types/api";
 import type {
   Content,
   Platform,
@@ -148,14 +149,33 @@ export abstract class Publisher {
   async post(
     content: Content,
     options?: PostOptionsWithCredentials,
-    cache?: MediaInspectionCache,
+    cache: MediaInspectionCache = new Map(),
   ): Promise<PostResult> {
+    options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
+    const platform = this.platform;
+    const settings = platform === "facebook" || platform === "instagram" ? options?.[platform] : undefined;
+    const withPlacement = (result: PostResult): PostResult =>
+      settings?.placement === "story"
+        ? { ...result, placementResults: [this.toPlacementResult("story", result)] }
+        : result;
     try {
-      // Try to post the content
       this.logger.info(`Posting content...`);
 
-      options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
       await this.validateBeforeSend(content, options, cache);
+      if (platform && settings?.placement === "both") {
+        const regular = await this.post(content, { ...options, [platform]: { ...settings, placement: "post" } }, cache);
+        const story = await this.post(content, { ...options, [platform]: { ...settings, placement: "story" } }, cache);
+        const placementResults = [this.toPlacementResult("post", regular), this.toPlacementResult("story", story)];
+        const failure = regular.error === PostErrorType.NO_ERROR ? story : regular;
+        return {
+          ...regular,
+          error: failure.error,
+          message: failure.message,
+          details: failure.details,
+          extraData: story.extraData ?? regular.extraData,
+          placementResults,
+        };
+      }
       const result = await this.postContent(this.withKnownLocalMediaSizes(content), options);
 
       if (result.error === PostErrorType.NO_ERROR) {
@@ -164,11 +184,12 @@ export abstract class Publisher {
         this.logger.info(`Post failed: ${result.error} - ${result.message}`);
       }
 
-      return result;
+      return withPlacement(result);
     } catch (error: unknown) {
       // Handle PostErrors and generic errors
       const issue = this.credentialRejectionIssue(error);
-      if (issue) return { error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] };
+      if (issue)
+        return withPlacement({ error: PostErrorType.CREDENTIALS_ERROR, message: issue.message, details: [issue] });
 
       const message = error instanceof Error ? error.message : "Unknown error";
       const data =
@@ -177,12 +198,24 @@ export abstract class Publisher {
       this.logger.info(`Post failed: ${message}`);
 
       if (error instanceof PostError) {
-        return { error: error.errorType, message: error.message, details: error.details };
+        return withPlacement({ error: error.errorType, message: error.message, details: error.details });
       } else {
         this.logger.error(error instanceof Error ? error : message);
-        return { error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data };
+        return withPlacement({ error: PostErrorType.OTHER, message: `Error posting: ${message}`, details: data });
       }
     }
+  }
+
+  private toPlacementResult(placement: PlacementResult["placement"], result: PostResult): PlacementResult {
+    const success = result.error === PostErrorType.NO_ERROR;
+    return {
+      placement,
+      success,
+      postId: result.id,
+      postUrl: result.url,
+      error: success ? undefined : result.error,
+      message: result.message,
+    };
   }
 
   async repost(target: RepostTarget, options?: PostOptionsWithCredentials): Promise<RepostResult> {
@@ -225,6 +258,12 @@ export abstract class Publisher {
   ): Promise<QuoteResult> {
     try {
       this.logger.info(`Quoting content...`);
+
+      if (this.platform === "facebook" || this.platform === "instagram") {
+        const placement = (options ?? this.initialOptions)?.[this.platform]?.placement;
+        if (placement === "story" || placement === "both")
+          throw new PostError(PostErrorType.INVALID_CONTENT, "Stories cannot quote existing posts.");
+      }
 
       options = (options ?? this.initialOptions) as PostOptionsWithCredentials | undefined;
       await this.validateBeforeSend(content, options, cache);

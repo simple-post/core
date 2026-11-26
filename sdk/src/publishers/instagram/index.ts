@@ -9,6 +9,7 @@ import { S3MediaUploader } from "../../utils/s3";
 import { isTransientError, withTransientRetry } from "../../utils/transient-retry";
 import { validateContentForPlatform } from "../../validation";
 import { Publisher } from "../base";
+import { isMetaPublishRejection } from "../meta-publish-rejection";
 
 import type { AccountAnalytics, AnalyticsTarget, PostAnalytics } from "../../analytics";
 import type { PostResult } from "../../types";
@@ -442,11 +443,13 @@ export class InstagramPublisher extends Publisher {
     }
   }
 
-  private async createMediaObject(media: Media, isCarousel: boolean, caption?: string): Promise<string> {
+  private async createMediaObject(media: Media, isCarousel: boolean, caption?: string, story = false): Promise<string> {
     // Get the Instagram media type
     // Standalone videos are Reels, while a video inside a carousel is a
     // carousel video child. Meta rejects a REELS child in a mixed carousel.
-    const mediaType = media.type === "video" ? (isCarousel ? "VIDEO" : "REELS") : undefined;
+    const regularType = isCarousel ? "VIDEO" : "REELS";
+    const videoType = media.type === "video" ? regularType : undefined;
+    const mediaType = story ? "STORIES" : videoType;
 
     const mediaUrl = await this.stageMedia(media);
 
@@ -459,7 +462,7 @@ export class InstagramPublisher extends Publisher {
           this.apiRequest<{ id: string }>("post", `/${this.businessAccountId}/media`, {
             media_type: mediaType,
             caption: isCarousel ? undefined : caption,
-            is_carousel_item: isCarousel,
+            is_carousel_item: story ? undefined : isCarousel,
             ...(media.type === "video" ? { video_url: mediaUrl } : { image_url: mediaUrl }),
           }),
         { shouldRetry: (error) => this.retryPreparation(error) },
@@ -529,6 +532,7 @@ export class InstagramPublisher extends Publisher {
   }
 
   async postContent(content: Content, _options: PostOptionsWithCredentials): Promise<PostResult> {
+    if (_options?.instagram?.placement === "both") return this.post(content, _options);
     await this.ensureValidToken();
 
     // Validate the content
@@ -553,7 +557,10 @@ export class InstagramPublisher extends Publisher {
 
     try {
       // Create media container
-      containerId = await this.createMediaContainer(normalizedContent);
+      const story = _options?.instagram?.placement === "story";
+      containerId = story
+        ? await this.createMediaObject(normalizedContent.media![0], false, undefined, true)
+        : await this.createMediaContainer(normalizedContent);
 
       // Wait for the container to be ready
       await this.waitForMediaReady(containerId);
@@ -561,6 +568,7 @@ export class InstagramPublisher extends Publisher {
       // Publish the container
       publishSubmitted = true;
       const response = await this.publishContainer(containerId);
+      if (story && !response.data.id) throw new Error("Instagram did not return a published Story ID.");
 
       const result: PostResult = { id: response.data.id, error: PostErrorType.NO_ERROR };
 
@@ -589,8 +597,12 @@ export class InstagramPublisher extends Publisher {
       const message = this.failureMessage(error);
       this.logger.error(`Failed to publish Instagram post: ${message}`);
 
+      const publishError =
+        _options?.instagram?.placement === "story" && isMetaPublishRejection(error)
+          ? PostErrorType.PUBLISH_REJECTED
+          : PostErrorType.API_ERROR;
       throw new PostError(
-        publishSubmitted ? PostErrorType.API_ERROR : PostErrorType.PREPARATION_ERROR,
+        publishSubmitted ? publishError : PostErrorType.PREPARATION_ERROR,
         `Failed to publish post: ${message}`,
         this.diagnostic(error, { phase: publishSubmitted ? "publish" : "processing", containerId }),
       );

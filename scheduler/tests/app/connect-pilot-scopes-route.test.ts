@@ -62,7 +62,7 @@ describe("default pilot OAuth scopes", () => {
       ["https://www.googleapis.com/auth/yt-analytics.readonly", "https://www.googleapis.com/auth/youtube.force-ssl"],
     ],
     ["threads", ["threads_manage_insights", "threads_read_replies"]],
-    ["facebook", ["pages_read_engagement", "read_insights", "pages_read_user_content", "pages_manage_engagement"]],
+    ["facebook", ["read_insights", "pages_read_user_content", "pages_manage_engagement"]],
     ["instagram", ["instagram_business_manage_insights", "instagram_business_manage_comments"]],
     ["tiktok", ["video.list", "user.info.stats"]],
     ["x", ["like.write"]],

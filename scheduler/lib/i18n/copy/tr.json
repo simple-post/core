@@ -1369,5 +1369,17 @@
   "{{period}} · gained per interval": "{{period}} · aralık başına kazanım",
   "Based on {{count, number}} posts": "{{count, number}} gönderiye göre",
   "{{count, number}} waiting for their first read.": "{{count, number}} tanesi ilk okumayı bekliyor.",
-  "Pick a start and end date for the custom range.": "Özel aralık için bir başlangıç ve bitiş tarihi seç."
+  "Pick a start and end date for the custom range.": "Özel aralık için bir başlangıç ve bitiş tarihi seç.",
+  "Page video": "Sayfa videosu",
+  "Page video and Story": "Sayfa videosu ve hikâye",
+  "Page video only": "Yalnızca Sayfa videosu",
+  "Reel": "Reel",
+  "Reel and Story": "Reel ve hikâye",
+  "Reel only": "Yalnızca Reel",
+  "Retry uses the original placements and skips any that already published.": "Yeniden denemede ilk yayın yerleri kullanılır ve video daha önce yayımlanmışsa o yer atlanır.",
+  "Story": "Hikâye",
+  "Story only": "Yalnızca hikâye",
+  "Video placement": "Video yayın yeri",
+  "View": "Görüntüle",
+  "View Story": "Hikâyeyi görüntüle"
 }

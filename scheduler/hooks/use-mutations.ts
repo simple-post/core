@@ -9,6 +9,8 @@ import { queryKeys } from "@/lib/query-client";
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 import type { PostingMode, SocialPost } from "@/types";
 
+import type { PlacementResult } from "@simple-post/sdk";
+
 const POSTING_PROGRESS_CONTENT_TYPE = "application/x-ndjson";
 
 // Delete post mutation
@@ -166,6 +168,7 @@ export interface PostingResult {
   postUrl?: string;
   postId?: string;
   details?: unknown;
+  placementResults?: PlacementResult[];
   threadResults?: Array<{
     index: number;
     success: boolean;

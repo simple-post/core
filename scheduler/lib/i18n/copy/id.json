@@ -1,4 +1,9 @@
 {
+  "Finish on {{platform}} to return to SimplePost.": "Selesaikan di {{platform}} untuk kembali ke SimplePost.",
+  "Last checked {{time}}": "Terakhir diperiksa {{time}}",
+  "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Belum ada postingan dengan ID platform tersimpan. Aktivitas dimulai dari postingan yang diterbitkan lewat SimplePost.",
+  "Reconnect to sync likes from X.": "Hubungkan ulang X untuk menyinkronkan suka.",
+  "Reconnect {{platform}}": "Hubungkan ulang {{platform}}",
   "Setup reminder scheduled.": "Pengingat penyiapan dijadwalkan.",
   "Cancel setup reminder": "Batalkan pengingat penyiapan",
   "Email me once if I haven’t connected an account two days after signup.": "Kirimi saya satu email jika saya belum menghubungkan akun dua hari setelah mendaftar.",
@@ -1302,7 +1307,6 @@
   "Analytics Dashboard": "Dasbor analitik",
   "Check older posts": "Periksa postingan lama",
   "Checking for new activity…": "Memeriksa aktivitas baru…",
-  "Continue on the platform to authorize this connection.": "Lanjutkan di platform untuk mengizinkan koneksi ini.",
   "Go back": "Kembali",
   "Higher": "Lebih tinggi",
   "Last 8 days": "8 hari terakhir",

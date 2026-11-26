@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { CircleHelp, Cpu, CreditCard, KeyRound, Settings2, Users } from "lucide-react";
+import { CircleHelp, Cpu, CreditCard, KeyRound, Settings2 } from "lucide-react";
 
 import { useSelfHosted } from "@/components/billing/subscription-gate";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,7 +21,7 @@ import { docsUrl } from "@/lib/docs";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { logClientError } from "@/lib/logger/client";
 
-export function UserMenu({ accountsHref = "/accounts" }: { accountsHref?: string }) {
+export function UserMenu() {
   const { t } = useUiTranslation();
   const { data: session } = useSession();
   const selfHosted = useSelfHosted();
@@ -75,19 +75,6 @@ export function UserMenu({ accountsHref = "/accounts" }: { accountsHref?: string
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href={accountsHref}>
-            <Users className="size-4" />
-            {t("accounts")}
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <a href={docsUrl("/getting-started")} target="_blank" rel="noopener noreferrer">
-            <CircleHelp className="size-4" />
-            {t("help")}
-            <span className="sr-only"> {t("opensNewTab")}</span>
-          </a>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
           <Link href="/settings" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             {t("settings")}
@@ -114,6 +101,13 @@ export function UserMenu({ accountsHref = "/accounts" }: { accountsHref?: string
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <a href={docsUrl("/getting-started")} target="_blank" rel="noopener noreferrer">
+            <CircleHelp className="size-4" />
+            {t("help")}
+            <span className="sr-only"> {t("opensNewTab")}</span>
+          </a>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
           {isLoading ? t("signingOut") : t("signOut")}
         </DropdownMenuItem>

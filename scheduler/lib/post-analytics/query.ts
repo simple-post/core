@@ -22,7 +22,13 @@ import {
   type AnalyticsPeriod,
   type ResolvedPeriod,
 } from "./periods";
-import { accountAnalyticsReadiness, analyticsAccountReadiness, PAUSED_ANALYTICS_PLATFORMS } from "./permissions";
+import {
+  accountAnalyticsReadiness,
+  analyticsAccountReadiness,
+  PAUSED_ANALYTICS_PLATFORMS,
+  THREADS_ANALYTICS_APP_NOTICE,
+  threadsAppAccessDenied,
+} from "./permissions";
 import { metricsFromColumns } from "./service";
 
 import type { Platform } from "@simple-post/sdk";
@@ -312,6 +318,7 @@ export async function getPostAnalyticsView(userId: string, postId: string): Prom
 
   const accountViews = rows.map((row): PostAnalyticsAccountView => {
     const account = accounts.get(row.accountId);
+    const appAccessDenied = threadsAppAccessDenied(row.platform, row.message);
     const accumulator = new Accumulator();
     accumulator.add(rowColumns(row));
     const totals = accumulator.totals();
@@ -325,13 +332,15 @@ export async function getPostAnalyticsView(userId: string, postId: string): Prom
       platformPostId: row.platformPostId,
       postUrl: results[row.accountId]?.postUrl ?? null,
       status: row.status,
-      message: row.message ?? (row.status === "ok" ? account?.notice || null : null),
+      message: appAccessDenied
+        ? THREADS_ANALYTICS_APP_NOTICE
+        : (row.message ?? (row.status === "ok" ? account?.notice || null : null)),
       platformMetrics: (row.platformMetrics as Record<string, number> | null) ?? {},
       supportedMetrics: [...getAnalyticsCapability(mapPlatformName(row.platform)).postMetrics],
       fetchedAt: row.fetchedAt?.toISOString() ?? null,
       nextRefreshAt: row.status === "unsupported" ? null : row.nextRefreshAt.toISOString(),
       isStale: row.status !== "unsupported" && isStale(row, row.account, now),
-      reconnectRecommended: account?.reconnectRecommended ?? false,
+      reconnectRecommended: !appAccessDenied && (account?.reconnectRecommended ?? false),
     };
   });
 
@@ -801,7 +810,8 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
     const failing = publishedRows.find(
       (row) => row.accountId === account.accountId && ["missing_permission", "credentials_error"].includes(row.status),
     );
-    const message = failing?.message ?? account.notice;
+    const appAccessDenied = threadsAppAccessDenied(account.platform, failing?.message);
+    const message = appAccessDenied ? THREADS_ANALYTICS_APP_NOTICE : (failing?.message ?? account.notice);
     if (message && (account.reconnectRecommended || failing || !account.postAnalytics))
       notices.push({
         accountId: account.accountId,
@@ -809,9 +819,10 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
         username: account.username,
         message,
         reconnectRecommended:
-          account.reconnectRecommended ||
-          failing?.status === "missing_permission" ||
-          failing?.status === "credentials_error",
+          !appAccessDenied &&
+          (account.reconnectRecommended ||
+            failing?.status === "missing_permission" ||
+            failing?.status === "credentials_error"),
       });
   }
 

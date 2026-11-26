@@ -1,4 +1,9 @@
 {
+  "Finish on {{platform}} to return to SimplePost.": "{{platform}}で手続きを完了すると、SimplePostに戻ります。",
+  "Last checked {{time}}": "最終確認 {{time}}",
+  "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "プラットフォームIDが保存されている投稿がありません。アクティビティはSimplePostで公開した投稿が対象です。",
+  "Reconnect to sync likes from X.": "Xのいいねを同期するには、再接続してください。",
+  "Reconnect {{platform}}": "{{platform}}に再接続",
   "Setup reminder scheduled.": "設定リマインダーを予約しました。",
   "Cancel setup reminder": "設定リマインダーをキャンセル",
   "Email me once if I haven’t connected an account two days after signup.": "登録から2日経ってもアカウントを連携していなければ、メールで一度だけ知らせてください。",
@@ -1302,7 +1307,6 @@
   "Analytics Dashboard": "分析ダッシュボード",
   "Check older posts": "過去の投稿を確認",
   "Checking for new activity…": "新しいアクティビティを確認中…",
-  "Continue on the platform to authorize this connection.": "連携を許可するには、プラットフォームで手続きを続けてください。",
   "Go back": "戻る",
   "Higher": "多い",
   "Last 8 days": "過去8日間",

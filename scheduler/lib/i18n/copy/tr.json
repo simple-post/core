@@ -1,4 +1,9 @@
 {
+  "Finish on {{platform}} to return to SimplePost.": "SimplePost’a dönmek için işlemi {{platform}} üzerinde tamamlayın.",
+  "Last checked {{time}}": "Son kontrol {{time}}",
+  "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Platform kimliği kayıtlı gönderi yok. Etkinlik, SimplePost üzerinden yayımlanan gönderilerle başlar.",
+  "Reconnect to sync likes from X.": "X beğenilerini eşitlemek için yeniden bağlanın.",
+  "Reconnect {{platform}}": "{{platform}} bağlantısını yenile",
   "Setup reminder scheduled.": "Kurulum hatırlatması planlandı.",
   "Cancel setup reminder": "Kurulum hatırlatmasını iptal et",
   "Email me once if I haven’t connected an account two days after signup.": "Kaydolduktan iki gün sonra henüz bir hesap bağlamadıysam bana bir kez e-posta gönder.",
@@ -1340,7 +1345,6 @@
   "Analytics Dashboard": "Analiz panosu",
   "Check older posts": "Eski gönderileri kontrol et",
   "Checking for new activity…": "Yeni etkinlikler kontrol ediliyor…",
-  "Continue on the platform to authorize this connection.": "Bu bağlantıya izin vermek için platformda devam et.",
   "Go back": "Geri dön",
   "Higher": "Daha yüksek",
   "Last 8 days": "Son 8 gün",

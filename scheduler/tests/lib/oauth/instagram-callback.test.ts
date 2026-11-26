@@ -3,6 +3,7 @@ import { handleInstagramCallback } from "@/lib/oauth/callbacks/instagram";
 import { mapErrorToCode, OAuthCallbackError } from "@/lib/oauth/errors";
 import { exchangeCodeForToken } from "@/lib/oauth/token-exchange";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
+import { prisma } from "@/lib/prisma";
 import { UnauthorizedError } from "@/lib/utils/errors";
 
 jest.mock("@/lib/logger", () => ({ authLogger: { error: jest.fn(), info: jest.fn() } }));
@@ -14,6 +15,7 @@ jest.mock("@/lib/oauth/config", () => ({
   }),
 }));
 jest.mock("@/lib/oauth/upsert", () => ({ upsertConnectedAccount: jest.fn() }));
+jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findFirst: jest.fn() } } }));
 const fetchMock = jest.fn();
 const originalFetch = global.fetch;
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
@@ -74,7 +76,7 @@ it("retries minimal identity fields when optional profile fields are rejected", 
     .mockResolvedValueOnce(response({ error: { code: 100, message: "Unsupported field" } }, 400))
     .mockResolvedValueOnce(response({ user_id: "123", username: "creator" }));
   await handleInstagramCallback(context);
-  expect(new URL(fetchMock.mock.calls[2][0]).searchParams.get("fields")).toBe("user_id,username");
+  expect(new URL(fetchMock.mock.calls[2][0]).searchParams.get("fields")).toBe("id,user_id,username");
   expect(upsertConnectedAccount).toHaveBeenCalled();
 });
 it("does not connect rejected tokens and records safe provider diagnostics", async () => {
@@ -99,4 +101,35 @@ it("rejects a missing account ID instead of saving an unusable connection", asyn
 it("maps an expired session and provider failures to actionable errors", () => {
   expect(mapErrorToCode(new UnauthorizedError("Authentication required"))).toBe("session_mismatch");
   expect(mapErrorToCode(new OAuthCallbackError("profile_fetch_failed", "No profile"))).toBe("profile_fetch_failed");
+});
+
+it("accepts a reconnect when either exact Meta identity matches the stored account", async () => {
+  jest.mocked(prisma.connectedAccount.findFirst).mockResolvedValue({ platformAccountId: "17900000000000001" } as never);
+  fetchMock
+    .mockResolvedValueOnce(response({ access_token: "long" }))
+    .mockResolvedValueOnce(new Response('{"id":17900000000000001,"user_id":"17800000000000003","username":"creator"}'));
+  await handleInstagramCallback({ ...context, reconnectAccountId: "ig-1", workspaceId: "workspace-1" });
+  expect(prisma.connectedAccount.findFirst).toHaveBeenCalledWith({
+    where: { id: "ig-1", userId: "user-1", workspaceId: "workspace-1", platform: "instagram" },
+  });
+  expect(upsertConnectedAccount).toHaveBeenCalledWith(
+    expect.objectContaining({ reconnectAccountId: "ig-1", platformAccountId: "17900000000000001" }),
+  );
+});
+
+it("rejects an Instagram reconnect when the profile is different even if the username matches", async () => {
+  jest.mocked(prisma.connectedAccount.findFirst).mockResolvedValue({
+    platformAccountId: "17800000000000001",
+    accessToken: "old",
+    refreshToken: null,
+    tokenMetadata: null,
+  } as never);
+  fetchMock
+    .mockResolvedValueOnce(response({ access_token: "long" }))
+    .mockResolvedValueOnce(response({ id: "456", user_id: "789", username: "creator" }))
+    .mockResolvedValueOnce(response({ id: "123", user_id: "17800000000000001", username: "creator" }));
+  await expect(handleInstagramCallback({ ...context, reconnectAccountId: "ig-1" })).rejects.toMatchObject({
+    code: "reconnect_account_mismatch",
+  });
+  expect(upsertConnectedAccount).not.toHaveBeenCalled();
 });

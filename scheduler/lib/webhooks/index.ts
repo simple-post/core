@@ -197,8 +197,12 @@ async function deliver(
     });
 
     if (response.status === 410) {
-      await prisma.webhookEndpoint.deleteMany({ where: { id: endpoint.id } });
-      log.info({ endpointId: endpoint.id, event }, "Removed webhook endpoint after HTTP 410");
+      const { count } = await prisma.webhookEndpoint.deleteMany({
+        where: { id: endpoint.id, url: endpoint.url },
+      });
+      if (count > 0) {
+        log.info({ endpointId: endpoint.id, event }, "Removed webhook endpoint after HTTP 410");
+      }
       return;
     }
 

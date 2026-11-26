@@ -1,6 +1,5 @@
-import type { MessageKey } from "../i18n/translate";
-
 import type { OAuthErrorCode } from "./errors";
+import type { MessageKey } from "../i18n/translate";
 
 export const OAUTH_ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
   invalid_state: "Invalid authorization request. Please try connecting again.",
@@ -11,6 +10,7 @@ export const OAUTH_ERROR_MESSAGES: Record<OAuthErrorCode, string> = {
   platform_mismatch: "Platform mismatch in authorization request.",
   token_exchange_failed: "Failed to complete authorization. Please try again.",
   profile_fetch_failed: "Failed to fetch account profile. Please try again.",
+  reconnect_account_mismatch: "Choose the same account to reconnect.",
   youtube_no_channel:
     "No YouTube channel was authorized. Connect again and select the Google account or Brand Account that owns your channel. YouTube Studio invitations alone do not grant API access.",
   youtube_ambiguous_channel:
@@ -37,6 +37,7 @@ const oauthMessages = {
   platform_mismatch: "oauthPlatformMismatch",
   token_exchange_failed: "oauthTokenExchangeFailed",
   profile_fetch_failed: "oauthProfileFetchFailed",
+  reconnect_account_mismatch: "oauthReconnectAccountMismatch",
   youtube_no_channel: "oauthYoutubeNoChannel",
   youtube_ambiguous_channel: "oauthYoutubeAmbiguous",
   no_access_token: "oauthNoToken",

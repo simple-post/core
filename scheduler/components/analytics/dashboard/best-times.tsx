@@ -1,24 +1,23 @@
 "use client";
 
-import { Bar, BarChart, XAxis } from "recharts";
+import { useState } from "react";
 
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import type { AnalyticsSummary } from "@/hooks/use-analytics";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
+import { cn } from "@/lib/utils";
 
 import { formatNumber } from "../format";
-import { SERIES_COLOR } from "../post-analytics-panel";
 
-const MIN_POSTS = 3;
+const MIN_POSTS = 2;
 
-/** Average engagements by local publish weekday and hour; buckets with few posts are dimmed. */
 export function BestTimes({ bestTimes }: { bestTimes: AnalyticsSummary["bestTimes"] }) {
   const { copy, locale } = useUiCopy();
-  const measured = bestTimes.byWeekday.reduce(
-    (sum, bucket) => sum + (bucket.averageEngagements === null ? 0 : bucket.posts),
-    0,
+  const [activeSlot, setActiveSlot] = useState<{ weekday: number; hour: number }>();
+  const slots = bestTimes.bySlot;
+  const peak = Math.max(
+    1,
+    ...slots.filter((slot) => slot.posts >= MIN_POSTS).map((slot) => slot.averageEngagements ?? 0),
   );
-  const config: ChartConfig = { averageEngagements: { label: copy("Avg. engagements per post"), theme: SERIES_COLOR } };
   const weekdayName = (weekday: number) =>
     new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(
       new Date(Date.UTC(2024, 0, 1 + weekday)),
@@ -26,80 +25,85 @@ export function BestTimes({ bestTimes }: { bestTimes: AnalyticsSummary["bestTime
   const hourName = (hour: number) =>
     new Intl.DateTimeFormat(locale, { hour: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1, hour)));
 
-  if (measured < MIN_POSTS) {
-    return (
-      <p className="py-6 text-center text-sm text-muted-foreground">
-        {copy("Publish a few more posts in this period to see when your audience engages most.")}
-      </p>
-    );
-  }
-
-  const best = [...bestTimes.byWeekday].sort((a, b) => (b.averageEngagements ?? -1) - (a.averageEngagements ?? -1))[0];
-  const bestHour = [...bestTimes.byHour]
-    .filter((bucket) => bucket.posts >= 2)
-    .sort((a, b) => (b.averageEngagements ?? -1) - (a.averageEngagements ?? -1))[0];
-  const tooltip = (
-    <ChartTooltip
-      content={
-        <ChartTooltipContent
-          labelFormatter={(_, payload) => String(payload?.[0]?.payload?.label ?? "")}
-          formatter={(value, _name, item) => (
-            <div className="flex w-full flex-col gap-0.5">
-              <span className="flex justify-between gap-4">
-                <span className="text-muted-foreground">{copy("Avg. engagements per post")}</span>
-                <span className="font-mono tabular-nums">{formatNumber(Number(value), locale)}</span>
-              </span>
-              <span className="text-muted-foreground">
-                {copy("Based on {{count, number}} posts", { count: (item.payload as { posts: number }).posts })}
-              </span>
-            </div>
-          )}
-        />
-      }
-    />
-  );
+  const slotLabel = (slot: (typeof slots)[number]) =>
+    slot.averageEngagements === null
+      ? copy("No data")
+      : `${formatNumber(slot.averageEngagements, locale)} · ${copy("Based on {{count, number}} posts", { count: slot.posts })}`;
+  const selected = activeSlot && slots[activeSlot.weekday * 24 + activeSlot.hour];
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        {bestHour
-          ? copy("Your posts published on {{day}} around {{hour}} get the most engagement.", {
-              day: new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
-                new Date(Date.UTC(2024, 0, 1 + best.weekday)),
-              ),
-              hour: hourName(bestHour.hour),
-            })
-          : copy("Your posts published on {{day}} get the most engagement.", {
-              day: new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(
-                new Date(Date.UTC(2024, 0, 1 + best.weekday)),
-              ),
-            })}
-      </p>
-      <ChartContainer config={config} className="aspect-auto h-32 w-full">
-        <BarChart data={bestTimes.byWeekday.map((bucket) => ({ ...bucket, label: weekdayName(bucket.weekday) }))}>
-          <XAxis dataKey="label" tickLine={false} axisLine={false} />
-          {tooltip}
-          <Bar
-            dataKey="averageEngagements"
-            fill="var(--color-averageEngagements)"
-            radius={[4, 4, 0, 0]}
-            isAnimationActive={false}
-          />
-        </BarChart>
-      </ChartContainer>
-      <ChartContainer config={config} className="aspect-auto h-28 w-full">
-        <BarChart data={bestTimes.byHour.map((bucket) => ({ ...bucket, label: hourName(bucket.hour) }))}>
-          <XAxis dataKey="label" tickLine={false} axisLine={false} interval={2} />
-          {tooltip}
-          <Bar
-            dataKey="averageEngagements"
-            fill="var(--color-averageEngagements)"
-            radius={[3, 3, 0, 0]}
-            isAnimationActive={false}
-          />
-        </BarChart>
-      </ChartContainer>
-      <p className="text-xs text-muted-foreground">{copy("Times are shown in your timezone.")}</p>
-    </div>
+    <>
+      <div className="relative overflow-x-auto pb-1" tabIndex={0} role="region" aria-label={copy("Best time to post")}>
+        <table className="w-full min-w-[40rem] table-fixed border-separate border-spacing-1">
+          <thead>
+            <tr>
+              <td className="sticky start-0 z-10 w-12 bg-card" />
+              {Array.from({ length: 24 }, (_, hour) => (
+                <th
+                  key={hour}
+                  scope="col"
+                  className="pb-1 text-start text-[10px] font-medium whitespace-nowrap text-muted-foreground"
+                  aria-label={hourName(hour)}>
+                  {hour % 3 === 0 ? hourName(hour) : null}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 7 }, (_, weekday) => (
+              <tr key={weekday}>
+                <th
+                  scope="row"
+                  className="sticky start-0 z-10 bg-card text-start text-xs font-medium text-muted-foreground">
+                  {weekdayName(weekday)}
+                </th>
+                {slots.slice(weekday * 24, (weekday + 1) * 24).map(({ hour, posts, averageEngagements }) => {
+                  const label = slotLabel(slots[weekday * 24 + hour]);
+                  const description = `${weekdayName(weekday)} · ${hourName(hour)} · ${label}`;
+                  return (
+                    <td key={hour} className="h-5 rounded-sm bg-muted/60 p-0">
+                      {averageEngagements === null ? (
+                        <span className="sr-only">{label}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={description}
+                          aria-pressed={activeSlot?.weekday === weekday && activeSlot.hour === hour}
+                          title={description}
+                          onClick={() => setActiveSlot({ weekday, hour })}
+                          className={cn(
+                            "block h-5 w-full rounded-sm bg-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
+                            activeSlot?.weekday === weekday &&
+                              activeSlot.hour === hour &&
+                              "ring-2 ring-inset ring-foreground",
+                          )}
+                          style={{
+                            backgroundColor: `color-mix(in oklab, var(--primary) ${posts < MIN_POSTS ? 14 : 22 + 78 * (averageEngagements / peak)}%, transparent)`,
+                          }}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <p aria-live="polite">
+          {activeSlot && selected
+            ? `${weekdayName(activeSlot.weekday)} · ${hourName(activeSlot.hour)} · ${slotLabel(selected)}`
+            : copy("Times are shown in your timezone.")}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <span>{copy("Lower")}</span>
+          {[0.22, 0.48, 0.74, 1].map((opacity) => (
+            <span key={opacity} className="size-3 rounded-sm bg-primary" style={{ opacity }} aria-hidden />
+          ))}
+          <span>{copy("Higher")}</span>
+        </div>
+      </div>
+    </>
   );
 }

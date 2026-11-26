@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "Die Plattform in der Autorisierungsanfrage stimmt nicht überein.",
   "oauthTokenExchangeFailed": "Die Autorisierung konnte nicht abgeschlossen werden. Versuche es erneut.",
   "oauthProfileFetchFailed": "Dein Kontoprofil konnte nicht geladen werden. Versuche es erneut.",
+  "oauthReconnectAccountMismatch": "Wähle dasselbe Konto aus, um es erneut zu verbinden.",
   "oauthYoutubeNoChannel": "Es wurde kein YouTube-Kanal autorisiert. Verbinde dich erneut und wähle das Google-Konto oder Brand-Konto aus, dem dein Kanal gehört. Einladungen zu YouTube Studio allein gewähren keinen API-Zugriff.",
   "oauthYoutubeAmbiguous": "Es konnte kein einzelner YouTube-Kanal ermittelt werden. Verbinde dich erneut und wähle den Kanal oder das Brand-Konto aus, das du verwenden möchtest.",
   "oauthNoToken": "Es wurde kein Zugriffstoken empfangen. Versuche es erneut.",

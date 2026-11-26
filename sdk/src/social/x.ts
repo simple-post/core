@@ -73,6 +73,8 @@ export class XProvider implements SocialActivityProvider {
     const authorId = string(tweet.author_id);
     const author = users.get(authorId ?? "");
     const metrics = record(tweet.public_metrics);
+    const references = Array.isArray(tweet.referenced_tweets) ? tweet.referenced_tweets : [];
+    const parentNativeId = string(record(references.find((value) => record(value).type === "replied_to")).id);
     return {
       nativeId: id,
       nativePostId,
@@ -89,6 +91,7 @@ export class XProvider implements SocialActivityProvider {
         : undefined,
       likeCount: typeof metrics.like_count === "number" ? metrics.like_count : undefined,
       replyCount: typeof metrics.reply_count === "number" ? metrics.reply_count : undefined,
+      parentNativeId,
       kind: "reply",
       canReply: true,
       canLike: true,
@@ -133,12 +136,13 @@ export class XProvider implements SocialActivityProvider {
     );
     if (!response.result.ok) return response.result;
     const entries = response.result.data.data;
-    if (!Array.isArray(entries)) return invalidResponse(this.platform);
+    if (!Array.isArray(entries) && record(response.result.data.meta).result_count !== 0)
+      return invalidResponse(this.platform);
     const users = this.users(response.result.data);
     return {
       ok: true as const,
       data: page(
-        entries
+        (Array.isArray(entries) ? entries : [])
           .filter((entry) => {
             const references = record(entry).referenced_tweets;
             if (!Array.isArray(references)) return false;

@@ -25,10 +25,10 @@ export function authorize(member: { role: string; approver: boolean }, permissio
   if (!allowed) throw new ForbiddenError("Your workspace permissions do not allow this action");
 }
 export async function listWorkspaces(actor: Actor) {
-  const [memberships, invites] = await Promise.all([
+  const [memberships, invites, personal] = await Promise.all([
     prisma.teamMember.findMany({
       where: { userId: actor.id },
-      select: { role: true, workspace: { select: { id: true, name: true, icon: true } } },
+      select: { role: true, workspace: { select: { id: true, name: true, icon: true, color: true, creatorId: true } } },
       orderBy: { workspace: { name: "asc" } },
     }),
     actor.emailVerified
@@ -37,9 +37,18 @@ export async function listWorkspaces(actor: Actor) {
           include: { workspace: { select: { name: true } } },
         })
       : [],
+    prisma.user.findUniqueOrThrow({
+      where: { id: actor.id },
+      select: { personalWorkspaceName: true, personalWorkspaceColor: true },
+    }),
   ]);
   return {
-    workspaces: memberships.map((m) => ({ ...m.workspace, role: m.role })),
+    personal: { name: personal.personalWorkspaceName, color: personal.personalWorkspaceColor },
+    workspaces: memberships.map(({ workspace: { creatorId, ...workspace }, role }) => ({
+      ...workspace,
+      role,
+      canManage: creatorId === actor.id && role === "Admin",
+    })),
     invites,
   };
 }
@@ -106,7 +115,7 @@ export async function readWorkspace(actor: Actor, id: string) {
       const accounts =
         actor.id === workspace.creatorId
           ? await tx.connectedAccount.findMany({
-              where: { userId: actor.id, platform: { in: ["instagram", "tiktok", "linkedin"] } },
+              where: { userId: actor.id, workspaceId: id, platform: { in: ["instagram", "tiktok", "linkedin"] } },
               select: { id: true, platform: true, username: true, displayName: true },
             })
           : [];

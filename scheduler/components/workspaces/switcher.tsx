@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus, Settings } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,6 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useSession } from "@/lib/auth/auth-client";
+import { cn } from "@/lib/utils";
+import { workspaceColorStyle } from "@/lib/workspaces/colors";
 
 import { json, request, type WorkspaceIndex } from "./types";
 
@@ -37,6 +40,7 @@ export function useWorkspaceIndex() {
   return {
     id,
     requested,
+    enabled,
     data,
     pending: featuresPending || (enabled && query.isPending),
     indexError: query.error,
@@ -51,8 +55,11 @@ export function WorkspaceSwitcher() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   if (!data) return null;
   const current = data.workspaces.find((w) => w.id === id);
+  const active = current ?? data.personal;
+  const switchPath = ["/accounts", "/analytics", "/inbox", "/workspaces/settings"].includes(pathname) ? pathname : "/";
   async function submit(body: object) {
     setBusy(true);
     setError("");
@@ -69,51 +76,66 @@ export function WorkspaceSwitcher() {
   }
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label={`Switch workspace: ${current?.name ?? "Personal"}`}
-            className="min-w-0 gap-1">
-            <span className="max-w-24 truncate sm:max-w-44">{current?.name ?? "Personal"}</span>
-            <ChevronDown className="size-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onSelect={() => router.push("/")}>
-            Personal workspace {!id && <Check className="ms-auto" />}
-          </DropdownMenuItem>
-          {data.workspaces.map((w) => (
-            <DropdownMenuItem key={w.id} onSelect={() => router.push(workspaceHref("/", w.id))}>
-              {w.name}
-              {id === w.id && <Check className="ms-auto" />}
+      <div className="flex min-w-0 items-center gap-0.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Switch workspace: ${active?.name ?? "Personal"}`}
+              className="min-w-0 gap-1.5 px-1.5 sm:px-2">
+              <span
+                aria-hidden
+                className={cn("size-2.5 shrink-0 rounded-full", workspaceColorStyle[active?.color ?? "slate"]?.swatch)}
+              />
+              <span className="max-w-24 truncate sm:max-w-44">{active?.name ?? "Personal"}</span>
+              <ChevronDown className="size-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => router.push(switchPath)}>
+              <span
+                aria-hidden
+                className={cn("size-2.5 rounded-full", workspaceColorStyle[data.personal?.color ?? "slate"]?.swatch)}
+              />
+              {data.personal?.name ?? "Personal"} {!id && <Check className="ms-auto" />}
             </DropdownMenuItem>
-          ))}
-          {data.invites.map((i) => (
+            {data.workspaces.map((w) => (
+              <DropdownMenuItem key={w.id} onSelect={() => router.push(workspaceHref(switchPath, w.id))}>
+                <span aria-hidden className={cn("size-2.5 rounded-full", workspaceColorStyle[w.color]?.swatch)} />
+                {w.name}
+                {id === w.id && <Check className="ms-auto" />}
+              </DropdownMenuItem>
+            ))}
+            {data.invites.map((i) => (
+              <DropdownMenuItem
+                disabled={busy}
+                key={i.id}
+                onSelect={() => void submit({ action: "accept", workspaceId: i.workspaceId, inviteId: i.id })}>
+                Join {i.workspace.name}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
             <DropdownMenuItem
-              disabled={busy}
-              key={i.id}
-              onSelect={() => void submit({ action: "accept", workspaceId: i.workspaceId, inviteId: i.id })}>
-              Join {i.workspace.name}
+              onSelect={() => {
+                setError("");
+                setCreating(true);
+              }}>
+              <Plus />
+              Create workspace
             </DropdownMenuItem>
-          ))}
-          {current?.role === "Admin" && (
-            <DropdownMenuItem onSelect={() => router.push(workspaceHref("/?tab=settings", current.id))}>
-              Workspace settings
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => {
-              setError("");
-              setCreating(true);
-            }}>
-            <Plus />
-            Create workspace
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button asChild size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground">
+          <Link
+            href={workspaceHref("/workspaces/settings", current?.id)}
+            aria-label="Workspace settings"
+            title="Workspace settings"
+            aria-current={pathname === "/workspaces/settings" ? "page" : undefined}>
+            <Settings className="size-4" aria-hidden />
+          </Link>
+        </Button>
+      </div>
       {!creating && error && (
         <span role="alert" className="text-xs text-destructive">
           {error}

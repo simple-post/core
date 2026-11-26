@@ -12,6 +12,7 @@ import { formatChange } from "./format";
 export function MetricTile({
   label,
   value,
+  valueTitle,
   help,
   change,
   changeLabel,
@@ -23,6 +24,7 @@ export function MetricTile({
 }: {
   label: string;
   value: string;
+  valueTitle?: string;
   help?: string;
   /** Relative change vs. the previous period (0.1 = +10%). */
   change?: number | null;
@@ -60,7 +62,10 @@ export function MetricTile({
           </Tooltip>
         ) : null}
       </span>
-      <span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span>
+      <span title={valueTitle} className="text-2xl font-semibold tabular-nums tracking-tight">
+        <span aria-hidden={valueTitle ? true : undefined}>{value}</span>
+        {valueTitle && <span className="sr-only">{valueTitle}</span>}
+      </span>
       {formattedChange ? (
         <span
           className={cn(

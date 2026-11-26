@@ -9,6 +9,8 @@ TypeScript SDK.
 Platform setup (scopes, app review, console settings, costs) is covered in
 [platform-permissions.md](platform-permissions.md).
 
+On the dashboard, choose a date range and one or more platform icons to see posts published during that range. Select a metric tile to change the chart, including followers. The heatmap uses average engagement by publish day and hour. Use the sort pills to rank the posts in the table. LinkedIn analytics collection is paused in the Scheduler.
+
 ## Hosted rollout
 
 Hosted post analytics requires the `POST_ANALYTICS` user feature. Keep it out of

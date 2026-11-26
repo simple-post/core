@@ -62,6 +62,7 @@ export interface SocialComment {
   author?: SocialActor;
   likeCount?: number;
   replyCount?: number;
+  parentNativeId?: string;
   kind?: "comment" | "reply" | "quote";
   canReply: boolean;
   canLike?: boolean;

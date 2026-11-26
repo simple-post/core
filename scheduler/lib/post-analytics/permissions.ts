@@ -9,7 +9,6 @@ export const ANALYTICS_OAUTH_SCOPES: Partial<Record<string, string[]>> = {
   instagram: ["instagram_business_manage_insights"],
   threads: ["threads_manage_insights"],
   tiktok: ["video.list", "user.info.stats"],
-  linkedin: ["r_member_postAnalytics", "r_member_profileAnalytics"],
   youtube: ["https://www.googleapis.com/auth/yt-analytics.readonly"],
 };
 
@@ -21,7 +20,6 @@ export const ANALYTICS_OAUTH_SCOPES: Partial<Record<string, string[]>> = {
 const REQUIRED_POST_SCOPES: Partial<Record<string, string[]>> = {
   threads: ["threads_manage_insights"],
   tiktok: ["video.list"],
-  linkedin: ["r_member_postAnalytics"],
   facebook: ["pages_read_engagement"],
   pinterest: ["pins:read"],
 };
@@ -49,8 +47,13 @@ export function withAnalyticsScopes(platform: string, scope: string): string {
   return [...current, ...extra.filter((entry) => !current.includes(entry))].join(separator);
 }
 
+export const PAUSED_ANALYTICS_PLATFORMS = ["linkedin"];
+
 export function analyticsScopesEnabled(platform: string): boolean {
-  return !ANALYTICS_OAUTH_SCOPES[platform] || enabledPlatforms().has(platform);
+  return (
+    !PAUSED_ANALYTICS_PLATFORMS.includes(platform) &&
+    (!ANALYTICS_OAUTH_SCOPES[platform] || enabledPlatforms().has(platform))
+  );
 }
 
 function grantedScopes(scope: string | null | undefined): Set<string> | null {
@@ -88,7 +91,7 @@ export function analyticsAccountReadiness(account: {
       reconnectRecommended: false,
     };
   }
-  if (!supportsPostAnalytics(platform)) {
+  if (PAUSED_ANALYTICS_PLATFORMS.includes(platform) || !supportsPostAnalytics(platform)) {
     return {
       ready: false,
       status: "unsupported",
@@ -143,18 +146,25 @@ export function analyticsAccountReadiness(account: {
 /** Account-level analytics need these scopes in addition to the post requirements. */
 const REQUIRED_ACCOUNT_SCOPES: Partial<Record<string, string[]>> = {
   tiktok: ["user.info.stats"],
-  linkedin: ["r_member_profileAnalytics"],
 };
 
 export function accountAnalyticsReadiness(account: { platform: string; scope: string | null }): {
   ready: boolean;
   message?: string;
+  reconnectRecommended?: boolean;
 } {
   const platform = mapPlatformName(account.platform);
-  if (!supportsAccountAnalytics(platform)) return { ready: false, message: "Not available for this platform." };
+  if (PAUSED_ANALYTICS_PLATFORMS.includes(platform) || !supportsAccountAnalytics(platform))
+    return { ready: false, message: "Not available for this platform." };
   const granted = grantedScopes(account.scope);
   const missing = granted ? (REQUIRED_ACCOUNT_SCOPES[platform] ?? []).filter((scope) => !granted.has(scope)) : [];
-  return missing.length > 0
-    ? { ready: false, message: `Reconnect this account to read followers (missing ${missing.join(", ")}).` }
-    : { ready: true };
+  if (missing.length === 0) return { ready: true };
+  const reconnectRecommended = analyticsScopesEnabled(platform);
+  return {
+    ready: false,
+    reconnectRecommended,
+    message: reconnectRecommended
+      ? `Reconnect this account to read followers (missing ${missing.join(", ")}).`
+      : `Follower analytics need a permission that this installation does not request yet (missing ${missing.join(", ")}).`,
+  };
 }

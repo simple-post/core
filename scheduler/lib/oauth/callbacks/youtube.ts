@@ -8,8 +8,10 @@ import { fetchYouTubeChannel } from "@/lib/oauth/youtube-channel";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 
-async function findVerifiedLegacyIdentity(userId: string, channelId: string) {
-  const accounts = await prisma.connectedAccount.findMany({ where: { userId, platform: "youtube" } });
+async function findVerifiedLegacyIdentity(userId: string, channelId: string, workspaceId?: string) {
+  const accounts = await prisma.connectedAccount.findMany({
+    where: { userId, platform: "youtube", workspaceId: workspaceId ?? null },
+  });
   if (accounts.some((account) => account.platformAccountId === channelId)) return undefined;
 
   let previousIdentity: UpsertAccountData["previousIdentity"];
@@ -39,7 +41,7 @@ export async function handleYouTubeCallback(ctx: CallbackContext): Promise<NextR
     return NextResponse.redirect(`${ctx.baseURL}/inbox?connection=permissions`);
   }
   const channel = await fetchYouTubeChannel(ctx.accessToken);
-  const previousIdentity = await findVerifiedLegacyIdentity(ctx.userId, channel.platformAccountId);
+  const previousIdentity = await findVerifiedLegacyIdentity(ctx.userId, channel.platformAccountId, ctx.workspaceId);
   if (
     ctx.inboxIdentity &&
     ctx.inboxIdentity !== channel.platformAccountId &&
@@ -50,6 +52,8 @@ export async function handleYouTubeCallback(ctx: CallbackContext): Promise<NextR
 
   await upsertConnectedAccount({
     userId: ctx.userId,
+    ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+    ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: "youtube",
     ...channel,
     email: null,

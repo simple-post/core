@@ -9,13 +9,13 @@ import { handleApiError } from "@/lib/utils/errors";
 
 async function getPostCounts(userId: string) {
   const [drafts, scheduled, past, failed, failedLatest] = await Promise.all([
-    prisma.post.count({ where: { userId, status: "draft" } }),
-    prisma.post.count({ where: { userId, status: "scheduled" } }),
-    prisma.post.count({ where: { userId, status: "published" } }),
-    prisma.post.count({ where: { userId, status: "failed" } }),
+    prisma.post.count({ where: { userId, workspaceReviewId: null, status: "draft" } }),
+    prisma.post.count({ where: { userId, workspaceReviewId: null, status: "scheduled" } }),
+    prisma.post.count({ where: { userId, workspaceReviewId: null, status: "published" } }),
+    prisma.post.count({ where: { userId, workspaceReviewId: null, status: "failed" } }),
     prisma.post.aggregate({
       _max: { updatedAt: true },
-      where: { userId, status: "failed" },
+      where: { userId, workspaceReviewId: null, status: "failed" },
     }),
   ]);
 

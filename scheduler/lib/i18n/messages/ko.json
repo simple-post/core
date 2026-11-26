@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "인증 요청의 플랫폼이 일치하지 않습니다.",
   "oauthTokenExchangeFailed": "인증을 완료하지 못했습니다. 다시 시도하세요.",
   "oauthProfileFetchFailed": "계정 프로필을 불러오지 못했습니다. 다시 시도하세요.",
+  "oauthReconnectAccountMismatch": "다시 연결하려면 같은 계정을 선택하세요.",
   "oauthYoutubeNoChannel": "승인된 YouTube 채널이 없습니다. 다시 연결한 후 채널을 소유한 Google 계정 또는 브랜드 계정을 선택하세요. YouTube Studio 초대만으로는 API에 액세스할 수 없습니다.",
   "oauthYoutubeAmbiguous": "YouTube 채널을 하나로 특정하지 못했습니다. 다시 연결해 사용할 채널 또는 브랜드 계정을 선택하세요.",
   "oauthNoToken": "액세스 토큰을 받지 못했습니다. 다시 시도하세요.",

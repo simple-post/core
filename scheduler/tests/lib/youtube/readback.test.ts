@@ -43,7 +43,7 @@ afterAll(() => {
 it("does not refresh or call the provider for an account outside the current user", async () => {
   lookup.mockResolvedValue(null);
   await expect(getYouTubeLibrary("other-user", "account")).rejects.toThrow("Account not found");
-  expect(lookup).toHaveBeenCalledWith({ where: { id: "account", userId: "other-user" } });
+  expect(lookup).toHaveBeenCalledWith({ where: { id: "account", userId: "other-user", workspaceId: null } });
   expect(refresh).not.toHaveBeenCalled();
   expect(fetchMock).not.toHaveBeenCalled();
 });

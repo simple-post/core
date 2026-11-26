@@ -80,6 +80,8 @@ export async function handleInstagramCallback(ctx: CallbackContext): Promise<Nex
   }
   await upsertConnectedAccount({
     userId: ctx.userId,
+    ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+    ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: "instagram",
     platformAccountId: String(platformAccountId),
     accessToken: longLivedToken,

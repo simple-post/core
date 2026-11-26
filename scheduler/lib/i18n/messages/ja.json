@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "認証リクエストのプラットフォームが一致しません。",
   "oauthTokenExchangeFailed": "認証を完了できませんでした。もう一度お試しください。",
   "oauthProfileFetchFailed": "アカウントのプロフィールを取得できませんでした。もう一度お試しください。",
+  "oauthReconnectAccountMismatch": "再連携するには、同じアカウントを選択してください。",
   "oauthYoutubeNoChannel": "YouTube チャンネルが認証されていません。もう一度接続し、チャンネルの所有者である Google アカウントまたはブランド アカウントを選択してください。YouTube Studio への招待だけでは API にアクセスできません。",
   "oauthYoutubeAmbiguous": "YouTube チャンネルを 1 つに特定できませんでした。もう一度接続し、使用するチャンネルまたはブランド アカウントを選択してください。",
   "oauthNoToken": "アクセストークンを取得できませんでした。もう一度お試しください。",

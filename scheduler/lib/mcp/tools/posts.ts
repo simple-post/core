@@ -1092,7 +1092,7 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   const replacingSocialAccounts =
     currentPost.status === "scheduled"
       ? await prisma.connectedAccount.findMany({
-          where: { userId, id: { in: currentPost.accountIds } },
+          where: { userId, workspaceId: null, id: { in: currentPost.accountIds } },
           select: { platform: true },
         })
       : [];

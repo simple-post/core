@@ -10,11 +10,9 @@ import { ClipboardCheck } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { DashboardStatusTabs, TabCountBadge } from "@/components/dashboard-status-tabs";
 import { Navbar } from "@/components/navbar";
-import { PlatformIconBadge } from "@/components/platform-icons";
 import { PostsDashboard } from "@/components/posts-dashboard";
 import { PostListFooter } from "@/components/posts-list";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { AccountsHeading, AccountCardView, ConnectAccountsEmpty } from "@/components/visual/account-card";
 import { PostCardView } from "@/components/visual/post-card";
 import { useSession } from "@/lib/auth/auth-client";
 
@@ -23,6 +21,7 @@ import { PostDetail } from "./detail";
 import { PostEditor } from "./editor";
 import { variantMedia } from "./preview";
 import { TeamSettings } from "./settings";
+import { WorkspaceSettingsLayout } from "./settings-layout";
 import { workspaceHref, useWorkspaceIndex } from "./switcher";
 import { deliveryStatus, displayDate, json, request, type Run, type Workspace } from "./types";
 
@@ -34,7 +33,7 @@ export function TeamScreen({
 }: {
   id: string;
   postId?: string;
-  view: "dashboard" | "compose" | "edit" | "detail" | "accounts";
+  view: "dashboard" | "compose" | "edit" | "detail" | "settings";
   embedded?: boolean;
 }) {
   const router = useRouter();
@@ -106,12 +105,7 @@ export function TeamScreen({
     const approvalCount = w.posts.filter((p) => p.stateId === reviewState?.id).length;
     for (const post of w.posts) counts[statusTab[deliveryStatus(post)]]++;
     const requested = params.get("tab") ?? "drafts";
-    const tab =
-      Object.hasOwn(counts, requested) ||
-      requested === "approvals" ||
-      (requested === "settings" && w.member.role === "Admin")
-        ? requested
-        : "drafts";
+    const tab = Object.hasOwn(counts, requested) || requested === "approvals" ? requested : "drafts";
     const posts = w.posts.filter((p) =>
       tab === "approvals" ? p.stateId === reviewState?.id : statusTab[deliveryStatus(p)] === tab,
     );
@@ -129,109 +123,85 @@ export function TeamScreen({
           />
         }>
         {notice}
-        {tab === "settings" ? (
-          <fieldset disabled={busy}>
-            <TeamSettings workspace={w} run={run} />
-          </fieldset>
-        ) : (
-          <Tabs
-            value={tab}
-            onValueChange={(t) => {
-              setPage(1);
-              router.replace(href("/?tab=" + t), { scroll: false });
-            }}>
-            <DashboardStatusTabs
-              counts={counts}
-              extra={[
-                {
-                  id: "approvals",
-                  label: "Approvals",
-                  icon: <ClipboardCheck className="hidden h-3.5 w-3.5 sm:block" />,
-                  badge: <TabCountBadge count={approvalCount} className="ml-0 sm:ml-1" />,
-                },
-              ]}
-            />
-            <TabsContent value={tab} className="mt-0 space-y-3">
-              {posts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p) => (
-                <Link
-                  key={p.id}
-                  className="block"
-                  href={tab === "approvals" ? href("/posts/" + p.id + "?review=1") : postHref(p.id)}>
-                  <PostCardView
-                    post={{
-                      message: p.variants[0]?.caption || p.title,
-                      status: deliveryStatus(p),
-                      media: variantMedia(id, w.files, p.variants[0]),
-                    }}
-                    platforms={p.variants.map((v) => v.platform)}
-                    dateLabel={displayDate(p.plannedAt)}
-                    accountLabels={p.variants.map((v) => v.destination?.label).filter((name): name is string => !!name)}
-                  />
-                </Link>
-              ))}
-              {posts.length > 0 && (
-                <PostListFooter
-                  pagination={{
-                    totalPages,
-                    total: posts.length,
-                    limit: pageSize,
-                    page: currentPage,
-                    hasNextPage: currentPage < totalPages,
-                    hasPreviousPage: currentPage > 1,
+        <Tabs
+          value={tab}
+          onValueChange={(t) => {
+            setPage(1);
+            router.replace(href("/?tab=" + t), { scroll: false });
+          }}>
+          <DashboardStatusTabs
+            counts={counts}
+            extra={[
+              {
+                id: "approvals",
+                label: "Approvals",
+                icon: <ClipboardCheck className="hidden h-3.5 w-3.5 sm:block" />,
+                badge: <TabCountBadge count={approvalCount} className="ml-0 sm:ml-1" />,
+              },
+            ]}
+          />
+          <TabsContent value={tab} className="mt-0 space-y-3">
+            {posts.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p) => (
+              <Link
+                key={p.id}
+                className="block"
+                href={tab === "approvals" ? href("/posts/" + p.id + "?review=1") : postHref(p.id)}>
+                <PostCardView
+                  post={{
+                    message: p.variants[0]?.caption || p.title,
+                    status: deliveryStatus(p),
+                    media: variantMedia(id, w.files, p.variants[0]),
                   }}
-                  pageSize={pageSize}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
+                  draftLabel={w.states.find((state) => state.id === p.stateId)?.name}
+                  platforms={p.variants.map((v) => v.platform)}
+                  dateLabel={displayDate(p.plannedAt)}
+                  accountLabels={p.variants.map((v) => v.destination?.label).filter((name): name is string => !!name)}
                 />
-              )}
-              {posts.length === 0 && (
-                <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                  {tab === "approvals" ? "No posts awaiting approval." : "No posts in this view."}
-                </p>
-              )}
-            </TabsContent>
-          </Tabs>
-        )}
+              </Link>
+            ))}
+            {posts.length > 0 && (
+              <PostListFooter
+                pagination={{
+                  totalPages,
+                  total: posts.length,
+                  limit: pageSize,
+                  page: currentPage,
+                  hasNextPage: currentPage < totalPages,
+                  hasPreviousPage: currentPage > 1,
+                }}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
+            )}
+            {posts.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                {tab === "approvals" ? "No posts awaiting approval." : "No posts in this view."}
+              </p>
+            )}
+          </TabsContent>
+        </Tabs>
       </PostsDashboard>
     );
   }
-  if (view === "accounts" && w) {
-    const owner = w.creatorId === w.member.userId;
-    const manage = owner ? (
-      <Link href="/accounts" className="text-sm text-primary">
-        Manage personal connections
-      </Link>
-    ) : null;
+  if (view === "settings") {
+    const sections = [
+      { id: "general", label: "General" },
+      { id: "members", label: "Members" },
+      { id: "workflow", label: "Approval workflow" },
+      ...(w?.files.length ? [{ id: "files", label: "Files" }] : []),
+    ];
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-          <AccountsHeading action={manage} />
-          {w.accounts.length > 0 ? (
-            <div className="space-y-3">
-              {w.accounts.map((a) => (
-                <AccountCardView
-                  key={a.id}
-                  avatar={<PlatformIconBadge platform={a.platform} />}
-                  name={a.displayName || a.username || a.platform}
-                  platform={a.platform}
-                  actions={null}
-                />
-              ))}
-            </div>
-          ) : (
-            <ConnectAccountsEmpty
-              title={owner ? "No connected accounts" : "Publishing accounts"}
-              description={
-                owner
-                  ? "Connect a personal account to make it available when planning a team post."
-                  : "The workspace creator manages connected accounts. You can plan posts for native publishing."
-              }
-              action={null}
-            />
-          )}
-        </main>
-      </div>
+      <WorkspaceSettingsLayout id={id} name={w?.name} color={w?.color} sections={w ? sections : []}>
+        {notice}
+        {w ? (
+          <fieldset disabled={busy || w.member.role !== "Admin"}>
+            <TeamSettings workspace={w} run={run} />
+          </fieldset>
+        ) : (
+          !notice && <p role="status">{pending || current ? "Loading workspace…" : "Workspace unavailable."}</p>
+        )}
+      </WorkspaceSettingsLayout>
     );
   }
   const day = params.get("day");

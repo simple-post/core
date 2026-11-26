@@ -46,7 +46,7 @@ export function formatConnectAccountsGuidance(
 }
 
 export async function hasConnectedAccounts(userId: string): Promise<boolean> {
-  return (await prisma.connectedAccount.count({ where: { userId }, take: 1 })) > 0;
+  return (await prisma.connectedAccount.count({ where: { userId, workspaceId: null }, take: 1 })) > 0;
 }
 
 export function noConnectedAccountsError(): McpToolError {

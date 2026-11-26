@@ -1,6 +1,8 @@
+import type { WorkspaceColor } from "@/lib/workspaces/colors";
 import type { Snapshot, Variant, WorkspaceCommand } from "@/lib/workspaces/contracts";
 export type WorkspaceIndex = {
-  workspaces: { id: string; name: string; icon: string; role: string }[];
+  personal: { name: string; color: WorkspaceColor };
+  workspaces: { id: string; name: string; icon: string; color: WorkspaceColor; role: string; canManage: boolean }[];
   invites: { id: string; workspaceId: string; workspace: { name: string } }[];
 };
 export type Member = { userId: string; role: string; approver: boolean; user: { name: string; email: string } };
@@ -28,6 +30,7 @@ export type Workspace = {
   id: string;
   name: string;
   icon: string;
+  color: WorkspaceColor;
   description: string;
   creatorId: string;
   member: { userId: string; role: string; approver: boolean };

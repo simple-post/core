@@ -29,7 +29,7 @@ Bluesky and X have dedicated endpoints for finding quote posts. Threads exposes 
 
 ### Setting up a dev account
 
-Register the Scheduler's HTTPS callback for each provider, using `/api/connect/callback/{platform}` on the dev origin. Connect the publishing account first. After granting the user inbox access, open **Inbox → … → Connections → Grant inbox permissions** for that same account.
+Register the Scheduler's HTTPS callback for each provider, using `/api/connect/callback/{platform}` on the dev origin. Connect the publishing account first. After granting the user inbox access, open **Reconnect** on the account warning in **Inbox** for that same account.
 
 | Provider       | Dev configuration and limits                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -64,9 +64,9 @@ Deploy the additive Prisma migration using the normal scheduler release process.
 
 `POST_ANALYTICS` and `SOCIAL_INBOX` are independent grants. Social account connections and reconnects start with publishing scopes and add the scopes for the user's grants and the selected platform. A user with both grants can consent to both sets in one flow. Existing connections gain permissions when their owners reconnect and consent.
 
-For Inbox, the default platforms are Facebook, Instagram, Threads, YouTube, and X. X requests `like.write`. Bluesky already authorizes replies and likes through its existing connection. Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to override the platform list, or set it to an empty value to disable additional Inbox requests. TikTok's pilot scopes cover [analytics](../post-analytics/platform-permissions.md).
+For Inbox, the default platforms are Facebook, Instagram, Threads, YouTube, and X. X requests `like.read` to check the connected user’s recent likes and `like.write` to like a reply. Conversation search can also find replies that the connected user sent directly on X. Bluesky already authorizes replies and likes through its existing connection. Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to override the platform list, or set it to an empty value to disable additional Inbox requests. TikTok's pilot scopes cover [analytics](../post-analytics/platform-permissions.md).
 
-An invited user can also select **Grant inbox permissions** on an existing connection. If the inbox consent is incomplete or the provider returns a different account, SimplePost keeps the original connection. During provider review, the tester needs an account that can authorize the new scopes on that developer app.
+Inbox checks for recent activity while it is open. Use **Refresh inbox** to check again or **Check older posts** to continue the scan. Open a comment on its platform or use **Preview original post** to see what the person replied to. A reconnect must return the same account. During provider review, the tester needs an account that can authorize the new scopes on that developer app.
 
 ## SDK and clients
 

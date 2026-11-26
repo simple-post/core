@@ -79,7 +79,7 @@ export const listAccountsOutputSchema = z.object({
 export async function listAccounts(userId: string): Promise<z.infer<typeof listAccountsOutputSchema>> {
   const [accounts, billing] = await Promise.all([
     prisma.connectedAccount.findMany({
-      where: { userId },
+      where: { userId, workspaceId: null },
       orderBy: { createdAt: "desc" },
     }),
     getBillingStatus(userId),

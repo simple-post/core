@@ -45,6 +45,7 @@ export default function ConnectAccountPickerPage() {
   const params = useParams<{ platform: string }>();
   const searchParams = useSearchParams();
   const pendingId = searchParams.get("pendingId");
+  const workspace = searchParams.get("workspace");
   const platformId = params.platform;
 
   const [pending, setPending] = useState<PendingConnection | null>(null);
@@ -125,7 +126,7 @@ export default function ConnectAccountPickerPage() {
 
       const data = await response.json();
       router.push(
-        `/accounts?success=true&platform=${platformId}&count=${data.count || 0}${data.source === "assistant_handoff" ? "&source=assistant_handoff" : ""}`,
+        `/accounts?success=true&platform=${platformId}&count=${data.count || 0}${data.source === "assistant_handoff" ? "&source=assistant_handoff" : ""}${data.workspaceId ? `&workspace=${encodeURIComponent(data.workspaceId)}` : ""}`,
       );
     } catch {
       setError("connectAccountsFailed");
@@ -239,7 +240,13 @@ export default function ConnectAccountPickerPage() {
         </div>
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" onClick={() => router.push("/accounts")} disabled={submitting} className="flex-1">
+          <Button
+            variant="outline"
+            onClick={() =>
+              router.push(workspace ? `/accounts?workspace=${encodeURIComponent(workspace)}` : "/accounts")
+            }
+            disabled={submitting}
+            className="flex-1">
             {t("cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={submitting || selectedIds.length === 0} className="flex-1">

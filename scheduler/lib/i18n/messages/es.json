@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "La plataforma de la solicitud de autorización no coincide.",
   "oauthTokenExchangeFailed": "No se pudo completar la autorización. Vuelve a intentarlo.",
   "oauthProfileFetchFailed": "No se pudo cargar el perfil de tu cuenta. Vuelve a intentarlo.",
+  "oauthReconnectAccountMismatch": "Elige la misma cuenta para volver a conectarla.",
   "oauthYoutubeNoChannel": "No se autorizó ningún canal de YouTube. Vuelve a conectar y selecciona la cuenta de Google o de marca que sea propietaria de tu canal. Las invitaciones de YouTube Studio por sí solas no dan acceso a la API.",
   "oauthYoutubeAmbiguous": "No se pudo identificar un único canal de YouTube. Vuelve a conectar y selecciona el canal o la cuenta de marca que quieres usar.",
   "oauthNoToken": "No se recibió ningún token de acceso. Vuelve a intentarlo.",

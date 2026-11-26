@@ -18,6 +18,7 @@ import { queryKeys } from "@/lib/query-client";
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 
 export interface AnalyticsFilters {
+  workspace?: string;
   period: AnalyticsPeriod;
   from?: string;
   to?: string;
@@ -148,6 +149,7 @@ export function useRefreshAnalytics() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
+      workspace?: string;
       period?: AnalyticsPeriod;
       from?: string;
       to?: string;
@@ -156,11 +158,16 @@ export function useRefreshAnalytics() {
       platforms?: string[];
       force?: boolean;
     }) => {
-      const response = await fetch("/api/v1/analytics/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const response = await fetch(
+        body.workspace
+          ? `/api/v1/analytics/refresh?workspace=${encodeURIComponent(body.workspace)}`
+          : "/api/v1/analytics/refresh",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       if (!response.ok)
         throw new ApiResponseError(
           await response.json().catch(() => null),

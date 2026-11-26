@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "المنصة في طلب التفويض غير مطابقة.",
   "oauthTokenExchangeFailed": "تعذّر إكمال التفويض. أعد المحاولة.",
   "oauthProfileFetchFailed": "تعذّر تحميل ملف حسابك. أعد المحاولة.",
+  "oauthReconnectAccountMismatch": "اختر الحساب نفسه لإعادة ربطه.",
   "oauthYoutubeNoChannel": "لم يتم تفويض أي قناة على YouTube. أعد الربط واختر حساب Google أو حساب العلامة التجارية المالك لقناتك. لا تمنح دعوات YouTube Studio وحدها وصولًا إلى API.",
   "oauthYoutubeAmbiguous": "تعذّر تحديد قناة واحدة على YouTube. أعد الربط واختر القناة أو حساب العلامة التجارية الذي تريد استخدامه.",
   "oauthNoToken": "لم يُستلم رمز وصول. أعد المحاولة.",

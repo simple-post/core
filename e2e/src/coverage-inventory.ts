@@ -5,6 +5,10 @@ import { platforms } from "./types.js";
 // Gaps stay visible in plans/reports. A newly added SDK option must receive either a scenario
 // or an explicit classification; schema growth must not silently shrink acceptance coverage.
 const gaps: Record<string, string> = {
+  "instagram.placement":
+    "Mocked publishing tests cover Reel and Story placement and retrying only the failed Story. Live verification needs an eligible Instagram Business account and a Story verifier.",
+  "facebook.placement":
+    "Mocked publishing tests cover the Page Story upload and publish flow. Live verification needs a Page with Story publishing permission and a Story verifier.",
   "facebook.publishAt":
     "Platform-native scheduling needs a separate owner scheduled-post verifier; SimplePost scheduling is covered.",
   "youtube.publishAt":

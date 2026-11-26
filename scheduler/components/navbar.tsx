@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 
 import { Plus } from "lucide-react";
 
-import { HelpLink } from "@/components/help-link";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { WorkspaceSwitcher, useWorkspaceIndex, workspaceHref } from "@/components/workspaces/switcher";
@@ -58,35 +57,32 @@ export function Navbar({ actions }: NavbarProps) {
           "sticky top-0 z-50 bg-background/80 backdrop-blur-[10px] transition-all duration-200",
           scrolled && "border-b border-border",
         )}>
-        <div className={cn("mx-auto flex h-14 max-w-6xl items-center gap-2 px-6 sm:gap-3", current && "max-sm:px-3")}>
+        <div className={cn("mx-auto flex h-14 max-w-6xl items-center gap-1 px-3 sm:gap-3 sm:px-6")}>
           <Link
             href={workspaceHref("/", id)}
             className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
             aria-label={t("simplePostHome")}>
-            <SimplePostBrand logoSrc="/simplepost-logo.png" />
+            <SimplePostBrand logoSrc="/simplepost-logo.png" showName={false} />
           </Link>
 
           <WorkspaceSwitcher />
           <WorkspaceNavigation
             showAnalytics={hasFeature("POST_ANALYTICS")}
             active={activeSection}
+            includeAccounts={false}
             includeInbox={!readOnly && hasFeature("SOCIAL_INBOX")}
-            renderItem={({ id, label, className, children }) => (
+            renderItem={({ id: section, label, className, children }) => (
               <Link
-                href={
-                  id === "posts" || id === "accounts"
-                    ? workspaceHref(id === "posts" ? "/" : "/accounts", current?.id)
-                    : `/${id}`
-                }
+                href={workspaceHref(section === "posts" ? "/" : `/${section}`, id)}
                 aria-label={label}
-                aria-current={id === activeSection ? "page" : undefined}
+                aria-current={section === activeSection ? "page" : undefined}
                 className={className}>
                 {children}
               </Link>
             )}
           />
 
-          <div className="ms-auto flex flex-shrink-0 items-center gap-2 sm:gap-3">
+          <div className="ms-auto flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
             {!readOnly && actions}
             {showCreateCta && (
               <Button asChild size="sm" className="gap-2">
@@ -96,8 +92,7 @@ export function Navbar({ actions }: NavbarProps) {
                 </Link>
               </Button>
             )}
-            <HelpLink className="shrink-0 py-2">{t("help")}</HelpLink>
-            <UserMenu />
+            <UserMenu accountsHref={workspaceHref("/accounts", id)} />
           </div>
         </div>
       </header>

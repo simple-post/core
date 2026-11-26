@@ -257,6 +257,8 @@ export async function handleGenericCallback(ctx: CallbackContext): Promise<NextR
 
   await upsertConnectedAccount({
     userId: ctx.userId,
+    ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+    ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: ctx.platform,
     platformAccountId,
     accessToken: ctx.accessToken,

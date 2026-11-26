@@ -16,6 +16,7 @@ export const inboxPlatformSchema = z.enum([
 
 export const inboxQuerySchema = z.object({
   platform: inboxPlatformSchema.optional(),
+  platforms: z.array(inboxPlatformSchema).max(11).optional(),
   kind: z.enum(["comment", "reply", "quote"]).optional(),
   accountId: z.string().min(1).max(100).optional(),
   needsReply: z.boolean().optional(),
@@ -26,6 +27,7 @@ export const inboxQuerySchema = z.object({
 export const inboxRefreshSchema = z.object({
   platform: inboxPlatformSchema.optional(),
   reset: z.boolean().optional(),
+  automatic: z.boolean().optional(),
 });
 
 export const inboxItemIdSchema = z.string().min(1).max(100);
@@ -59,6 +61,13 @@ export const inboxItemSchema = z.object({
   accountUsername: z.string().optional(),
   postId: z.string(),
   sourceBody: z.string(),
+  sourcePreview: z
+    .object({
+      media: z.array(z.looseObject({ id: z.string(), url: z.string(), type: z.enum(["image", "video"]) })),
+      profilePicture: z.string().nullable(),
+      publishedAt: z.string().optional(),
+    })
+    .optional(),
   sourceUrl: z.string().optional(),
   nativeUrl: z.string().optional(),
   body: z.string(),

@@ -21,6 +21,7 @@ import { getRefreshTokenExpiresAt } from "@/lib/oauth/credential-health";
 import { OAuthStateError } from "@/lib/oauth/state";
 import { prisma } from "@/lib/prisma";
 import { enabledInboxScopes, hasInboxScopes } from "@/lib/social/permissions";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 import type { Prisma } from "@prisma/client";
 
@@ -45,6 +46,7 @@ function mergeTokenMetadata(
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   const baseURL = env.NEXT_PUBLIC_APP_URL;
   const { platform } = await params;
+  let workspaceId: string | undefined;
   let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
@@ -54,6 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (context.platform === platform) {
         measurementUserId = context.userId;
         source = context.source;
+        workspaceId = context.workspaceId;
       }
     }
   } catch {
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const errorRedirect = (code: Parameters<typeof getErrorRedirectUrl>[0]) => {
     const url = new URL(getErrorRedirectUrl(code, baseURL));
     if (source) url.searchParams.set("source", source);
+    if (workspaceId) url.searchParams.set("workspace", workspaceId);
     return url.href;
   };
   const failure = async (reason: string) =>
@@ -88,7 +92,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (error || errorReason) {
       authLogger.warn({ platform, error, errorReason, errorDescription }, "OAuth provider returned error");
       await failure("authorization_denied");
-      return NextResponse.redirect(errorRedirect("authorization_denied"));
+      const redirect = new URL(errorRedirect("authorization_denied"));
+      if (platform === "tiktok" && (error === "invalid_scope" || errorReason === "invalid_scope"))
+        redirect.searchParams.set("scopeUnavailable", "tiktok");
+      return NextResponse.redirect(redirect);
     }
 
     if (!code || !state) {
@@ -131,6 +138,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(errorRedirect("unknown_error"));
     }
 
+    await workspaceConnections(userId, stateData.workspaceId ?? null, true);
     const { pilotScopes } = stateData;
     if (pilotScopes?.analytics && !(await hasFeature(userId, "POST_ANALYTICS"))) {
       return NextResponse.redirect(errorRedirect("invalid_state"));
@@ -141,7 +149,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const inboxScopes = stateData.inboxAccountId ? enabledInboxScopes(platform) : [];
     if (stateData.inboxAccountId) {
       const account = await prisma.connectedAccount.findFirst({
-        where: { id: stateData.inboxAccountId, userId, platform },
+        where: { id: stateData.inboxAccountId, userId, platform, workspaceId: workspaceId ?? null },
         select: { platformAccountId: true },
       });
       if (!account || inboxScopes.length === 0) return NextResponse.redirect(errorRedirect("invalid_state"));
@@ -199,8 +207,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           ?.filter((row) => row.status === "granted")
           .map((row) => row.permission)
           .join(",");
-      } else if (platform === "threads") {
-        const url = new URL("https://graph.threads.com/v1.0/debug_token");
+      } else if (platform === "threads" && !tokenData.scope) {
+        const url = new URL("https://graph.threads.net/debug_token");
         url.searchParams.set("input_token", accessToken);
         const response = await fetch(url, {
           headers: { Authorization: `Bearer TH|${config.clientId}|${config.clientSecret}` },
@@ -211,7 +219,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if (!response.ok) return NextResponse.redirect(errorRedirect("token_exchange_failed"));
         const { data } = await response.json();
         tokenData.scope = data?.is_valid === true && Array.isArray(data.scopes) ? data.scopes.join(" ") : undefined;
-      } else if (platform !== "instagram") {
+      } else if (platform !== "instagram" && platform !== "tiktok" && platform !== "threads") {
         // OAuth permits omitting scope when it matches the authorization request.
         tokenData.scope ??= pilotScopes?.scope ?? [...config.scope.split(/[\s,]+/u), ...inboxScopes].join(" ");
       }
@@ -234,6 +242,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       tokenMetadata,
       source,
       inboxIdentity,
+      workspaceId,
+      reconnectAccountId: stateData.reconnectAccountId,
     });
 
     // A provider can return a selection screen or an error; neither is a completed connection.
@@ -248,8 +258,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
       if (destination.pathname === "/accounts" && destination.searchParams.has("error"))
         await failure("provider_setup_incomplete");
-      if (source && destination.origin === new URL(baseURL).origin) {
-        destination.searchParams.set("source", source);
+      if ((source || workspaceId) && destination.origin === new URL(baseURL).origin) {
+        if (source) destination.searchParams.set("source", source);
+        if (workspaceId) destination.searchParams.set("workspace", workspaceId);
         response.headers.set("location", destination.href);
       }
     }

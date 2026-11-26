@@ -5,18 +5,25 @@ import { createServerCopy, serverMessage } from "@/lib/i18n/server";
 import { requireAuth } from "@/lib/middleware/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, NotFoundError, ForbiddenError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const session = await requireAuth(request, { action: "disconnect_social_account", connectedAccountId: id });
 
+    const { workspaceId } = await workspaceConnections(
+      session.user.id,
+      request.nextUrl.searchParams.get("workspace"),
+      true,
+    );
+
     // Check if the account exists and belongs to the user
     const account = await prisma.connectedAccount.findUnique({
       where: { id },
     });
 
-    if (!account) {
+    if (!account || account.workspaceId !== workspaceId) {
       throw new NotFoundError(serverMessage("Account not found"));
     }
 

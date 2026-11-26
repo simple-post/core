@@ -8,7 +8,6 @@ import {
   normalizePostMetrics,
   PLATFORM_ANALYTICS_CAPABILITIES,
   supportsAccountAnalytics,
-  supportsPostAnalytics,
   type AccountAnalyticsResponse,
   type PostAnalytics as SdkPostAnalytics,
   type PostMetrics,
@@ -28,7 +27,7 @@ import type { ConnectedAccount } from "@/types";
 
 import { backgroundRefreshPlatforms, startOfUtcDay, xDailyPostReadLimit } from "./config";
 import { ACCOUNT_ANALYTICS_TTL_MS, canForceRefresh, isStale, nextRefreshAt, snapshotIntervalMs } from "./freshness";
-import { analyticsAccountReadiness } from "./permissions";
+import { analyticsAccountReadiness, PAUSED_ANALYTICS_PLATFORMS } from "./permissions";
 import { analyticsSeedsForPost, analyticsTargetFor, type AnalyticsSourcePost } from "./targets";
 
 const log = createLogger("post-analytics");
@@ -37,9 +36,12 @@ const log = createLogger("post-analytics");
 const LEASE_MS = 2 * 60_000;
 /** Concurrent connected accounts refreshed at once. */
 const ACCOUNT_CONCURRENCY = 3;
-const PLATFORMS_WITHOUT_POST_ANALYTICS = Object.entries(PLATFORM_ANALYTICS_CAPABILITIES)
-  .filter(([, capability]) => !capability.posts)
-  .map(([platform]) => platform);
+const PLATFORMS_WITHOUT_POST_ANALYTICS = [
+  ...PAUSED_ANALYTICS_PLATFORMS,
+  ...Object.entries(PLATFORM_ANALYTICS_CAPABILITIES)
+    .filter(([, capability]) => !capability.posts)
+    .map(([platform]) => platform),
+];
 
 /** Posts updated this recently are re-seeded even when they already have analytics rows. */
 const RECENT_UPDATE_WINDOW_MS = 2 * 24 * 60 * 60_000;
@@ -122,8 +124,10 @@ export async function ensureAnalyticsRows(posts: AnalyticsSourcePost[]): Promise
     data: seeds.map((seed) => ({
       ...seed,
       sourcePostId: seed.platformPostId,
-      status: supportsPostAnalytics(seed.platform) ? "pending" : "unsupported",
-      nextRefreshAt: supportsPostAnalytics(seed.platform) ? new Date() : new Date("9999-01-01T00:00:00Z"),
+      status: PLATFORMS_WITHOUT_POST_ANALYTICS.includes(seed.platform) ? "unsupported" : "pending",
+      nextRefreshAt: PLATFORMS_WITHOUT_POST_ANALYTICS.includes(seed.platform)
+        ? new Date("9999-01-01T00:00:00Z")
+        : new Date(),
     })),
     skipDuplicates: true,
   });
@@ -138,7 +142,7 @@ export async function ensureAnalyticsRows(posts: AnalyticsSourcePost[]): Promise
   const byKey = new Map(existing.map((row) => [`${row.postId}:${row.accountId}`, row]));
   for (const seed of seeds) {
     const row = byKey.get(`${seed.postId}:${seed.accountId}`);
-    if (row && row.sourcePostId !== seed.platformPostId) {
+    if (row && row.sourcePostId !== seed.platformPostId && !PAUSED_ANALYTICS_PLATFORMS.includes(seed.platform)) {
       await prisma.postAnalytics.update({
         where: { id: row.id },
         data: {
@@ -156,12 +160,15 @@ export async function ensureAnalyticsRows(posts: AnalyticsSourcePost[]): Promise
 /** Published (or partially published) posts of a user that may need analytics rows. */
 export async function ensureAnalyticsRowsForUser(
   userId: string,
-  options: { since?: Date; postIds?: string[]; limit?: number } = {},
+  options: { since?: Date; postIds?: string[]; limit?: number; workspaceId?: string | null } = {},
 ): Promise<void> {
   const posts = await prisma.post.findMany({
     where: {
       userId,
       status: { in: ["published", "failed"] },
+      ...(options.workspaceId
+        ? { workspaceReview: { post: { workspaceId: options.workspaceId } } }
+        : { workspaceReviewId: null }),
       ...(options.postIds ? { id: { in: options.postIds } } : {}),
       ...(options.since
         ? { OR: [{ publishedAt: { gte: options.since } }, { updatedAt: { gte: options.since } }] }
@@ -219,6 +226,7 @@ interface ClaimedRow {
 export async function refreshPostAnalytics(params: {
   userId?: string;
   rowIds?: string[];
+  workspaceId?: string | null;
   postIds?: string[];
   force?: boolean;
   limit?: number;
@@ -237,7 +245,13 @@ export async function refreshPostAnalytics(params: {
   const candidates = await prisma.postAnalytics.findMany({
     where: {
       ...(params.reason === "background" ? { user: usersWithFeature(Feature.POST_ANALYTICS) } : {}),
-      ...(params.userId ? { userId: params.userId } : {}),
+      ...(params.userId
+        ? {
+            userId: params.userId,
+            account: { workspaceId: params.workspaceId ?? null },
+            ...(params.workspaceId ? {} : { post: { workspaceReviewId: null } }),
+          }
+        : {}),
       ...(params.rowIds ? { id: { in: params.rowIds } } : {}),
       ...(params.postIds ? { postId: { in: params.postIds } } : {}),
       // Platforms without post analytics are never read; every other row, including ones
@@ -556,6 +570,7 @@ function utcDay(date: Date): Date {
 export async function refreshAccountAnalytics(params: {
   userId?: string;
   accountIds?: string[];
+  workspaceId?: string | null;
   force?: boolean;
   limit?: number;
   reason?: "manual" | "background";
@@ -570,6 +585,7 @@ export async function refreshAccountAnalytics(params: {
   const platforms = Object.keys(PLATFORM_ANALYTICS_CAPABILITIES).filter(
     (platform) =>
       supportsAccountAnalytics(platform) &&
+      !PAUSED_ANALYTICS_PLATFORMS.includes(platform) &&
       (!params.platforms || params.platforms.includes(platform)) &&
       (!background?.include || background.include.includes(platform)) &&
       !background?.exclude?.includes(platform),
@@ -578,7 +594,7 @@ export async function refreshAccountAnalytics(params: {
   const accounts = await prisma.connectedAccount.findMany({
     where: {
       ...(params.reason === "background" ? { user: usersWithFeature(Feature.POST_ANALYTICS) } : {}),
-      ...(params.userId ? { userId: params.userId } : {}),
+      ...(params.userId ? { userId: params.userId, workspaceId: params.workspaceId ?? null } : {}),
       platform: { in: platforms, mode: "insensitive" },
       ...(params.accountIds ? { id: { in: params.accountIds } } : {}),
       OR: [
@@ -685,6 +701,7 @@ export async function refreshAnalyticsForUser(
   userId: string,
   options: {
     since?: Date;
+    workspaceId?: string | null;
     postIds?: string[];
     force?: boolean;
     budgetMs?: number;
@@ -694,12 +711,14 @@ export async function refreshAnalyticsForUser(
     platforms?: string[];
   } = {},
 ): Promise<{ posts: RefreshOutcome; accounts: number }> {
+  const { workspaceId } = options;
   const platforms = options.platforms?.length
     ? options.platforms.map((platform) => mapPlatformName(platform))
     : undefined;
-  await ensureAnalyticsRowsForUser(userId, { since: options.since, postIds: options.postIds });
+  await ensureAnalyticsRowsForUser(userId, { since: options.since, postIds: options.postIds, workspaceId });
   const posts = await refreshPostAnalytics({
     userId,
+    workspaceId,
     postIds: options.postIds,
     force: options.force,
     limit: options.limit ?? 150,
@@ -709,6 +728,12 @@ export async function refreshAnalyticsForUser(
     ...(platforms ? { platforms: { include: platforms } } : {}),
   });
   if (options.accounts === false) return { posts, accounts: 0 };
-  const accounts = await refreshAccountAnalytics({ userId, force: options.force, reason: "manual", platforms });
+  const accounts = await refreshAccountAnalytics({
+    userId,
+    force: options.force,
+    reason: "manual",
+    platforms,
+    workspaceId,
+  });
   return { posts, accounts: accounts.refreshed };
 }

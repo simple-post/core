@@ -13,6 +13,7 @@ import { withAnalyticsScopes } from "@/lib/post-analytics/permissions";
 import { prisma } from "@/lib/prisma";
 import { enabledInboxScopes } from "@/lib/social/permissions";
 import { handleApiError, BadRequestError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ platform: string }> }) {
   let source: "assistant_handoff" | undefined;
@@ -38,12 +39,31 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const baseURL = env.NEXT_PUBLIC_APP_URL;
     const redirectUri = `${baseURL}/api/connect/callback/${platform}`;
 
+    const { workspaceId } = await workspaceConnections(
+      session.user.id,
+      request.nextUrl.searchParams.get("workspace"),
+      true,
+    );
+    const reconnectAccountId = request.nextUrl.searchParams.get("reconnectAccountId");
+    if (
+      reconnectAccountId &&
+      !(await prisma.connectedAccount.findFirst({
+        where: {
+          id: reconnectAccountId,
+          userId: session.user.id,
+          workspaceId,
+          platform: platform === "x" ? { in: ["x", "twitter"] } : platform,
+        },
+        select: { id: true },
+      }))
+    )
+      throw new BadRequestError("The connection to reconnect is unavailable.");
     const inboxAccountId = request.nextUrl.searchParams.get("inboxAccountId");
     const inboxScopes = enabledInboxScopes(platform);
     if (inboxAccountId) {
       await requireSocialInbox(session.user.id);
       const account = await prisma.connectedAccount.findFirst({
-        where: { id: inboxAccountId, userId: session.user.id, platform },
+        where: { id: inboxAccountId, userId: session.user.id, workspaceId, platform },
         select: { id: true },
       });
       if (!account || inboxScopes.length === 0)
@@ -67,11 +87,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       source,
       inboxAccountId ?? undefined,
       analytics || inbox ? { scope, analytics, inbox } : undefined,
+      { workspaceId: workspaceId ?? undefined, reconnectAccountId: reconnectAccountId ?? undefined },
     );
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
-    authUrl.searchParams.set("client_id", config.clientId);
+    authUrl.searchParams.set(platform === "tiktok" ? "client_key" : "client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scope);
     if ((analytics || inbox) && platform === "facebook") authUrl.searchParams.set("auth_type", "rerequest");
@@ -90,7 +111,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Platform-specific parameters
     switch (platform) {
       case "tiktok": {
-        authUrl.searchParams.set("client_key", config.clientId);
+        if (reconnectAccountId) authUrl.searchParams.set("disable_auto_auth", "1");
         break;
       }
       case "youtube": {

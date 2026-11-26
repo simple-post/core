@@ -10,6 +10,8 @@ export interface OAuthStatePayload {
   timestamp: number;
   source?: "assistant_handoff";
   inboxAccountId?: string;
+  workspaceId?: string;
+  reconnectAccountId?: string;
   pilotScopes?: { scope: string; analytics: boolean; inbox: boolean };
 }
 
@@ -27,6 +29,7 @@ export function createOAuthState(
   source?: "assistant_handoff",
   inboxAccountId?: string,
   pilotScopes?: OAuthStatePayload["pilotScopes"],
+  connection?: Pick<OAuthStatePayload, "workspaceId" | "reconnectAccountId">,
 ): string {
   const payload: OAuthStatePayload = {
     userId,
@@ -35,6 +38,7 @@ export function createOAuthState(
     ...(source && { source }),
     ...(inboxAccountId && { inboxAccountId }),
     ...(pilotScopes && { pilotScopes }),
+    ...connection,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = hmacSign(encoded);

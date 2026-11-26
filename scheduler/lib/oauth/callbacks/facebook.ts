@@ -38,13 +38,20 @@ export async function handleFacebookCallback(ctx: CallbackContext): Promise<Next
     return NextResponse.redirect(`${ctx.baseURL}/accounts?error=${encodeURIComponent(FACEBOOK_NO_PAGES_MESSAGE)}`);
   }
 
-  await prisma.pendingOAuthConnection.deleteMany({ where: { userId: ctx.userId, platform: ctx.platform } });
-
+  await prisma.pendingOAuthConnection.deleteMany({
+    where: { userId: ctx.userId, platform: ctx.platform, expiresAt: { lt: new Date() } },
+  });
   const pending = await prisma.pendingOAuthConnection.create({
     data: {
       userId: ctx.userId,
       platform: ctx.platform,
-      data: { accounts, scope: ctx.scope, ...(ctx.source && { source: ctx.source }) },
+      data: {
+        accounts,
+        ...(ctx.scope && { scope: ctx.scope }),
+        ...(ctx.source && { source: ctx.source }),
+        ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+        ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
+      },
       expiresAt: new Date(Date.now() + PENDING_OAUTH_TTL_MS),
     },
   });

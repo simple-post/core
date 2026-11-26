@@ -1,58 +1,62 @@
+import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { workspaceColors } from "@/lib/workspaces/colors";
 import { roles } from "@/lib/workspaces/contracts";
+
+import { WorkspaceColorPicker } from "./settings-layout";
 
 import type { Run, Workspace } from "./types";
 type Role = (typeof roles)[number];
 export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run: Run }) {
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <Card className="gap-4 px-4 sm:px-6">
-        <h2 className="text-lg font-semibold tracking-tight">Workspace settings</h2>
+    <div className="space-y-5">
+      <Card id="general" className="scroll-mt-20 gap-4 px-5 sm:px-6">
+        <h2 className="text-lg font-semibold tracking-tight">General</h2>
         <form
           className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
             const data = new FormData(e.currentTarget);
-            await run({
-              action: "settings",
-              name: String(data.get("name")),
-              icon: String(data.get("icon")),
-              description: String(data.get("description")),
-            });
+            if (
+              await run({
+                action: "settings",
+                name: String(data.get("name")),
+                icon: w.icon,
+                color: workspaceColors.find((value) => value === data.get("color")),
+                description: String(data.get("description")),
+              })
+            )
+              toast.success("Workspace settings saved");
           }}>
-          <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-4">
-            <Label className="min-w-0 flex-col items-stretch">
-              Icon
-              <Input name="icon" required maxLength={12} defaultValue={w.icon} />
-            </Label>
-            <Label className="min-w-0 flex-col items-stretch">
-              Name
-              <Input name="name" required maxLength={80} defaultValue={w.name} />
-            </Label>
-          </div>
+          <Label className="max-w-sm flex-col items-stretch">
+            Workspace name
+            <Input name="name" required maxLength={80} defaultValue={w.name} />
+          </Label>
+          <WorkspaceColorPicker color={w.color} />
           <Label className="min-w-0 flex-col items-stretch">
             Description
             <Textarea name="description" defaultValue={w.description} maxLength={500} />
           </Label>
-          <Button size="sm">Save settings</Button>
+          <Button size="sm">Save changes</Button>
         </form>
       </Card>
-      <Card className="gap-4 px-4 sm:px-6">
+      <Card id="members" className="scroll-mt-20 gap-4 px-5 sm:px-6">
         <h2 className="text-lg font-semibold tracking-tight">Members</h2>
         {w.members.map((m) => (
           <div
             key={m.userId}
-            className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4 last:border-0 [&>input]:w-auto [&>input]:max-w-full">
+            className="grid items-center gap-3 border-b border-border pb-3 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0 break-words">
               <span className="text-sm font-medium">{m.user.name}</span>
               <small className="block text-xs text-muted-foreground">{m.user.email}</small>
             </div>
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="grid grid-cols-[6rem_6.5rem_4.5rem] items-center gap-2">
               <NativeSelect
                 aria-label={`Role for ${m.user.name}`}
                 disabled={m.userId === w.creatorId}
@@ -96,11 +100,13 @@ export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run:
                 role: d.get("role") as Role,
                 approver: d.has("approver"),
               })
-            )
+            ) {
               form.reset();
+              toast.success("Invitation created");
+            }
           }}>
-          <h3 className="flex items-center gap-2 text-sm font-semibold">Invite a teammate</h3>
-          <div className="flex flex-wrap items-end gap-3">
+          <h3 className="text-sm font-semibold">Invite a teammate</h3>
+          <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_7rem_auto]">
             <Label className="min-w-0 flex-col items-stretch">
               Email
               <Input required name="email" type="email" />
@@ -113,14 +119,14 @@ export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run:
                 ))}
               </NativeSelect>
             </Label>
-            <Label className="shrink-0">
-              <input className="size-4 accent-primary" type="checkbox" name="approver" />
-              Approver
-            </Label>
-            <Button variant="outline" size="sm">
-              Create invitation
+            <Button size="sm" className="h-9">
+              Invite member
             </Button>
           </div>
+          <Label className="w-fit">
+            <input className="size-4 accent-primary" type="checkbox" name="approver" />
+            Can approve posts
+          </Label>
         </form>
         {w.invites.length > 0 && (
           <>
@@ -142,8 +148,8 @@ export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run:
           </>
         )}
       </Card>
-      <Card className="gap-4 px-4 sm:px-6">
-        <h2 className="text-lg font-semibold tracking-tight">Editorial states</h2>
+      <Card id="workflow" className="scroll-mt-20 gap-4 px-5 sm:px-6">
+        <h2 className="text-lg font-semibold tracking-tight">Approval workflow</h2>
         {w.states.map((s) => (
           <form
             key={s.id}
@@ -213,7 +219,7 @@ export function TeamSettings({ workspace: w, run }: { workspace: Workspace; run:
         </form>
       </Card>
       {w.files.length > 0 && (
-        <Card className="gap-4 px-4 sm:px-6">
+        <Card id="files" className="scroll-mt-20 gap-4 px-5 sm:px-6">
           <h2 className="text-lg font-semibold tracking-tight">Workspace files</h2>
           <p className="text-sm text-muted-foreground">
             Post attachments and reviewed files are retained. Remove unused uploads to free space.

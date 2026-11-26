@@ -1,13 +1,17 @@
 import { z } from "zod";
 
+import { workspaceColors } from "./colors";
+
 export const roles = ["Admin", "Editor", "Viewer"] as const;
 export const platforms = ["instagram", "tiktok", "linkedin"] as const;
 const id = z.string().min(1).max(128);
 const name = z.string().trim().min(1).max(80);
 const role = z.enum(roles);
 const timestamp = z.iso.datetime().transform((value) => new Date(value).toISOString());
+export const personalWorkspaceFields = z.object({ name, color: z.enum(workspaceColors) });
 export const workspaceFields = z.object({
   name,
+  color: z.enum(workspaceColors).optional(),
   icon: z.string().trim().min(1).max(12),
   description: z.string().trim().max(500),
 });
@@ -68,6 +72,7 @@ export const commandSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("comment"), postId: id, body: z.string().trim().min(1).max(4000) }),
   z.object({ action: z.literal("release"), postId: id, reviewId: id }),
+  z.object({ action: z.literal("cancelDelivery"), postId: id, deliveryId: id }),
 ]);
 export type WorkspaceCommand = z.infer<typeof commandSchema>;
 export type Variant = z.infer<typeof variantSchema>;

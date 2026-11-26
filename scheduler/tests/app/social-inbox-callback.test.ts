@@ -99,7 +99,7 @@ it.each([false, true])("uses the inspected Threads grant for an inbox reconnect 
     .mockResolvedValue(Response.json({ data: { is_valid: true, scopes } }));
   jest.mocked(handlePlatformCallback).mockResolvedValue(new NextResponse(null));
   const response = await callback("threads");
-  expect(new URL(String(inspect.mock.calls[0][0])).pathname).toBe("/v1.0/debug_token");
+  expect(new URL(String(inspect.mock.calls[0][0])).pathname).toBe("/debug_token");
   if (complete)
     expect(handlePlatformCallback).toHaveBeenCalledWith(
       expect.objectContaining({ scope: scopes.join(" "), inboxIdentity: "123" }),

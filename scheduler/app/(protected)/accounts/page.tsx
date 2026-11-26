@@ -20,17 +20,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "@/components/visual/account-card";
-import { TeamScreen } from "@/components/workspaces/team-screen";
+import { useWorkspaceIndex, workspaceHref } from "@/components/workspaces/switcher";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
-import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { platformDescriptionKey } from "@/lib/i18n/platform-copy";
 import type { MessageKey } from "@/lib/i18n/translate";
+import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import { logClientError } from "@/lib/logger/client";
 import { oauthErrorKey } from "@/lib/oauth/error-messages";
 import { queryKeys } from "@/lib/query-client";
@@ -38,7 +38,6 @@ import { cn } from "@/lib/utils";
 import type { ConnectedAccount } from "@/types";
 
 const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
-const WORKSPACE_RETURN_PATH = "/accounts?source=workspace";
 
 function getCredentialBadge(account: ConnectedAccount): string | null {
   const status = account.credentialStatus;
@@ -83,15 +82,26 @@ function TelegramHelpLink({
 }
 
 export default function AccountsPage() {
-  const workspace = useWorkspaceScope().id;
-  return workspace ? <TeamScreen key={workspace} id={workspace} view="accounts" /> : <PersonalAccountsPage />;
+  const { id, requested, current, pending } = useWorkspaceIndex();
+  if (requested && (pending || !current)) {
+    return (
+      <>
+        <Navbar />
+        <main className="mx-auto max-w-6xl p-6">
+          <p role="status">{pending ? "Loading workspace…" : "Workspace unavailable."}</p>
+        </main>
+      </>
+    );
+  }
+  return <ScopedAccountsPage key={id ?? "personal"} workspaceId={id} canManage={!id || current?.canManage === true} />;
 }
-function PersonalAccountsPage() {
+function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | null; canManage: boolean }) {
+  const { copy } = useUiCopy();
   const { locale, t } = useUiTranslation();
-  const readOnly = useWorkspaceReadOnly();
+  const readOnly = useWorkspaceReadOnly() || !canManage;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const fromWorkspace = searchParams.get("source") === "workspace";
+  const accountsHref = workspaceHref("/accounts", workspaceId);
   const queryClient = useQueryClient();
   const handledConnection = useRef(false);
   const onboardingConnection = useRef(false);
@@ -99,13 +109,13 @@ function PersonalAccountsPage() {
   const [manualHandoff, setManualHandoff] = useState<{ platform: string; token: string } | null>(null);
   const [connectionError, setConnectionError] = useState<MessageKey | null>(null);
   const [recoveryReturnTo, setRecoveryReturnTo] = useState<string | null>(null);
-  const { data: accounts = [], isLoading: loading } = useAccounts();
-  const disconnectAccountMutation = useDisconnectAccount();
-  const connectTelegramMutation = useConnectTelegram();
-  const connectForemMutation = useConnectForem();
+  const { data: accounts = [], isLoading: loading, isError } = useAccounts(workspaceId);
+  const disconnectAccountMutation = useDisconnectAccount(workspaceId);
+  const connectTelegramMutation = useConnectTelegram(workspaceId);
+  const connectForemMutation = useConnectForem(workspaceId);
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
-  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const [connectingPlatform, setConnectingPlatform] = useState<{ platform: string; accountId?: string } | null>(null);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
   const [showTelegramDialog, setShowTelegramDialog] = useState(false);
@@ -128,7 +138,10 @@ function PersonalAccountsPage() {
     handledConnection.current = true;
     void queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
     void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding });
-    let destination = fromWorkspace ? WORKSPACE_RETURN_PATH : "/accounts";
+    void queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
+    void queryClient.invalidateQueries({ queryKey: ["social-inbox"] });
+    void queryClient.invalidateQueries({ queryKey: ["team-workspace"] });
+    let destination = accountsHref;
     try {
       destination = recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)) ?? destination;
       window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
@@ -137,11 +150,8 @@ function PersonalAccountsPage() {
     }
     toast.success(t("accountConnected"));
     if (searchParams.get("source") === "assistant_handoff") return;
-    router.replace(
-      destination === WORKSPACE_RETURN_PATH ? `${destination}&connected=true` : resumeRecoveryHref(destination),
-      { scroll: false },
-    );
-  }, [fromWorkspace, queryClient, router, searchParams, t]);
+    router.replace(resumeRecoveryHref(destination), { scroll: false });
+  }, [accountsHref, queryClient, router, searchParams, t]);
 
   useEffect(() => {
     if (!searchParams.get("error")) return;
@@ -164,8 +174,8 @@ function PersonalAccountsPage() {
       return;
     onboardingConnection.current = true;
     setShowConnectDialog(true);
-    router.replace(fromWorkspace ? WORKSPACE_RETURN_PATH : "/accounts", { scroll: false });
-  }, [fromWorkspace, readOnly, router, searchParams]);
+    router.replace(accountsHref, { scroll: false });
+  }, [accountsHref, readOnly, router, searchParams]);
 
   useEffect(() => {
     function restorePicker(event: PageTransitionEvent) {
@@ -177,15 +187,24 @@ function PersonalAccountsPage() {
 
   useEffect(() => {
     if (!connectingPlatform) return;
-    // Commit the pending UI before starting a full-page navigation.
-    const timer = window.setTimeout(() => {
-      window.location.assign(`/api/connect/${connectingPlatform}`);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [connectingPlatform]);
+    // Give the dialog one frame to paint before leaving the page.
+    let navigationFrame: number | undefined;
+    const paintFrame = requestAnimationFrame(() => {
+      navigationFrame = requestAnimationFrame(() => {
+        const path = workspaceHref(`/api/connect/${connectingPlatform.platform}`, workspaceId);
+        const url = new URL(path, window.location.origin);
+        if (connectingPlatform.accountId) url.searchParams.set("reconnectAccountId", connectingPlatform.accountId);
+        window.location.assign(url.href);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(paintFrame);
+      if (navigationFrame !== undefined) cancelAnimationFrame(navigationFrame);
+    };
+  }, [connectingPlatform, workspaceId]);
 
   const handleConnect = useCallback(
-    (platform: string, returnTo?: string) => {
+    (platform: string, returnTo?: string, accountId?: string) => {
       if (readOnly || connectingPlatform) return;
       setManualHandoff(null);
       const platformConfig = getPlatformById(platform);
@@ -196,11 +215,11 @@ function PersonalAccountsPage() {
           CONNECTION_RETURN_KEY,
           recoveryReturnPath(returnTo) ??
             recoveryReturnTo ??
-            (fromWorkspace
-              ? WORKSPACE_RETURN_PATH
+            (workspaceId
+              ? accountsHref
               : onboardingConnection.current || (!loading && accounts.length === 0)
                 ? "/"
-                : "/accounts"),
+                : accountsHref),
         );
       } catch {
         // Do not block account connection when storage is disabled.
@@ -216,10 +235,11 @@ function PersonalAccountsPage() {
           setTelegramError("");
         }
       } else {
-        setConnectingPlatform(platform);
+        setShowConnectDialog(false);
+        setConnectingPlatform({ platform, accountId });
       }
     },
-    [readOnly, connectingPlatform, loading, accounts.length, recoveryReturnTo, fromWorkspace],
+    [readOnly, connectingPlatform, loading, accounts.length, recoveryReturnTo, workspaceId, accountsHref],
   );
 
   useEffect(() => {
@@ -227,12 +247,17 @@ function PersonalAccountsPage() {
     if (readOnly || loading || !accountId || handledReconnect.current) return;
     const account = accounts.find((entry) => entry.id === accountId);
     handledReconnect.current = true;
-    if (account) handleConnect(account.platform, recoveryReturnPath(searchParams.get("returnTo")) ?? "/accounts");
+    if (account)
+      handleConnect(
+        account.platform === "twitter" ? "x" : account.platform,
+        recoveryReturnPath(searchParams.get("returnTo")) ?? accountsHref,
+        account.id,
+      );
     else {
       setConnectionError("accountDisconnectedSaved");
       setRecoveryReturnTo(recoveryReturnPath(searchParams.get("returnTo")));
     }
-  }, [accounts, handleConnect, loading, readOnly, searchParams]);
+  }, [accounts, accountsHref, handleConnect, loading, readOnly, searchParams]);
   const openManualHandoff = useCallback((platform: string, token: string) => {
     setManualHandoff({ platform, token });
     if (platform === "forem") setShowForemDialog(true);
@@ -241,8 +266,7 @@ function PersonalAccountsPage() {
   const manualSuccessUrl = (platform: string) => {
     const params = new URLSearchParams({ success: "true", platform });
     if (manualHandoff?.platform === platform) params.set("source", "assistant_handoff");
-    else if (fromWorkspace) params.set("source", "workspace");
-    return `/accounts?${params}`;
+    return workspaceHref(`/accounts?${params}`, workspaceId);
   };
   const closeForemDialog = () => {
     setShowForemDialog(false);
@@ -328,7 +352,13 @@ function PersonalAccountsPage() {
         {connectionError && (
           <Alert variant="destructive" className="mb-4" role="alert">
             <AlertDescription className="space-y-3">
-              <p>{t(connectionError)}</p>
+              <p>
+                {searchParams.get("scopeUnavailable") === "tiktok"
+                  ? copy(
+                      "TikTok rejected a requested permission. TikTok must approve it before this account can grant access.",
+                    )
+                  : t(connectionError)}
+              </p>
               {searchParams.get("source") === "assistant_handoff" && <p>{t("returnFreshLink")}</p>}
               {recoveryReturnTo && recoveryReturnTo !== "/accounts" && (
                 <Button asChild size="sm" variant="outline">
@@ -343,21 +373,16 @@ function PersonalAccountsPage() {
                     }}>
                     {recoveryReturnTo === "/"
                       ? t("backDashboard")
-                      : recoveryReturnTo === WORKSPACE_RETURN_PATH
+                      : recoveryReturnTo.startsWith("/accounts")
                         ? t("backToAccounts")
-                        : t("backToPost")}
+                        : copy("Go back")}
                   </Link>
                 </Button>
               )}
             </AlertDescription>
           </Alert>
         )}
-        {!readOnly && <AssistantConnectionHandoff onManual={openManualHandoff} />}
-        {fromWorkspace && searchParams.get("connected") === "true" && (
-          <Alert className="mb-6 border-primary/25 bg-primary/5">
-            <AlertDescription>{t("handoffComplete")}</AlertDescription>
-          </Alert>
-        )}
+        {!workspaceId && !readOnly && <AssistantConnectionHandoff onManual={openManualHandoff} />}
         <AccountsHeading
           action={
             readOnly ? undefined : (
@@ -385,6 +410,10 @@ function PersonalAccountsPage() {
               </div>
             ))}
           </div>
+        ) : isError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {copy("Failed to fetch accounts")}
+          </p>
         ) : accounts.length === 0 ? (
           <ConnectAccountsEmpty
             action={
@@ -462,7 +491,13 @@ function PersonalAccountsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleConnect(account.platform)}
+                          onClick={() =>
+                            handleConnect(
+                              account.platform === "twitter" ? "x" : account.platform,
+                              accountsHref,
+                              account.id,
+                            )
+                          }
                           aria-label={t("reconnect")}
                           className="gap-1.5">
                           <RefreshCw className="h-3 w-3" />
@@ -487,6 +522,23 @@ function PersonalAccountsPage() {
         )}
       </main>
 
+      <Dialog open={Boolean(connectingPlatform)}>
+        <DialogContent
+          className="sm:max-w-sm [&>button]:hidden"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>
+              {copy("Opening {{platform}}", {
+                platform:
+                  getPlatformById(connectingPlatform?.platform ?? "")?.name ?? connectingPlatform?.platform ?? "",
+              })}
+            </DialogTitle>
+            <DialogDescription>{copy("Continue on the platform to authorize this connection.")}</DialogDescription>
+          </DialogHeader>
+          <Loader2 className="size-5 motion-safe:animate-spin text-primary" aria-hidden />
+        </DialogContent>
+      </Dialog>
       {/* Platform Selector Dialog */}
       <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -505,7 +557,7 @@ function PersonalAccountsPage() {
           <div className="grid gap-2 sm:grid-cols-2 mt-4">
             {SOCIAL_PLATFORMS.map((platform) => {
               const description = platformDescriptionKey(platform.id);
-              const connecting = connectingPlatform === platform.id;
+              const connecting = connectingPlatform?.platform === platform.id;
               return (
                 <button
                   key={platform.id}

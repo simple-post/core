@@ -1,5 +1,16 @@
 import { useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -155,6 +166,32 @@ export function PostDetail({
               {connected ? "Schedule with SimplePost" : "Mark as published natively"}
             </Button>
           )}
+        {p.deliveredAt &&
+          w.member.userId === w.creatorId &&
+          review?.deliveries
+            .filter((delivery) => delivery.status === "scheduled")
+            .map((delivery) => (
+              <AlertDialog key={delivery.id}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    Cancel delivery
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
+                    <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
+                      Cancel delivery
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ))}
         {p.deliveredAt && (
           <strong>
             {connected

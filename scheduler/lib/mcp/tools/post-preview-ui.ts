@@ -208,7 +208,7 @@ export async function showPostPreview(
 ): Promise<z.infer<typeof showPostPreviewOutputSchema>> {
   const source = await resolveSource(userId, input);
   const accounts = await prisma.connectedAccount.findMany({
-    where: { userId, id: { in: source.accountIds } },
+    where: { userId, workspaceId: null, id: { in: source.accountIds } },
     select: {
       id: true,
       platform: true,

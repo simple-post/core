@@ -2,13 +2,19 @@
 export function recoveryReturnPath(value: string | null | undefined): string | null {
   if (!value || value.includes("\\") || /[\r\n]/.test(value)) return null;
   const path = value.split("?")[0];
-  return path === "/" || path === "/accounts" || path === "/schedule" || /^\/posts\/[^/?#]+\/edit$/.test(path)
+  return path === "/" ||
+    path === "/accounts" ||
+    path === "/analytics" ||
+    path === "/inbox" ||
+    path === "/schedule" ||
+    /^\/posts\/[^/?#]+\/edit$/.test(path)
     ? value
     : null;
 }
 
-export function reconnectHref(accountId: string, returnTo: string): string {
+export function reconnectHref(accountId: string, returnTo: string, workspaceId?: string): string {
   const params = new URLSearchParams({ reconnect: accountId, returnTo: recoveryReturnPath(returnTo) ?? "/accounts" });
+  if (workspaceId) params.set("workspace", workspaceId);
   return `/accounts?${params}`;
 }
 

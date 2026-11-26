@@ -6,11 +6,11 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import type { AnalyticsSummary } from "@/hooks/use-analytics";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 
-import { formatMetricValue, formatPercent } from "../format";
+import { formatMetricValue, formatNumber, formatPercent } from "../format";
 import { useAnalyticsLabels, type MetricKey } from "../labels";
 import { SERIES_COLOR } from "../post-analytics-panel";
 
-export type TimelineMetric = Exclude<MetricKey, "publishedAt">;
+export type TimelineMetric = Exclude<MetricKey, "publishedAt"> | "followers";
 
 function bucketLabel(
   iso: string,
@@ -32,23 +32,47 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
   const { copy, locale } = useUiCopy();
   const labels = useAnalyticsLabels();
   const { granularity, timeZone } = summary.period;
-  const data = summary.timeline.map((bucket) => ({
-    start: bucket.start,
-    value:
-      metric === "posts"
-        ? bucket.posts
-        : metric === "engagements"
-          ? bucket.engagements
-          : metric === "engagementRate"
-            ? bucket.engagementRate
-            : (bucket.metrics[metric] ?? null),
-  }));
-  const hasValues = data.some((point) => point.value !== null && point.value !== 0);
-  const config: ChartConfig = { value: { label: labels.metric[metric], theme: SERIES_COLOR } };
+  const followerMetric = metric === "followers";
+  const label = followerMetric ? labels.accountMetric.followers : labels.metric[metric];
+  const startDate = summary.period.start.slice(0, 10);
+  const followerDays = [
+    ...new Set(
+      summary.followers.flatMap((account) => [
+        ...(account.baseline ? [startDate] : []),
+        ...account.series.map((point) => point.day),
+      ]),
+    ),
+  ].sort();
+  const data = followerMetric
+    ? followerDays.map((day) => {
+        const counts = summary.followers.map(
+          (account) => account.series.findLast((point) => point.day <= day)?.followers ?? account.baseline?.followers,
+        );
+        return {
+          start: day + "T00:00:00Z",
+          value:
+            counts.length > 0 && counts.every((count) => count !== undefined)
+              ? counts.reduce<number>((sum, count) => sum + (count ?? 0), 0)
+              : null,
+        };
+      })
+    : summary.timeline.map((bucket) => ({
+        start: bucket.start,
+        value:
+          metric === "posts"
+            ? bucket.posts
+            : metric === "engagements"
+              ? bucket.engagements
+              : metric === "engagementRate"
+                ? bucket.engagementRate
+                : (bucket.metrics[metric] ?? null),
+      }));
+  const hasValues = data.some((point) => point.value !== null);
+  const config: ChartConfig = { value: { label, theme: SERIES_COLOR } };
   const format = (value: number | null) =>
     metric === "engagementRate"
       ? formatPercent(value, locale, 2)
-      : formatMetricValue(metric === "posts" ? "engagements" : metric, value, locale);
+      : formatMetricValue(metric === "posts" || metric === "followers" ? "engagements" : metric, value, locale);
 
   if (!hasValues) {
     return (
@@ -58,6 +82,9 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
     );
   }
 
+  const dateLabel = (value: string) =>
+    bucketLabel(value, followerMetric ? "day" : granularity, locale, followerMetric ? "UTC" : timeZone);
+
   const axes = (
     <>
       <CartesianGrid vertical={false} strokeDasharray="3 3" />
@@ -66,20 +93,28 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
         tickLine={false}
         axisLine={false}
         minTickGap={24}
-        tickFormatter={(value: string) => bucketLabel(value, granularity, locale, timeZone)}
+        tickFormatter={(value: string) => dateLabel(value)}
       />
-      <YAxis width={48} tickLine={false} axisLine={false} tickFormatter={(value: number) => format(value)} />
+      <YAxis
+        domain={followerMetric ? ["dataMin - 1", "dataMax + 1"] : [0, "auto"]}
+        allowDecimals={!followerMetric}
+        width={58}
+        tickLine={false}
+        axisLine={false}
+        tickFormatter={(value: number) => format(value)}
+      />
       <ChartTooltip
+        isAnimationActive={false}
         cursor={metric === "posts" ? { fillOpacity: 0.4 } : true}
         content={
           <ChartTooltipContent
-            labelFormatter={(_, payload) =>
-              bucketLabel(String(payload?.[0]?.payload?.start), granularity, locale, timeZone)
-            }
+            labelFormatter={(_, payload) => dateLabel(String(payload?.[0]?.payload?.start))}
             formatter={(value) => (
               <div className="flex w-full items-center justify-between gap-4">
-                <span className="text-muted-foreground">{labels.metric[metric]}</span>
-                <span className="font-mono font-medium tabular-nums">{format(Number(value))}</span>
+                <span className="text-muted-foreground">{label}</span>
+                <span className="font-mono font-medium tabular-nums">
+                  {followerMetric ? formatNumber(Number(value), locale) : format(Number(value))}
+                </span>
               </div>
             )}
           />
@@ -106,7 +141,7 @@ export function TimelineChart({ summary, metric }: { summary: AnalyticsSummary; 
           {axes}
           <Area
             dataKey="value"
-            type="monotone"
+            type={followerMetric ? "stepAfter" : "monotone"}
             stroke="var(--color-value)"
             strokeWidth={2}
             fill="var(--color-value)"

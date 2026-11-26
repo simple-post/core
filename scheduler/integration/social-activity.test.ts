@@ -173,3 +173,45 @@ it("cascades inbox cache, cursors, and receipts when the account is disconnected
   expect(await prisma.socialActivityReply.count({ where: { userId } })).toBe(0);
   expect(await prisma.socialActivitySync.count({ where: { accountId } })).toBe(0);
 });
+
+it("recognizes a like and direct reply made on X, and clears the like after a complete read", async () => {
+  await prisma.connectedAccount.update({ where: { id: accountId }, data: { scope: "like.read like.write" } });
+  jest.mocked(listSocialPostComments).mockResolvedValue({
+    ok: true,
+    data: {
+      data: [
+        { nativeId: "501", nativePostId: "500", body: "A question", canReply: true, canLike: true },
+        {
+          nativeId: "502",
+          nativePostId: "500",
+          parentNativeId: "501",
+          author: { id: "101" },
+          body: "Answered on X",
+          nativeUrl: "https://x.com/i/web/status/502",
+          canReply: true,
+        },
+      ],
+    },
+  });
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+  const provider = jest.spyOn(globalThis, "fetch");
+  try {
+    provider.mockResolvedValueOnce(Response.json({ data: [{ id: "501" }], meta: { result_count: 1 } }));
+    await refreshSocialInbox(userId, { reset: true });
+    expect(provider).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({ redirect: "error" }));
+    const inbox = await getSocialInbox(userId);
+    expect(inbox.items).toHaveLength(1);
+    expect(inbox.items[0]).toMatchObject({
+      liked: true,
+      reply: { status: "sent", body: "Answered on X", nativeReplyUrl: "https://x.com/i/web/status/502" },
+    });
+    const unanswered = await getSocialInbox(userId, { needsReply: true });
+    expect(unanswered.items).toEqual([]);
+    provider.mockResolvedValueOnce(Response.json({ meta: { result_count: 0 } }));
+    await refreshSocialInbox(userId, { reset: true });
+    const refreshed = await getSocialInbox(userId);
+    expect(refreshed.items[0]).toMatchObject({ liked: false, reply: { status: "sent" } });
+  } finally {
+    provider.mockRestore();
+  }
+});

@@ -19,7 +19,7 @@ export async function resolveMcpAccountOptions(
   media: ReadonlyArray<{ type: string }> = [],
 ): Promise<AccountOptionsMap | undefined> {
   const accounts = await prisma.connectedAccount.findMany({
-    where: { userId, id: { in: accountIds } },
+    where: { userId, workspaceId: null, id: { in: accountIds } },
     select: { id: true, platform: true },
   });
   if (accounts.length === 0) await assertHasConnectedAccounts(userId);

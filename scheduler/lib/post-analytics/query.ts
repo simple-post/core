@@ -22,7 +22,7 @@ import {
   type AnalyticsPeriod,
   type ResolvedPeriod,
 } from "./periods";
-import { accountAnalyticsReadiness, analyticsAccountReadiness } from "./permissions";
+import { accountAnalyticsReadiness, analyticsAccountReadiness, PAUSED_ANALYTICS_PLATFORMS } from "./permissions";
 import { metricsFromColumns } from "./service";
 
 import type { Platform } from "@simple-post/sdk";
@@ -197,9 +197,12 @@ export interface AnalyticsAccountInfo {
   supportedAccountMetrics: AccountMetric[];
 }
 
-export async function loadAnalyticsAccounts(userId: string): Promise<Map<string, AnalyticsAccountInfo>> {
+export async function loadAnalyticsAccounts(
+  userId: string,
+  workspaceId: string | null = null,
+): Promise<Map<string, AnalyticsAccountInfo>> {
   const accounts = await prisma.connectedAccount.findMany({
-    where: { userId },
+    where: { userId, workspaceId, platform: { notIn: PAUSED_ANALYTICS_PLATFORMS } },
     select: {
       id: true,
       platform: true,
@@ -221,6 +224,9 @@ export async function loadAnalyticsAccounts(userId: string): Promise<Map<string,
       }
       const readiness = analyticsAccountReadiness({ platform, scope: account.scope, tokenMetadata });
       const capability = getAnalyticsCapability(platform);
+      const followerReadiness = accountAnalyticsReadiness({ platform, scope: account.scope });
+      const needsFollowerGrant =
+        !followerReadiness.ready && followerReadiness.message?.startsWith("Reconnect") === true;
       return [
         account.id,
         {
@@ -230,9 +236,9 @@ export async function loadAnalyticsAccounts(userId: string): Promise<Map<string,
           displayName: account.displayName,
           profilePicture: account.profilePicture,
           postAnalytics: readiness.ready,
-          reconnectRecommended: readiness.reconnectRecommended,
+          reconnectRecommended: readiness.reconnectRecommended || needsFollowerGrant,
           missingScopes: readiness.missingScopes,
-          notice: readiness.message || null,
+          notice: readiness.message || (needsFollowerGrant ? (followerReadiness.message ?? null) : null),
           supportedMetrics: [...capability.postMetrics],
           supportedAccountMetrics: [...capability.accountMetrics],
         },
@@ -278,14 +284,14 @@ export interface PostAnalyticsView {
 
 export async function getPostAnalyticsView(userId: string, postId: string): Promise<PostAnalyticsView | null> {
   const post = await prisma.post.findFirst({
-    where: { id: postId, userId },
+    where: { id: postId, userId, workspaceReviewId: null },
     select: { id: true, status: true, publishedAt: true, accountResults: true },
   });
   if (!post) return null;
 
   const [rows, accounts] = await Promise.all([
     prisma.postAnalytics.findMany({
-      where: { postId, userId },
+      where: { postId, userId, platform: { notIn: PAUSED_ANALYTICS_PLATFORMS } },
       select: { ...ROW_SELECT, platformMetrics: true, account: { select: { updatedAt: true } } },
       orderBy: { platform: "asc" },
     }),
@@ -358,9 +364,13 @@ async function postHistory(rowIds: string[]): Promise<Array<{ at: string } & Met
   return points;
 }
 
-async function earliestPublishedAt(userId: string): Promise<Date | null> {
+async function earliestPublishedAt(userId: string, workspaceId?: string | null): Promise<Date | null> {
   const first = await prisma.postAnalytics.findFirst({
-    where: { userId },
+    where: {
+      userId,
+      account: { workspaceId: workspaceId ?? null },
+      ...(workspaceId ? {} : { post: { workspaceReviewId: null } }),
+    },
     orderBy: { publishedAt: "asc" },
     select: { publishedAt: true },
   });
@@ -372,6 +382,7 @@ async function earliestPublishedAt(userId: string): Promise<Date | null> {
 /* ------------------------------------------------------------------------ */
 
 export interface SummaryFilters {
+  workspaceId?: string | null;
   period?: AnalyticsPeriod;
   from?: string;
   to?: string;
@@ -388,6 +399,7 @@ export interface SummaryFilters {
 
 export interface PostSummaryItem extends MetricTotals {
   postId: string;
+  teamPostId?: string;
   message: string;
   publishedAt: string;
   platforms: Platform[];
@@ -439,7 +451,9 @@ export interface AnalyticsSummary {
   >;
   timeline: Array<{ start: string; posts: number } & MetricTotals>;
   topPosts: PostSummaryItem[];
+  platforms: Platform[];
   bestTimes: {
+    bySlot: Array<{ weekday: number; hour: number; posts: number; averageEngagements: number | null }>;
     byWeekday: Array<{ weekday: number; posts: number; averageEngagements: number | null }>;
     byHour: Array<{ hour: number; posts: number; averageEngagements: number | null }>;
   };
@@ -450,6 +464,7 @@ export interface AnalyticsSummary {
     current: number | null;
     change: number | null;
     series: Array<{ day: string; followers: number }>;
+    baseline?: { day: string; followers: number };
   }>;
   coverage: {
     publications: number;
@@ -472,14 +487,19 @@ type SummaryRow = RowLike & { account: { updatedAt: Date } };
 
 async function loadRows(
   userId: string,
-  filters: { platforms?: string[]; accountIds?: string[] },
+  filters: Pick<SummaryFilters, "platforms" | "accountIds" | "workspaceId">,
   publishedRange: { gte?: Date; lt: Date },
 ): Promise<SummaryRow[]> {
   return prisma.postAnalytics.findMany({
     where: {
       userId,
       publishedAt: publishedRange,
-      ...(filters.platforms?.length ? { platform: { in: filters.platforms.map((p) => mapPlatformName(p)) } } : {}),
+      account: { workspaceId: filters.workspaceId ?? null },
+      ...(filters.workspaceId ? {} : { post: { workspaceReviewId: null } }),
+      platform: {
+        notIn: PAUSED_ANALYTICS_PLATFORMS,
+        ...(filters.platforms?.length ? { in: filters.platforms.map((p) => mapPlatformName(p)) } : {}),
+      },
       ...(filters.accountIds?.length ? { accountId: { in: filters.accountIds } } : {}),
     },
     select: { ...ROW_SELECT, account: { select: { updatedAt: true } } },
@@ -595,7 +615,7 @@ async function totalsForPeriod(
 
 export async function getAnalyticsSummary(userId: string, filters: SummaryFilters = {}): Promise<AnalyticsSummary> {
   const mode = filters.mode ?? "published";
-  const earliest = filters.period === "all_time" ? await earliestPublishedAt(userId) : null;
+  const earliest = filters.period === "all_time" ? await earliestPublishedAt(userId, filters.workspaceId) : null;
   const period: ResolvedPeriod = resolvePeriod({
     period: filters.period,
     from: filters.from,
@@ -608,7 +628,7 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
 
   const [rows, accounts] = await Promise.all([
     loadRows(userId, filters, mode === "published" ? { gte: start, lt: end } : { lt: end }),
-    loadAnalyticsAccounts(userId),
+    loadAnalyticsAccounts(userId, filters.workspaceId),
   ]);
   const { values, buckets } = await valuesForPeriod(rows, mode, start, end, granularity, timeZone);
   const included = rows.filter((row) => values.has(row.id));
@@ -679,9 +699,16 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
     group.posts.add(row.postId);
     accountGroups.set(row.accountId, group);
   }
-  for (const entry of followers)
-    if (!accountGroups.has(entry.accountId))
-      accountGroups.set(entry.accountId, { accumulator: new Accumulator(), posts: new Set() });
+  for (const account of accounts.values()) {
+    if (filters.accountIds?.length && !filters.accountIds.includes(account.accountId)) continue;
+    if (
+      filters.platforms?.length &&
+      !filters.platforms.map((platform) => mapPlatformName(platform)).includes(account.platform)
+    )
+      continue;
+    if (!accountGroups.has(account.accountId))
+      accountGroups.set(account.accountId, { accumulator: new Accumulator(), posts: new Set() });
+  }
   const byAccount = [...accountGroups.entries()]
     .flatMap(([accountId, group]) => {
       const account = accounts.get(accountId);
@@ -729,10 +756,13 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
   });
 
   // Top posts
-  const topPosts = await summarizePosts(userId, included, values, accounts, {
-    sortBy: filters.topSortBy ?? "engagements",
-    limit: filters.topLimit ?? 10,
-  });
+  const topPosts =
+    filters.topLimit === 0
+      ? []
+      : await summarizePosts(userId, included, values, accounts, {
+          sortBy: filters.topSortBy ?? "engagements",
+          limit: filters.topLimit ?? 10,
+        });
 
   // Best times (by local publish weekday/hour; always lifetime values of posts published in the period)
   const bestTimes = bestPublishingTimes(
@@ -769,7 +799,10 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
         platform: account.platform,
         username: account.username,
         message,
-        reconnectRecommended: account.reconnectRecommended || failing?.status === "missing_permission",
+        reconnectRecommended:
+          account.reconnectRecommended ||
+          failing?.status === "missing_permission" ||
+          failing?.status === "credentials_error",
       });
   }
 
@@ -793,6 +826,7 @@ export async function getAnalyticsSummary(userId: string, filters: SummaryFilter
     byAccount,
     timeline,
     topPosts,
+    platforms: [...new Set([...accounts.values()].map((account) => account.platform))].sort(),
     bestTimes,
     followers,
     coverage,
@@ -815,9 +849,12 @@ function bestPublishingTimes(
   }
   const weekdays = Array.from({ length: 7 }, (_, weekday) => ({ weekday, posts: 0, sum: 0, measured: 0 }));
   const hours = Array.from({ length: 24 }, (_, hour) => ({ hour, posts: 0, sum: 0, measured: 0 }));
+  const slots = weekdays.flatMap(({ weekday }) =>
+    hours.map(({ hour }) => ({ weekday, hour, posts: 0, sum: 0, measured: 0 })),
+  );
   for (const post of posts.values()) {
     const { weekday, hour } = localWeekdayHour(post.publishedAt, timeZone);
-    for (const bucket of [weekdays[weekday], hours[hour]]) {
+    for (const bucket of [weekdays[weekday], hours[hour], slots[weekday * 24 + hour]]) {
       bucket.posts += 1;
       if (post.engagements !== null) {
         bucket.sum += post.engagements;
@@ -828,6 +865,12 @@ function bestPublishingTimes(
   const average = (bucket: { sum: number; measured: number }) =>
     bucket.measured > 0 ? round(bucket.sum / bucket.measured, 1) : null;
   return {
+    bySlot: slots.map(({ weekday, hour, measured, sum }) => ({
+      weekday,
+      hour,
+      posts: measured,
+      averageEngagements: average({ sum, measured }),
+    })),
     byWeekday: weekdays.map((bucket) => ({
       weekday: bucket.weekday,
       posts: bucket.posts,
@@ -865,10 +908,10 @@ async function followerSeries(
       where: { userId, accountId: { in: accountIds }, day: { lt: dayStart }, followers: { not: null } },
       orderBy: { day: "desc" },
       distinct: ["accountId"],
-      select: { accountId: true, followers: true },
+      select: { accountId: true, day: true, followers: true },
     }),
   ]);
-  const baseline = new Map(before.map((entry) => [entry.accountId, entry.followers]));
+  const baseline = new Map(before.map((entry) => [entry.accountId, entry]));
 
   return accountIds.flatMap((accountId) => {
     const series = inRange
@@ -876,16 +919,20 @@ async function followerSeries(
       .map((entry) => ({ day: entry.day.toISOString().slice(0, 10), followers: entry.followers! }));
     const account = accounts.get(accountId)!;
     if (series.length === 0 && !baseline.has(accountId)) return [];
-    const current = series.at(-1)?.followers ?? baseline.get(accountId) ?? null;
-    const first = baseline.get(accountId) ?? series[0]?.followers ?? null;
+    const prior = baseline.get(accountId)?.followers ?? null;
+    const current = series.at(-1)?.followers ?? prior;
+    const first = prior ?? (series.length > 1 ? series[0].followers : null);
+    const beforeRange = baseline.get(accountId);
     return [
       {
         accountId,
         platform: account.platform,
         username: account.username,
         current,
-        change: current !== null && first !== null ? current - first : null,
+        change: current !== null && first !== null && series.length > 0 ? current - first : null,
         series,
+        ...(beforeRange &&
+          prior !== null && { baseline: { day: beforeRange.day.toISOString().slice(0, 10), followers: prior } }),
       },
     ];
   });
@@ -919,7 +966,8 @@ async function summarizePosts(
         direction *
           (sortValue(a.totals, options.sortBy, a.group.publishedAt) -
             sortValue(b.totals, options.sortBy, b.group.publishedAt)) ||
-        b.group.publishedAt.getTime() - a.group.publishedAt.getTime(),
+        b.group.publishedAt.getTime() - a.group.publishedAt.getTime() ||
+        a.postId.localeCompare(b.postId),
     )
     .slice(options.offset ?? 0, (options.offset ?? 0) + options.limit);
   if (ranked.length === 0) return [];
@@ -929,6 +977,7 @@ async function summarizePosts(
     select: {
       id: true,
       message: true,
+      workspaceReview: { select: { postId: true } },
       accountResults: true,
       media: { select: { type: true, url: true, thumbnailUrl: true }, take: 1, orderBy: { createdAt: "asc" } },
     },
@@ -941,6 +990,7 @@ async function summarizePosts(
     const media = post?.media[0];
     return {
       postId,
+      ...(post?.workspaceReview && { teamPostId: post.workspaceReview.postId }),
       message: post?.message ?? "",
       publishedAt: group.publishedAt.toISOString(),
       platforms: [...new Set(group.rows.map((row) => mapPlatformName(row.platform)))],
@@ -976,7 +1026,7 @@ export async function listPostAnalytics(
   pagination: { page: number; limit: number; total: number; totalPages: number };
 }> {
   const mode = filters.mode ?? "published";
-  const earliest = filters.period === "all_time" ? await earliestPublishedAt(userId) : null;
+  const earliest = filters.period === "all_time" ? await earliestPublishedAt(userId, filters.workspaceId) : null;
   const period = resolvePeriod({ ...filters, earliest });
   const rows = await loadRows(
     userId,
@@ -985,7 +1035,7 @@ export async function listPostAnalytics(
   );
   const { values } = await valuesForPeriod(rows, mode, period.start, period.end, "day", period.timeZone);
   const included = mode === "published" ? rows : rows.filter((row) => values.has(row.id));
-  const accounts = await loadAnalyticsAccounts(userId);
+  const accounts = await loadAnalyticsAccounts(userId, filters.workspaceId);
   const limit = Math.min(Math.max(filters.limit ?? 25, 1), 100);
   const page = Math.max(filters.page ?? 1, 1);
   const total = new Set(included.map((row) => row.postId)).size;

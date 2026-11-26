@@ -8,7 +8,6 @@ import {
   listSocialPostQuotes,
   replyToSocialComment,
 } from "@simple-post/sdk";
-
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
 import { requireSocialInbox } from "@/lib/features";
@@ -17,13 +16,14 @@ import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-loc
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/utils/errors";
-import type { AccountPublishResult, ConnectedAccount } from "@/types";
+import type { AccountPublishResult, ConnectedAccount, MediaFile } from "@/types";
 
 import { enabledInboxScopes, hasInboxScopes } from "./permissions";
 
 import type { SocialActivityAccount, SocialActivityError, SocialComment } from "@simple-post/sdk";
 
 const MAX_REQUESTS = 8;
+const RECENT_SYNC_INTERVAL_MS = 5 * 60_000;
 const SYNC_BUDGET_MS = 20_000;
 const MAX_ACCOUNTS = 12;
 const POSTS_PER_SNAPSHOT = 25;
@@ -31,11 +31,15 @@ const MAX_CURSOR_LENGTH = 2048;
 const LEASE_MS = 8 * 60 * 1000;
 const ACTION_TIMEOUT_MS = 90_000;
 
+class InboxReconnectRequiredError extends BadRequestError {}
+
 export type SocialActivityKind = "comment" | "reply" | "quote";
 
 export interface SocialInboxQuery {
+  workspaceId?: string | null;
   kind?: SocialActivityKind;
   platform?: string;
+  platforms?: string[];
   accountId?: string;
   needsReply?: boolean;
   cursor?: string;
@@ -180,18 +184,19 @@ function decodePostCursor(value: string | undefined): { createdAt: Date; id: str
  * are snapshot below, so a later refresh never has to rescan the whole post
  * history to resume a provider comment cursor.
  */
-async function ownedTargetPage(userId: string, accountId: string, after?: string) {
+async function ownedTargetPage(userId: string, accountId: string, workspaceId: string | null, after?: string) {
   const cursor = decodePostCursor(after);
   const posts = await prisma.post.findMany({
     where: {
       userId,
-      accounts: { some: { id: accountId, userId } },
+      accounts: { some: { id: accountId, userId, workspaceId } },
+      ...(workspaceId ? {} : { workspaceReviewId: null }),
       status: { in: ["published", "failed"] },
       ...(cursor
         ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }
         : {}),
     },
-    include: { accounts: { where: { id: accountId, userId } } },
+    include: { accounts: { where: { id: accountId, userId, workspaceId } } },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: POSTS_PER_SNAPSHOT + 1,
   });
@@ -203,14 +208,19 @@ async function ownedTargetPage(userId: string, accountId: string, after?: string
   };
 }
 
-async function refreshedAccount(userId: string, accountId: string): Promise<ConnectedAccount> {
-  const stored = await prisma.connectedAccount.findFirst({ where: { id: accountId, userId } });
+async function refreshedAccount(
+  userId: string,
+  accountId: string,
+  workspaceId: string | null,
+): Promise<ConnectedAccount> {
+  const stored = await prisma.connectedAccount.findFirst({ where: { id: accountId, userId, workspaceId } });
   if (!stored) throw new NotFoundError("Connected account not found");
   const decrypted = decryptConnectedAccountSecrets(stored);
   const result = await withAccountLock(accountId, async () => {
     const latest = await reloadAccountSecrets(decrypted);
     return refreshConnectedAccountIfNeeded(latest, { reason: "manual" });
   });
+  if (result.error && result.status.state === "reauth_required") throw new InboxReconnectRequiredError(result.error);
   if (result.error) throw new BadRequestError(result.error);
   return result.account;
 }
@@ -342,6 +352,93 @@ async function saveItems(
       update: { ...data, ...(kind === "quote" ? { kind } : {}) },
     });
   }
+  // Conversation reads include replies written directly on X. Match only a
+  // reply by the connected identity to its explicit parent in this inbox.
+  if (mapPlatformName(account.platform) !== "x") return;
+  for (const item of items) {
+    if (
+      !isUsableNativeId(item.nativeId) ||
+      !isUsableNativeId(item.parentNativeId) ||
+      !isSelf(account, target, item) ||
+      item.nativeId === target.nativePostId
+    )
+      continue;
+    const parent = await tx.socialActivityItem.findFirst({
+      where: { accountId: account.id, nativeId: item.parentNativeId, userId },
+      select: { id: true },
+    });
+    if (!parent) continue;
+    const recorded = await tx.socialActivityReply.findFirst({
+      where: { activityItemId: parent.id, nativeReplyId: item.nativeId },
+      select: { id: true },
+    });
+    if (!recorded) {
+      const idempotencyKey = `native:x:${account.id}:${item.nativeId}`;
+      await tx.socialActivityReply.upsert({
+        where: { userId_idempotencyKey: { userId, idempotencyKey } },
+        update: {},
+        create: {
+          userId,
+          accountId: account.id,
+          activityItemId: parent.id,
+          idempotencyKey,
+          status: "sent",
+          body: item.body.slice(0, 5000),
+          createdAt: date(item.createdAt) ?? undefined,
+          nativeReplyId: item.nativeId,
+          nativeReplyUrl: safeNativeUrl(item.nativeUrl),
+        },
+      });
+    }
+  }
+}
+
+async function syncXLikes(account: ConnectedAccount, signal: AbortSignal) {
+  if (
+    mapPlatformName(account.platform) !== "x" ||
+    !/^\d+$/.test(account.platformAccountId) ||
+    !hasInboxScopes(account.scope, ["like.read"])
+  )
+    return;
+
+  const startedAt = new Date();
+  const url = new URL(`https://api.x.com/2/users/${account.platformAccountId}/liked_tweets?max_results=100`);
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${account.accessToken}` },
+    redirect: "error",
+    signal,
+  });
+  if (!response.ok) return;
+  const payload = object(await response.json());
+  const meta = object(payload.meta);
+  const likes = Array.isArray(payload.data) ? payload.data : [];
+  if (typeof meta.result_count !== "number" || likes.length !== meta.result_count || Array.isArray(payload.errors))
+    return;
+
+  const ids = likes.map((like: unknown) => object(like).id).filter((id) => isUsableNativeId(id));
+  if (ids.length !== likes.length) return;
+  const where = {
+    accountId: account.id,
+    OR: [
+      { likeAttemptAt: null },
+      { likeAttemptAt: { lt: startedAt }, OR: [{ likeStatus: null }, { likeStatus: { not: "pending" } }] },
+    ],
+  };
+  await prisma.$transaction([
+    prisma.socialActivityItem.updateMany({
+      where: { ...where, nativeId: { in: ids } },
+      data: { liked: true, likeStatus: "sent", likeError: null },
+    }),
+    // A truncated list only establishes positive matches.
+    ...(meta.next_token
+      ? []
+      : [
+          prisma.socialActivityItem.updateMany({
+            where: { ...where, liked: true, nativeId: { notIn: ids } },
+            data: { liked: false, likeStatus: null, likeError: null },
+          }),
+        ]),
+  ]);
 }
 
 const feedAccountSelect = {
@@ -351,11 +448,13 @@ const feedAccountSelect = {
   username: true,
   scope: true,
   platformAccountId: true,
+  profilePicture: true,
   socialActivitySync: {
     select: {
       lastSyncedAt: true,
       lastAttemptAt: true,
       lastError: true,
+      lastErrorCode: true,
       coverage: true,
       retryAt: true,
       targetIndex: true,
@@ -378,8 +477,10 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
     prisma.socialActivityItem.findMany({
       where: {
         userId,
+        account: { workspaceId: options.workspaceId ?? null },
+        ...(options.workspaceId ? {} : { post: { workspaceReviewId: null } }),
         kind: options.kind,
-        platform: options.platform,
+        platform: options.platforms?.length ? { in: options.platforms } : options.platform,
         accountId: options.accountId,
         ...(options.needsReply ? { canReply: true, replies: { none: { status: "sent" } } } : {}),
         ...(cursor
@@ -388,19 +489,32 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
       },
       include: {
         account: { select: feedAccountSelect },
-        post: { select: { message: true, accountOverrides: true } },
-        replies: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1 },
+        post: { select: { message: true, accountOverrides: true, media: true, publishedAt: true } },
+        replies: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 5 },
       },
       orderBy: [{ eventAt: "desc" }, { id: "desc" }],
       take: limit + 1,
     }),
-    prisma.connectedAccount.findMany({ where: { userId }, select: feedAccountSelect, orderBy: { id: "asc" } }),
+    prisma.connectedAccount.findMany({
+      where: { userId, workspaceId: options.workspaceId ?? null },
+      select: feedAccountSelect,
+      orderBy: { id: "asc" },
+    }),
   ]);
   const last = items[limit - 1];
   return {
     items: items.slice(0, limit).map((item) => {
-      const reply = item.replies[0];
-      const postedMessage = object(object(item.post.accountOverrides)[item.accountId]).message;
+      const reply = item.replies.find((entry) => entry.status === "sent") ?? item.replies[0];
+      const override = object(object(item.post.accountOverrides)[item.accountId]);
+      const postedMessage = override.enabled === false ? undefined : override.message;
+      const media = override.enabled !== false && Array.isArray(override.media) ? override.media : item.post.media;
+      const sourcePreview = {
+        media: media.filter(
+          (entry) => (entry.type === "image" || entry.type === "video") && typeof entry.url === "string",
+        ) as MediaFile[],
+        profilePicture: item.account.profilePicture,
+        publishedAt: item.post.publishedAt?.toISOString(),
+      };
       return {
         id: item.id,
         kind: item.kind as SocialActivityKind,
@@ -409,7 +523,8 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
         accountName: accountLabel(item.account),
         accountUsername: item.account.username ?? undefined,
         postId: item.postId,
-        sourceBody: (typeof postedMessage === "string" ? postedMessage : item.post.message).slice(0, 500),
+        sourceBody: typeof postedMessage === "string" ? postedMessage : item.post.message,
+        sourcePreview,
         sourceUrl: safeNativeUrl(item.sourceUrl ?? undefined),
         nativeUrl: safeNativeUrl(item.nativeUrl ?? undefined),
         body: item.body,
@@ -430,22 +545,25 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
           : undefined,
       };
     }),
-    accounts: accounts.map((account) => ({
-      id: account.id,
-      platform: mapPlatformName(account.platform),
-      name: accountLabel(account),
-      canSync: supportsInbox(account.platform),
-      hasMore: hasMoreInboxWork(account.socialActivitySync),
-      permissionUrl:
-        enabledInboxScopes(account.platform).length > 0 &&
-        !hasInboxScopes(account.scope, enabledInboxScopes(account.platform))
-          ? `/api/connect/${account.platform}?inboxAccountId=${encodeURIComponent(account.id)}`
-          : undefined,
-      lastSyncedAt: account.socialActivitySync?.lastSyncedAt?.toISOString(),
-      error: account.socialActivitySync?.lastError ?? undefined,
-      coverage: account.socialActivitySync?.coverage ?? undefined,
-      retryAt: account.socialActivitySync?.retryAt?.toISOString(),
-    })),
+    accounts: accounts
+      .filter((account) => supportsInbox(account.platform))
+      .map((account) => ({
+        id: account.id,
+        platform: mapPlatformName(account.platform),
+        name: accountLabel(account),
+        canSync: supportsInbox(account.platform),
+        hasMore: hasMoreInboxWork(account.socialActivitySync),
+        permissionUrl:
+          ["authentication", "permission_required"].includes(account.socialActivitySync?.lastErrorCode ?? "") ||
+          (enabledInboxScopes(account.platform).length > 0 &&
+            !hasInboxScopes(account.scope, enabledInboxScopes(account.platform)))
+            ? `/api/connect/${account.platform}?inboxAccountId=${encodeURIComponent(account.id)}`
+            : undefined,
+        lastSyncedAt: account.socialActivitySync?.lastSyncedAt?.toISOString(),
+        error: account.socialActivitySync?.lastError ?? undefined,
+        coverage: account.socialActivitySync?.coverage ?? undefined,
+        retryAt: account.socialActivitySync?.retryAt?.toISOString(),
+      })),
     nextCursor: items.length > limit && last ? encodePostCursor({ createdAt: last.eventAt, id: last.id }) : undefined,
   };
 }
@@ -471,15 +589,26 @@ function retryAt(error: SocialActivityError) {
   return new Date(Date.now() + Math.min(error.retryAfterSeconds ?? 60, 86_400) * 1000);
 }
 
-export async function refreshSocialInbox(userId: string, options: { reset?: boolean; platform?: string } = {}) {
+export async function refreshSocialInbox(
+  userId: string,
+  options: { reset?: boolean; platform?: string; automatic?: boolean; workspaceId?: string | null } = {},
+) {
   await requireSocialInbox(userId);
   const stale = new Date(0);
+  const workspaceId = options.workspaceId ?? null;
   const connected = await prisma.connectedAccount.findMany({
-    where: { userId, platform: options.platform === "x" ? { in: ["x", "twitter"] } : options.platform },
+    where: { userId, workspaceId, platform: options.platform === "x" ? { in: ["x", "twitter"] } : options.platform },
     select: feedAccountSelect,
   });
+  const dueBefore = new Date(Date.now() - RECENT_SYNC_INTERVAL_MS);
   const accounts = connected
     .filter((account) => supportsInbox(account.platform))
+    .filter(
+      (account) =>
+        !options.automatic ||
+        !account.socialActivitySync?.lastAttemptAt ||
+        account.socialActivitySync.lastAttemptAt <= dueBefore,
+    )
     .sort(
       (a, b) =>
         (a.socialActivitySync?.lastAttemptAt ?? stale).getTime() -
@@ -500,6 +629,7 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
         AND: [
           { OR: [{ leaseUntil: null }, { leaseUntil: { lte: now } }] },
           { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
+          ...(options.automatic ? [{ OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: dueBefore } }] }] : []),
         ],
       },
       data: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastAttemptAt: now },
@@ -522,10 +652,13 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
     let processed = 0;
     let failure: string | undefined;
     try {
-      if (options.reset || !sync.targetSnapshot || index >= stored.targets.length) {
-        const after = options.reset ? undefined : stored.nextPostCursor;
-        if (options.reset || !sync.targetSnapshot || after) {
-          const page = await ownedTargetPage(userId, accountId, after);
+      // Automatic reads start with recent posts on each cycle. Manual older
+      // reads can still resume the pagination cursor saved by the last read.
+      const startRecent = options.reset || options.automatic;
+      if (startRecent || !sync.targetSnapshot || index >= stored.targets.length) {
+        const after = startRecent ? undefined : stored.nextPostCursor;
+        if (startRecent || !sync.targetSnapshot || after) {
+          const page = await ownedTargetPage(userId, accountId, workspaceId, after);
           stored = serializeTargetSnapshot(page.targets, page.nextPostCursor);
           index = 0;
           cursor = undefined;
@@ -533,7 +666,7 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
         }
       }
       const capabilities = getSocialActivityCapabilities(account.platform);
-      const fresh = index < stored.targets.length ? await refreshedAccount(userId, accountId) : undefined;
+      const fresh = index < stored.targets.length ? await refreshedAccount(userId, accountId, workspaceId) : undefined;
       // A small per-account budget keeps busy destinations from starving others.
       while (fresh && index < stored.targets.length && remaining > 0 && processed < 3 && Date.now() < deadline) {
         await requireSocialInbox(userId);
@@ -579,6 +712,7 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
                 phase,
                 lastSyncedAt: response.ok ? new Date() : undefined,
                 lastError: failure ?? null,
+                lastErrorCode: response.ok ? null : response.error.code,
                 coverage: response.ok ? (response.data.coverage ?? undefined) : undefined,
                 retryAt: response.ok ? null : retryAt(response.error),
               },
@@ -588,6 +722,18 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
           { timeout: 15_000 },
         );
         if (!response.ok) break;
+      }
+      if (
+        fresh &&
+        remaining > 0 &&
+        Date.now() < deadline &&
+        mapPlatformName(account.platform) === "x" &&
+        hasInboxScopes(fresh.scope, ["like.read"])
+      ) {
+        remaining -= 1;
+        await syncXLikes(fresh, AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now())))).catch(
+          () => {},
+        );
       }
       if (!fresh) {
         await prisma.socialActivitySync.updateMany({
@@ -599,14 +745,18 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
             phase,
             lastSyncedAt: new Date(),
             lastError: null,
+            lastErrorCode: null,
           },
         });
       }
-    } catch {
-      failure = "Could not finish refreshing this account. Previously synced items are still available.";
+    } catch (error) {
+      const needsReconnect = error instanceof InboxReconnectRequiredError;
+      failure = needsReconnect
+        ? error.message
+        : "Could not finish refreshing this account. Previously synced items are still available.";
       await prisma.socialActivitySync.updateMany({
         where: { accountId, leaseToken: token },
-        data: { lastError: failure },
+        data: { lastError: failure, lastErrorCode: needsReconnect ? "authentication" : undefined },
       });
     } finally {
       await prisma.socialActivitySync.updateMany({
@@ -628,9 +778,14 @@ export async function refreshSocialInbox(userId: string, options: { reset?: bool
   };
 }
 
-async function ownedItem(userId: string, itemId: string) {
+async function ownedItem(userId: string, itemId: string, workspaceId: string | null) {
   const item = await prisma.socialActivityItem.findFirst({
-    where: { id: itemId, userId, account: { userId }, post: { userId } },
+    where: {
+      id: itemId,
+      userId,
+      account: { userId, workspaceId },
+      post: { userId, ...(workspaceId ? {} : { workspaceReviewId: null }) },
+    },
   });
   if (!item) throw new NotFoundError("Social inbox item not found");
   return item;
@@ -681,19 +836,30 @@ function replyReceipt(reply: {
   };
 }
 
-export async function sendSocialReply(userId: string, input: { itemId: string; body: string; idempotencyKey: string }) {
+export async function sendSocialReply(
+  userId: string,
+  input: { itemId: string; body: string; idempotencyKey: string; workspaceId?: string | null },
+) {
   await requireSocialInbox(userId);
   const body = input.body.trim();
   if (!body || body.length > 5000) throw new BadRequestError("Replies must be between 1 and 5,000 characters.");
   if (!/^[a-zA-Z0-9_-]{12,160}$/u.test(input.idempotencyKey)) throw new BadRequestError("Invalid reply key");
-  const item = await ownedItem(userId, input.itemId);
+  const workspaceId = input.workspaceId ?? null;
+  const item = await ownedItem(userId, input.itemId, workspaceId);
   const key = { userId_idempotencyKey: { userId, idempotencyKey: input.idempotencyKey } };
   let reply = await prisma.socialActivityReply.findUnique({ where: key });
   if (reply && (reply.activityItemId !== item.id || reply.body !== body))
     throw new ConflictError("This reply key belongs to a different reply.");
   if (reply && reply.status !== "failed") return replyReceipt(reply);
+  if (
+    await prisma.socialActivityReply.findFirst({
+      where: { activityItemId: item.id, status: "sent" },
+      select: { id: true },
+    })
+  )
+    throw new ConflictError("This inbox item already has a reply.");
   if (!item.canReply) throw new BadRequestError("Replies are unavailable for this item.");
-  const account = await refreshedAccount(userId, item.accountId);
+  const account = await refreshedAccount(userId, item.accountId, workspaceId);
   await requireSocialInbox(userId);
   try {
     if (reply) {
@@ -745,12 +911,12 @@ export async function sendSocialReply(userId: string, input: { itemId: string; b
   return replyReceipt(result);
 }
 
-export async function sendSocialLike(userId: string, itemId: string) {
+export async function sendSocialLike(userId: string, itemId: string, workspaceId: string | null = null) {
   await requireSocialInbox(userId);
-  const item = await ownedItem(userId, itemId);
+  const item = await ownedItem(userId, itemId, workspaceId);
   if (item.liked) return { liked: true, status: "sent" };
   if (!item.canLike) throw new BadRequestError("Likes are unavailable for this item.");
-  const account = await refreshedAccount(userId, item.accountId);
+  const account = await refreshedAccount(userId, item.accountId, workspaceId);
   await requireSocialInbox(userId);
   if (item.platform === "x" && !hasInboxScopes(account.scope, ["like.write"])) {
     throw new BadRequestError("Reconnect X with permission to like inbox items.");
@@ -770,7 +936,7 @@ export async function sendSocialLike(userId: string, itemId: string) {
     data: { likeStatus: "pending", likeAttemptAt: attemptAt, likeError: null },
   });
   if (!claim.count) {
-    const latest = await ownedItem(userId, itemId);
+    const latest = await ownedItem(userId, itemId, workspaceId);
     return { liked: latest.liked, status: latest.liked ? "sent" : "pending" };
   }
   const response = await likeSocialItem({ account: socialAccount(account), target: providerTarget(item) }).catch(

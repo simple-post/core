@@ -12,7 +12,7 @@ import { SORTABLE_METRICS } from "./query";
 export const AnalyticsPeriodSchema = z
   .enum(ANALYTICS_PERIODS)
   .describe(
-    "Reporting period. Rolling: last_24h, last_7d, last_30d, last_90d, last_365d. Calendar (in timeZone): today, yesterday, this_week, last_week (Monday-based), this_month, last_month, this_quarter, last_quarter, this_year, last_year. Also all_time, or custom with from/to.",
+    "Reporting period. Rolling: last_24h, last_7d, last_8d, last_30d, last_90d, last_365d. Calendar (in timeZone): today, yesterday, this_week, last_week (Monday-based), this_month, last_month, this_quarter, last_quarter, this_year, last_year. Also all_time, or custom with from/to.",
   );
 
 export const AnalyticsModeSchema = z
@@ -168,6 +168,7 @@ export const PostSummaryItemSchema = z
   .object({
     ...MetricTotalsShape,
     postId: z.string(),
+    teamPostId: z.string().optional(),
     message: z.string(),
     publishedAt: z.string(),
     platforms: z.array(PlatformSchema),
@@ -227,7 +228,16 @@ export const AnalyticsSummarySchema = z
     ),
     timeline: z.array(z.object({ start: z.string(), posts: z.number(), ...MetricTotalsShape })),
     topPosts: z.array(PostSummaryItemSchema),
+    platforms: z.array(PlatformSchema),
     bestTimes: z.object({
+      bySlot: z.array(
+        z.object({
+          weekday: z.number(),
+          hour: z.number(),
+          posts: z.number(),
+          averageEngagements: z.number().nullable(),
+        }),
+      ),
       byWeekday: z.array(
         z.object({
           weekday: z.number().describe("0 = Monday … 6 = Sunday"),
@@ -245,6 +255,7 @@ export const AnalyticsSummarySchema = z
         current: z.number().nullable(),
         change: z.number().nullable(),
         series: z.array(z.object({ day: z.string(), followers: z.number() })),
+        baseline: z.object({ day: z.string(), followers: z.number() }).optional(),
       }),
     ),
     coverage: z.object({

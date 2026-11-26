@@ -65,7 +65,7 @@ describe("default pilot OAuth scopes", () => {
     ["facebook", ["read_insights", "pages_read_user_content", "pages_manage_engagement"]],
     ["instagram", ["instagram_business_manage_insights", "instagram_business_manage_comments"]],
     ["tiktok", ["video.list", "user.info.stats"]],
-    ["x", ["like.write"]],
+    ["x", ["like.read", "like.write"]],
     ["bluesky", []],
     ["linkedin", []],
   ] as const;
@@ -99,6 +99,7 @@ describe("default pilot OAuth scopes", () => {
           undefined,
           undefined,
           expect.objectContaining({ scope }),
+          { workspaceId: undefined, reconnectAccountId: undefined },
         );
       }
     }
@@ -150,7 +151,7 @@ describe("YouTube inbox consent alongside analytics", () => {
     ]);
     expect(requireSocialInbox).toHaveBeenCalledWith("user-1");
     expect(prisma.connectedAccount.findFirst).toHaveBeenCalledWith({
-      where: { id: "account-1", userId: "user-1", platform: "youtube" },
+      where: { id: "account-1", userId: "user-1", platform: "youtube", workspaceId: null },
       select: { id: true },
     });
   });

@@ -66,7 +66,7 @@ it("stores the authorized Brand channel identity and credentials without a Googl
     "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true&maxResults=2",
     expect.objectContaining({ headers: { Authorization: "Bearer new-token" }, cache: "no-store" }),
   );
-  expect(findManyMock).toHaveBeenCalledWith({ where: { userId: "user-1", platform: "youtube" } });
+  expect(findManyMock).toHaveBeenCalledWith({ where: { userId: "user-1", platform: "youtube", workspaceId: null } });
   expect(upsertMock).toHaveBeenCalledWith({
     userId: "user-1",
     platform: "youtube",

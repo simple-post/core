@@ -35,7 +35,9 @@ export async function updatePublishingPreferences(userId: string, input: z.infer
   const set = publishingSettingsSchema.parse(input);
   if (set.defaultAccountIds) {
     set.defaultAccountIds = [...new Set(set.defaultAccountIds)];
-    const count = await prisma.connectedAccount.count({ where: { userId, id: { in: set.defaultAccountIds } } });
+    const count = await prisma.connectedAccount.count({
+      where: { userId, workspaceId: null, id: { in: set.defaultAccountIds } },
+    });
     if (count !== set.defaultAccountIds.length) throw new Error("One or more destinations are no longer connected.");
   }
   await prisma.userPublishingPreferences.upsert({ where: { userId }, create: { userId, ...set }, update: set });

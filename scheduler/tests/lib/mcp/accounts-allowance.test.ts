@@ -67,7 +67,7 @@ it("returns a connection URL only when the authenticated user has no social acco
   expect(listAccountsOutputSchema.safeParse(empty).success).toBe(true);
   expect(empty.connectAccountsUrl).toMatch(/\/accounts\?onboarding=connect$/);
   expect(prisma.connectedAccount.findMany).toHaveBeenLastCalledWith({
-    where: { userId: "user" },
+    where: { userId: "user", workspaceId: null },
     orderBy: { createdAt: "desc" },
   });
 });

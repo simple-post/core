@@ -13,7 +13,7 @@ export async function changeSettings(tx: Tx, workspaceId: string, cmd: Settings)
     case "settings": {
       return tx.teamWorkspace.update({
         where: { id: workspaceId },
-        data: { name: cmd.name, icon: cmd.icon, description: cmd.description },
+        data: { name: cmd.name, icon: cmd.icon, description: cmd.description, color: cmd.color },
       });
     }
     case "removeFile": {

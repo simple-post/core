@@ -4,19 +4,17 @@ import { useRef, useState, type FormEvent } from "react";
 
 import Link from "next/link";
 
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUpRight, ChevronDown, Ellipsis, Heart, MessageSquare, RefreshCw, Users } from "lucide-react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, ArrowUpRight, Eye, Heart, MessageSquare, RefreshCw } from "lucide-react";
 
+import { PlatformFilter } from "@/components/platform-filter";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getPlatformById } from "@/components/visual/platforms";
+import { workspaceHref } from "@/components/workspaces/switcher";
+import { PlatformPostPreview } from "@/features/platform-preview/platform-post-preview";
+import { reconnectHref } from "@/lib/accounts/reconnect-navigation";
 import { useSession } from "@/lib/auth/auth-client";
 import { useUiCopy } from "@/lib/i18n/use-ui-copy";
 import type { SocialInbox as InboxPage, SocialInboxItem } from "@/lib/social/activity";
@@ -43,11 +41,15 @@ type Receipt = { status: string; errorMessage?: string };
 
 function InboxRow({
   item,
+  workspaceId,
+  canManage,
   showAccount,
   refresh,
   focusNext,
 }: {
   item: SocialInboxItem;
+  workspaceId?: string;
+  canManage: boolean;
   showAccount: boolean;
   refresh: () => Promise<unknown>;
   focusNext: () => void;
@@ -61,14 +63,15 @@ function InboxRow({
   const [replyFeedback, setReplyFeedback] = useState<string>();
   const [likeFeedback, setLikeFeedback] = useState<string>();
   const [sent, setSent] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewTrigger = useRef<HTMLButtonElement>(null);
   const [showSentReply, setShowSentReply] = useState(false);
   const author = item.author?.name || item.author?.username || copy("Unknown author");
   const kind = item.kind === "quote" ? copy("Quote post") : item.kind === "reply" ? copy("Reply") : copy("Comment");
   const replyState = sent ? "sent" : item.reply?.status;
-  const isLiked = liked || item.liked;
+  const isLiked = item.liked;
   const blocked = replyState === "pending" || replyState === "uncertain";
-  const sourceHref = item.sourceUrl ?? `/posts/${encodeURIComponent(item.postId)}`;
+  const hasNativeItemLink = item.nativeUrl && item.nativeUrl !== item.sourceUrl;
   const actionUrl = `${base}/items/${encodeURIComponent(item.id)}`;
 
   async function replyToItem(event: FormEvent<HTMLFormElement>) {
@@ -79,7 +82,10 @@ function InboxRow({
     setReplying(true);
     setReplyFeedback(undefined);
     try {
-      const receipt = await inboxRequest<Receipt>(`${actionUrl}/reply`, jsonPost({ body, idempotencyKey: key }));
+      const receipt = await inboxRequest<Receipt>(
+        workspaceHref(`${actionUrl}/reply`, workspaceId),
+        jsonPost({ body, idempotencyKey: key }),
+      );
       if (receipt.status === "sent") {
         setSent(true);
         setOpen(false);
@@ -101,9 +107,9 @@ function InboxRow({
     setLiking(true);
     setLikeFeedback(undefined);
     try {
-      const receipt = await inboxRequest<Receipt>(`${actionUrl}/like`, { method: "PUT" });
-      if (receipt.status === "sent") setLiked(true);
-      else setLikeFeedback(receipt.errorMessage ?? copy("Check the platform to confirm your like."));
+      const receipt = await inboxRequest<Receipt>(workspaceHref(`${actionUrl}/like`, workspaceId), { method: "PUT" });
+      if (receipt.status !== "sent")
+        setLikeFeedback(receipt.errorMessage ?? copy("Check the platform to confirm your like."));
       await refresh();
     } catch (error) {
       setLikeFeedback(error instanceof Error ? error.message : copy("Could not like this item."));
@@ -144,7 +150,7 @@ function InboxRow({
 
           {(item.canLike || replyState === "sent" || (item.canReply && !blocked)) && (
             <div className="mt-1.5 -ms-2 flex flex-wrap items-center gap-1 text-muted-foreground">
-              {item.canLike && (
+              {(isLiked || (canManage && item.canLike)) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -157,7 +163,7 @@ function InboxRow({
                   {isLiked ? copy("Liked") : copy("Like")}
                 </Button>
               )}
-              {item.canReply && !blocked && replyState !== "sent" && (
+              {canManage && item.canReply && !blocked && replyState !== "sent" && (
                 <Button
                   type="button"
                   variant={open ? "secondary" : "ghost"}
@@ -170,7 +176,16 @@ function InboxRow({
                   {copy("Reply")}
                 </Button>
               )}
-              {replyState === "sent" && <span className="px-2 text-xs">{copy("Replied")}</span>}
+              {replyState === "sent" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={showSentReply}
+                  onClick={() => setShowSentReply(!showSentReply)}
+                  disabled={!item.reply}>
+                  {copy("Replied")}
+                </Button>
+              )}
             </div>
           )}
 
@@ -202,14 +217,6 @@ function InboxRow({
             <form onSubmit={replyToItem} className="mt-2 rounded-lg border border-border p-2">
               <div className="flex min-w-0 flex-wrap justify-between gap-x-3 gap-y-1 px-2 py-1 text-xs text-muted-foreground">
                 <span>{copy("Replying as {{account}}", { account: item.accountName })}</span>
-                <Link
-                  href={sourceHref}
-                  target={item.sourceUrl ? "_blank" : undefined}
-                  rel={item.sourceUrl ? "noreferrer" : undefined}
-                  title={item.sourceBody}
-                  className="max-w-full truncate underline underline-offset-2 hover:text-foreground">
-                  {copy("Open original post")}
-                </Link>
               </div>
               <textarea
                 className="min-h-20 w-full resize-y rounded-md bg-transparent p-2 text-sm focus-visible:outline-2 focus-visible:outline-primary"
@@ -240,66 +247,95 @@ function InboxRow({
             </p>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="-mt-1 size-8 shrink-0 text-muted-foreground"
-              aria-label={`${copy("More actions")} · ${author}`}>
-              <Ellipsis aria-hidden />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {item.nativeUrl && (
-              <DropdownMenuItem asChild>
-                <a href={item.nativeUrl} target="_blank" rel="noreferrer">
-                  <ArrowUpRight aria-hidden />
-                  {copy("Open on platform")}
-                </a>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem asChild>
-              <Link
-                href={sourceHref}
-                target={item.sourceUrl ? "_blank" : undefined}
-                rel={item.sourceUrl ? "noreferrer" : undefined}
-                title={item.sourceBody}>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            ref={previewTrigger}
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 text-muted-foreground"
+            aria-label={copy("Preview original post")}
+            title={copy("Preview original post")}
+            onClick={() => setPreviewOpen(true)}>
+            <Eye aria-hidden />
+          </Button>
+          {hasNativeItemLink && (
+            <Button asChild variant="ghost" size="icon" className="size-9 text-muted-foreground">
+              <a
+                href={item.nativeUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={copy("Open on platform")}
+                title={copy("Open on platform")}>
                 <ArrowUpRight aria-hidden />
-                {copy("Open original post")}
-              </Link>
-            </DropdownMenuItem>
-            {replyState === "sent" && item.reply && (
-              <DropdownMenuItem onSelect={() => setShowSentReply((current) => !current)}>
-                <MessageSquare aria-hidden />
-                {showSentReply ? copy("Hide reply") : copy("View reply")}
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              </a>
+            </Button>
+          )}
+        </div>
+        {previewOpen && (
+          <Dialog open onOpenChange={setPreviewOpen}>
+            <DialogContent
+              className="max-h-[85dvh] overflow-y-auto sm:max-w-lg"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                previewTrigger.current?.focus();
+              }}>
+              <DialogHeader>
+                <DialogTitle>{copy("Original post")}</DialogTitle>
+                <DialogDescription>{item.accountName}</DialogDescription>
+              </DialogHeader>
+              {item.sourcePreview ? (
+                <PlatformPostPreview
+                  message={item.sourceBody}
+                  media={item.sourcePreview.media}
+                  selectedAccounts={[
+                    {
+                      id: item.accountId,
+                      platform: item.platform,
+                      username: item.accountUsername ?? null,
+                      displayName: item.accountName,
+                      email: null,
+                      platformAccountId: item.accountId,
+                      profilePicture: item.sourcePreview.profilePicture,
+                    },
+                  ]}
+                  previewDate={item.sourcePreview.publishedAt ? new Date(item.sourcePreview.publishedAt) : null}
+                />
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{item.sourceBody}</p>
+              )}
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </article>
   );
 }
 
-export function SocialInbox({ connection }: { connection?: string | null }) {
+export function SocialInbox({
+  connection,
+  workspaceId,
+  canManage = true,
+}: {
+  connection?: string | null;
+  workspaceId?: string;
+  canManage?: boolean;
+}) {
   const { copy } = useUiCopy();
   const { data: session } = useSession();
-  const [platform, setPlatform] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [needsReply, setNeedsReply] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
   const [syncError, setSyncError] = useState<string>();
-  const [showConnections, setShowConnections] = useState(false);
-  const inboxMenu = useRef<HTMLButtonElement>(null);
   const queryClient = useQueryClient();
-  const queryKey = ["social-inbox", session?.user.id];
+  const queryKey = ["social-inbox", session?.user.id, workspaceId];
   const feed = useInfiniteQuery({
-    queryKey: [...queryKey, platform, needsReply],
+    queryKey: [...queryKey, selectedPlatforms, needsReply],
     initialPageParam: "",
     queryFn: ({ pageParam }) => {
       const query = new URLSearchParams();
-      if (platform) query.set("platform", platform);
+      if (workspaceId) query.set("workspace", workspaceId);
+      for (const platform of selectedPlatforms) query.append("platform", platform);
       if (needsReply) query.set("needsReply", "true");
       if (pageParam) query.set("cursor", pageParam);
       return inboxRequest<InboxPage>(`${base}/inbox?${query}`);
@@ -315,25 +351,34 @@ export function SocialInbox({ connection }: { connection?: string | null }) {
   }
   const platforms = [...accountCounts.keys()].sort((a, b) => platformLabel(a).localeCompare(platformLabel(b)));
   const lastSync = accounts
-    .map((account) => account.lastSyncedAt)
-    .filter(Boolean)
+    .flatMap((account) => account.lastSyncedAt ?? [])
     .sort()
     .at(-1);
-  const visibleAccounts = platform ? accounts.filter((account) => account.platform === platform) : accounts;
-  const canSync = visibleAccounts.some((account) => account.canSync);
-  const showSyncMore = hasMore || visibleAccounts.some((account) => account.hasMore);
-  const connectionHasError = accounts.some((account) => account.error);
+  const canSync = canManage && accounts.some((account) => account.canSync);
+  const showSyncMore = canManage && accounts.some((account) => account.hasMore);
   const refresh = () => queryClient.invalidateQueries({ queryKey });
+
+  const autoSync = useQuery({
+    queryKey: ["social-inbox-sync", session?.user.id, workspaceId],
+    enabled: Boolean(session?.user.id) && canSync && !syncing,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: false,
+    queryFn: async () => {
+      const result = await inboxRequest<{ accounts: unknown[] }>(
+        workspaceHref(`${base}/inbox/refresh`, workspaceId),
+        jsonPost({ automatic: true }),
+      );
+      if (result.accounts.length > 0) await refresh();
+      return result;
+    },
+  });
 
   async function sync(reset: boolean) {
     setSyncing(true);
     setSyncError(undefined);
     try {
-      const result = await inboxRequest<{ hasMore: boolean }>(
-        `${base}/inbox/refresh`,
-        jsonPost({ reset, platform: platform || undefined }),
-      );
-      setHasMore(result.hasMore);
+      await inboxRequest(workspaceHref(`${base}/inbox/refresh`, workspaceId), jsonPost({ reset }));
       await refresh();
     } catch (error) {
       setSyncError(error instanceof Error ? error.message : copy("Could not refresh the inbox."));
@@ -361,93 +406,72 @@ export function SocialInbox({ connection }: { connection?: string | null }) {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-4 pt-7 pb-16 sm:px-8 sm:pt-10">
-      <header className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{copy("Inbox")}</h1>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={syncing ? copy("Refreshing…") : copy("Refresh inbox")}
-            title={copy("Refresh inbox")}
-            onClick={() => sync(true)}
-            disabled={syncing || !canSync}
-            className="text-muted-foreground">
-            <RefreshCw className={cn("size-4", syncing && "motion-safe:animate-spin")} aria-hidden />
-          </Button>
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                ref={inboxMenu}
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={copy("Inbox options")}
-                className="relative text-muted-foreground">
-                <Ellipsis aria-hidden />
-                {connectionHasError && (
-                  <span className="absolute end-1.5 top-1.5 size-1.5 rounded-full bg-amber-300" aria-hidden />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setShowConnections(true)}>
-                <Users aria-hidden />
-                {copy("Connections")}
-              </DropdownMenuItem>
-              {showSyncMore && (
-                <DropdownMenuItem onSelect={() => sync(false)} disabled={syncing}>
-                  <ArrowDown aria-hidden />
-                  {copy("Sync more")}
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    <main className="mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] pt-6 pb-16">
+      <header className="mb-5 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">{copy("Inbox")}</h1>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label={copy("Refresh inbox")}
+          title={copy("Refresh inbox")}
+          onClick={() => sync(true)}
+          disabled={syncing || !canSync}>
+          <RefreshCw
+            className={cn("size-4", (syncing || autoSync.isFetching) && "motion-safe:animate-spin")}
+            aria-hidden
+          />
+        </Button>
       </header>
       {(syncError || connection) && (
-        <p role="status" className="mb-4 text-sm text-amber-300">
-          {syncError ??
-            (connection === "account"
-              ? copy("Choose the same connected account when granting inbox permissions.")
-              : copy("The platform did not grant all inbox permissions."))}
+        <p role="status" className="mb-4 text-sm text-amber-600 dark:text-amber-300">
+          {syncError ?? copy("The platform did not grant all inbox permissions.")}
         </p>
       )}
-
-      <section aria-label={copy("Inbox items")}>
-        <div id="inbox-filters" tabIndex={-1} className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <label className="relative inline-flex items-center">
-            <span className="sr-only">{copy("Filter by platform")}</span>
-            <select
-              value={platform}
-              onChange={(event) => {
-                setPlatform(event.target.value);
-                setHasMore(false);
-              }}
-              className="h-9 appearance-none rounded-md border border-border bg-background ps-3 pe-8 text-sm focus-visible:outline-2 focus-visible:outline-primary">
-              <option value="">{copy("All platforms")}</option>
-              {platforms.map((item) => (
-                <option key={item} value={item}>
-                  {platformLabel(item)}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute end-2 size-4 text-muted-foreground" aria-hidden />
-          </label>
+      <div className="mb-4 space-y-2">
+        {accounts
+          .filter((account) => account.error || account.permissionUrl)
+          .map((account) => (
+            <div
+              key={account.id}
+              className="flex flex-wrap items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm">
+              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" aria-hidden />
+              <PlatformIconBadge platform={account.platform} className="size-5" />
+              <span className="min-w-48 flex-1">
+                {account.name} · {account.error ?? copy("Reconnect to enable inbox activity.")}
+              </span>
+              {account.permissionUrl && canManage && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={reconnectHref(account.id, workspaceHref("/inbox", workspaceId), workspaceId)}>
+                    {copy("Reconnect")}
+                  </Link>
+                </Button>
+              )}
+            </div>
+          ))}
+      </div>
+      <section aria-label={copy("Inbox items")} className="rounded-xl border bg-card px-4 sm:px-5">
+        <div id="inbox-filters" tabIndex={-1} className="flex flex-wrap items-center justify-between gap-2 py-3">
+          <PlatformFilter
+            platforms={platforms}
+            selected={selectedPlatforms}
+            onChange={(update) => setSelectedPlatforms((current) => update(current).sort())}
+          />
           <Button
             size="sm"
             type="button"
             aria-pressed={needsReply}
             variant={needsReply ? "secondary" : "ghost"}
             onClick={() => setNeedsReply(!needsReply)}>
-            {copy("Needs reply")}
+            {copy("Unanswered")}
           </Button>
         </div>
         {items.map((item, index) => (
           <InboxRow
             key={item.id}
             item={item}
+            workspaceId={workspaceId}
+            canManage={canManage}
             showAccount={(accountCounts.get(item.platform) ?? 0) > 1}
             refresh={refresh}
             focusNext={() => focusNext(index)}
@@ -460,14 +484,16 @@ export function SocialInbox({ connection }: { connection?: string | null }) {
             ) : feed.isError ? (
               feed.error.message
             ) : accounts.length === 0 ? (
-              <Link className="text-primary underline underline-offset-4" href="/accounts">
+              <Link
+                className="text-primary underline underline-offset-4"
+                href={workspaceHref("/accounts", workspaceId)}>
                 {copy("Manage accounts")}
               </Link>
             ) : canSync ? (
-              lastSync ? (
-                copy("No activity matches these filters.")
+              !lastSync && autoSync.isFetching ? (
+                copy("Checking for new activity…")
               ) : (
-                copy("Refresh the inbox to check for activity on your published posts.")
+                copy("No activity matches these filters.")
               )
             ) : (
               copy("Inbox unavailable")
@@ -483,57 +509,13 @@ export function SocialInbox({ connection }: { connection?: string | null }) {
         )}
       </section>
 
-      <Dialog open={showConnections} onOpenChange={setShowConnections}>
-        <DialogContent
-          aria-describedby={undefined}
-          className="max-h-[80dvh] overflow-y-auto"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            inboxMenu.current?.focus();
-          }}>
-          <DialogHeader>
-            <DialogTitle>{copy("Inbox connections")}</DialogTitle>
-          </DialogHeader>
-          {accounts.length === 0 && !feed.isPending && (
-            <Link
-              className="mt-2 inline-block text-xs text-primary underline-offset-4 hover:underline"
-              href="/accounts">
-              {copy("Manage accounts")}
-            </Link>
-          )}
-          <ul className="mt-2 divide-y divide-border/70">
-            {accounts.map((account) => (
-              <li key={account.id} className="py-2.5">
-                <div className="flex items-center gap-2">
-                  <PlatformIconBadge platform={account.platform} />
-                  <span className="truncate text-xs font-medium" title={account.name}>
-                    {account.name}
-                  </span>
-                </div>
-                <p
-                  className={cn(
-                    "mt-1 text-xs wrap-anywhere",
-                    account.error ? "text-amber-300" : "text-muted-foreground",
-                  )}>
-                  {account.error ||
-                    (account.canSync
-                      ? account.lastSyncedAt
-                        ? account.coverage || copy("Synced")
-                        : copy("Ready to sync")
-                      : copy("Inbox unavailable"))}
-                </p>
-                {account.permissionUrl && (
-                  <a
-                    className="mt-1 inline-block text-xs text-primary underline-offset-4 hover:underline"
-                    href={account.permissionUrl}>
-                    {copy("Grant inbox permissions")}
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
+      {showSyncMore && (
+        <div className="mt-2 flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => sync(false)} disabled={syncing}>
+            {copy("Check older posts")}
+          </Button>
+        </div>
+      )}
     </main>
   );
 }

@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import Link from "next/link";
+
 import { AccountRowPicker } from "@/components/account-row-picker";
 import { ComposerColumns } from "@/components/composer-columns";
 import { PlatformIconBadge } from "@/components/platform-icons";
@@ -12,6 +14,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { maxFileSize, platforms, type Variant } from "@/lib/workspaces/contracts";
 
 import { WorkspacePreview, variantMedia, workspaceMedia } from "./preview";
+import { workspaceHref } from "./switcher";
 import { localTime, platformName, request, type FileInfo, type Item, type Run, type Workspace } from "./types";
 
 const freshVariant = (platform: Variant["platform"]): Variant => ({
@@ -41,6 +44,9 @@ export function PostEditor({
   const [uploading, setUploading] = useState(false);
   const [activePlatform, setActivePlatform] = useState(variants[0]?.platform);
   const active = variants.find((v) => v.platform === activePlatform) ?? variants[0];
+  const missingConnection = Boolean(
+    active?.accountId && !w.accounts.some((account) => account.id === active.accountId),
+  );
   const [initialPlan] = useState(() => {
     if (post) return localTime(post.plannedAt);
     const next = new Date(Date.now() + 3_600_000);
@@ -134,6 +140,15 @@ export function PostEditor({
                       </option>
                     ))}
                   </NativeSelect>
+                  {missingConnection && (
+                    <span className="text-sm text-muted-foreground">
+                      Choose another destination or{" "}
+                      <Link className="text-primary underline" href={workspaceHref("/accounts", w.id)}>
+                        connect an account
+                      </Link>{" "}
+                      to this workspace.
+                    </span>
+                  )}
                 </Label>
               )}
               <PostContentEditor
@@ -159,6 +174,11 @@ export function PostEditor({
                     value={active.accountId ?? ""}
                     onChange={(e) => patch(active.platform, { accountId: e.target.value || null, destination: null })}>
                     <option value="">Native publishing</option>
+                    {missingConnection && (
+                      <option value={active.accountId!} disabled>
+                        Connection unavailable
+                      </option>
+                    )}
                     {w.accounts
                       .filter((a) => a.platform === active.platform)
                       .map((a) => (

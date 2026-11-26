@@ -20,6 +20,7 @@ export function PostCardView({
   post,
   platforms: uniquePlatforms,
   dateLabel,
+  draftLabel,
   accountLabels,
   actions,
   selection,
@@ -29,6 +30,7 @@ export function PostCardView({
   post: PostCardData;
   platforms: string[];
   dateLabel: string;
+  draftLabel?: string;
   accountLabels: string[];
   actions?: ReactNode;
   selection?: ReactNode;
@@ -129,7 +131,7 @@ export function PostCardView({
                 {isDraft && (
                   <Badge variant="secondary" className="flex-shrink-0 text-xs">
                     <FileText className="h-3 w-3 me-1" />
-                    {t("postDraft")}
+                    {draftLabel ?? t("postDraft")}
                   </Badge>
                 )}
                 {waiting && (

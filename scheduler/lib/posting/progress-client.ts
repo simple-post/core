@@ -1,5 +1,7 @@
 import { ApiResponseError } from "@/lib/utils/api-response-error";
 
+import type { PlacementResult } from "@simple-post/sdk";
+
 export interface PostingProgressResult {
   accountId: string;
   platform: string;
@@ -11,6 +13,7 @@ export interface PostingProgressResult {
   postId?: string;
   message?: string;
   details?: unknown;
+  placementResults?: PlacementResult[];
   threadResults?: Array<{
     index: number;
     success: boolean;

@@ -82,6 +82,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
       postId: r.postId,
       postUrl: r.postUrl,
       details: r.details ? (sanitizeForJson(r.details) as Record<string, unknown>) : undefined,
+      placementResults: r.placementResults,
       threadResults: r.threadResults?.map((s) => ({
         index: s.index,
         success: s.success,

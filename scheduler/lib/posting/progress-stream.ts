@@ -17,6 +17,7 @@ export function sanitizePostingResult(result: PostingResult) {
     postId: result.postId,
     postUrl: result.postUrl,
     details: result.details ? (sanitizeForJson(result.details) as Record<string, unknown>) : undefined,
+    placementResults: result.placementResults,
     threadResults: result.threadResults?.map((segment) => ({
       index: segment.index,
       success: segment.success,

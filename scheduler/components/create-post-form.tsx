@@ -25,6 +25,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { UiCopy } from "@/components/ui-copy";
+import { VideoPlacement } from "@/features/platform-options/video-placement";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -727,6 +728,14 @@ export function CreatePostForm() {
             }}
           />
         </div>
+
+        <VideoPlacement
+          accounts={selectedAccounts}
+          media={media}
+          overrides={enabledOverrides}
+          options={accountOptions}
+          onChange={setAccountOptions}
+        />
 
         <div className="space-y-4">
           <div>

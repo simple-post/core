@@ -1334,5 +1334,17 @@
   "Yesterday": "昨天",
   "Your posts published on {{day}} around {{hour}} get the most engagement.": "你在{{day}} {{hour}}左右发布的帖子互动最多。",
   "Your posts published on {{day}} get the most engagement.": "你在{{day}}发布的帖子互动最多。",
-  "Pick a start and end date for the custom range.": "请为自定义时间范围选择开始和结束日期。"
+  "Pick a start and end date for the custom range.": "请为自定义时间范围选择开始和结束日期。",
+  "Page video": "主页视频",
+  "Page video and Story": "主页视频和快拍",
+  "Page video only": "仅主页视频",
+  "Reel": "Reel 短片",
+  "Reel and Story": "Reel 短片和快拍",
+  "Reel only": "仅 Reel 短片",
+  "Retry uses the original placements and skips any that already published.": "重试会沿用原发布位置，并跳过已发布的位置。",
+  "Story": "快拍",
+  "Story only": "仅快拍",
+  "Video placement": "视频发布位置",
+  "View": "查看",
+  "View Story": "查看快拍"
 }

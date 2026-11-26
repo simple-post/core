@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { VideoPlacement } from "@/features/platform-options/video-placement";
 import { PlatformPostPreview } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useFeatures } from "@/hooks/use-features";
@@ -621,6 +622,15 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
             </Alert>
           ) : null}
         </div>
+
+        <VideoPlacement
+          accounts={selectedAccounts}
+          media={media}
+          overrides={enabledOverrides}
+          options={accountOptions}
+          onChange={setAccountOptions}
+          disabled={isRetry}
+        />
 
         <div className="space-y-4">
           <div>

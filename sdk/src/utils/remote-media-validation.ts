@@ -38,6 +38,7 @@ interface MediaUsage {
   field: string;
   maxSizeBytes?: number;
   mediaCount?: number;
+  placement?: unknown;
 }
 
 function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
@@ -57,6 +58,7 @@ function collectMediaUsages(params: RemoteMediaValidationParams): MediaUsage[] {
         platform,
         field: `text.media[${index}]`,
         mediaCount: rootMedia.length,
+        placement: params.accountOptions?.[account.id]?.placement,
       });
     }
 
@@ -139,6 +141,7 @@ export async function hydrateRemoteMediaSizesForAccounts(
                 }
                 oversized.push(
                   ...validateInspectedMedia(usage.platform, inspection, {
+                    placement: usage.placement,
                     mediaCount: usage.mediaCount ?? 1,
                     thumbnail: !usage.media,
                   }).map((issue) =>

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type {
+  PlacementResult,
   AccountOptionsMap,
   AccountOverridesMap,
   MediaFile,
@@ -143,6 +144,7 @@ export interface AccountPublishResult {
   error?: string;
   message?: string;
   completedAt: string;
+  placementResults?: PlacementResult[];
   platformData?: Record<string, unknown>;
 }
 

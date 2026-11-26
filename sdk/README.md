@@ -31,6 +31,33 @@ console.log(result);
 
 `post()` returns a `Map` with a result per platform, including the post ID or a typed error when posting failed.
 
+### Instagram and Facebook video Stories
+
+With one video attachment, set `options.instagram.placement` or
+`options.facebook.placement` to `"post"` (Instagram Reel or Facebook Page video),
+`"story"`, or `"both"`. The default is `"post"`. A Story uses the video
+without the post caption. Instagram Story publishing requires an eligible
+account. Facebook Page Stories require a Page token with Story publishing
+permissions.
+
+For the Scheduler and self-hosted HTTP APIs, and for the MCP
+`validate_post`, `preview_post`, and `create_post` tools, put the same option
+under the connected account ID:
+
+```json
+{
+  "accountIds": ["instagram-account-id", "facebook-page-id"],
+  "accountOptions": {
+    "instagram-account-id": { "placement": "both" },
+    "facebook-page-id": { "placement": "story" }
+  }
+}
+```
+
+The SDK and HTTP/MCP responses include `placementResults` for individual
+publish outcomes. In the Scheduler, edit and retry the original failed post
+to reuse a completed placement. Use SimplePost scheduling for Facebook Stories.
+
 To add commentary while quoting an existing post, use `quote()`. X, Bluesky,
 Threads, and LinkedIn receive native quotes; other platforms publish the new
 content as an ordinary post. LinkedIn commentary reshares cannot attach new

@@ -1,4 +1,4 @@
-import type { AccountPublishResult, AccountResultsMap } from "@/types";
+import type { AccountOptionsMap, AccountPublishResult, AccountResultsMap } from "@/types";
 
 import type { PostingResult } from "./index";
 
@@ -23,6 +23,7 @@ export function toAccountResultsMap(results: PostingResult[]): AccountResultsMap
       message: result.message,
       completedAt,
       platformData: result.platformData,
+      ...(result.placementResults && { placementResults: result.placementResults }),
     } satisfies AccountPublishResult;
   }
 
@@ -55,4 +56,12 @@ export function getSucceededAccountIds(accountResults: AccountResultsMap | null 
     if (result.success) succeeded.add(result.accountId);
   }
   return succeeded;
+}
+
+export function videoPlacementsChanged(
+  accountIds: string[],
+  before?: AccountOptionsMap | null,
+  after?: AccountOptionsMap | null,
+): boolean {
+  return accountIds.some((id) => (before?.[id]?.placement ?? "post") !== (after?.[id]?.placement ?? "post"));
 }

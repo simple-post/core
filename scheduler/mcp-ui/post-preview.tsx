@@ -4,6 +4,7 @@ import { type PostPreviewData, type PreviewPlatform } from "@simple-post/preview
 import { createRoot } from "react-dom/client";
 
 import { UiLocaleProvider } from "../lib/i18n/client";
+
 import { PreviewSwitcher } from "./preview-switcher";
 import { useMcpToolData } from "./use-mcp-tool-data";
 import "./post-preview.css";
@@ -13,6 +14,7 @@ type RenderedPreview = {
   platform: PreviewPlatform;
   platformLabel: string;
   accountLabel: string;
+  placement?: "post" | "story" | "both";
   data: Omit<PostPreviewData, "previewDate"> & { previewDate: string };
 };
 
@@ -34,15 +36,16 @@ type PostPreviewToolData = {
 function PostPreviewApp() {
   const { data, error, toolError, locale, messages, t } =
     useMcpToolData<PostPreviewToolData>("SimplePost Post Preview");
-  const [selectedPlatform, setSelectedPlatform] = useState<PreviewPlatform | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const copy = (source: string) => messages[source] ?? source;
   const appBaseUrl = document.querySelector<HTMLMetaElement>('meta[name="simplepost-base-url"]')?.content;
   const logoUrl = appBaseUrl ? new URL("/simplepost-logo.png", appBaseUrl).toString() : null;
 
   useEffect(() => {
-    if (data && !data.previews.some((preview) => preview.platform === selectedPlatform)) {
-      setSelectedPlatform(data.previews[0]?.platform ?? null);
+    if (data && !data.previews.some((preview) => preview.accountId === selectedAccountId)) {
+      setSelectedAccountId(data.previews[0]?.accountId ?? null);
     }
-  }, [data, selectedPlatform]);
+  }, [data, selectedAccountId]);
 
   if (toolError || (error && !data)) {
     return <div className="preview-state error-card">{error?.message ?? toolError}</div>;
@@ -66,13 +69,18 @@ function PostPreviewApp() {
               id: preview.accountId,
               platform: preview.platform,
               platformLabel: preview.platformLabel,
-              accountLabel: preview.accountLabel,
+              accountLabel:
+                preview.placement === "story"
+                  ? preview.accountLabel + " · " + copy("Story only")
+                  : preview.placement === "both"
+                    ? preview.accountLabel +
+                      " · " +
+                      (preview.platform === "instagram" ? copy("Reel and Story") : copy("Page video and Story"))
+                    : preview.accountLabel,
               data: { ...preview.data, threadLayout: "scroll", previewDate: new Date(preview.data.previewDate) },
             }))}
-            selectedId={data.previews.find((preview) => preview.platform === selectedPlatform)?.accountId ?? null}
-            onSelect={(id) =>
-              setSelectedPlatform(data.previews.find((preview) => preview.accountId === id)?.platform ?? null)
-            }
+            selectedId={selectedAccountId}
+            onSelect={setSelectedAccountId}
           />
         </section>
       </main>

@@ -27,7 +27,7 @@ export function getPublishedPostLinkGroups(
   const accountsById = new Map(accounts.map((account) => [account.id, account]));
 
   return Object.values(post.accountResults ?? {}).flatMap((result) => {
-    if (!result.success) return [];
+    if (!result.success && !result.placementResults) return [];
 
     const account = accountsById.get(result.accountId);
     const segmentLinks = (post.threadResults?.[result.accountId] ?? [])
@@ -37,8 +37,18 @@ export function getPublishedPostLinkGroups(
         url: segment.postUrl!,
       }));
 
-    const links =
-      segmentLinks.length > 0
+    const links = result.placementResults
+      ? result.placementResults.flatMap((placement) =>
+          placement.success && placement.postUrl
+            ? [
+                {
+                  label: placement.placement === "story" ? copy("View Story") : copy("View post"),
+                  url: placement.postUrl,
+                },
+              ]
+            : [],
+        )
+      : segmentLinks.length > 0
         ? segmentLinks
         : result.postUrl
           ? [{ label: copy("View post"), url: result.postUrl }]

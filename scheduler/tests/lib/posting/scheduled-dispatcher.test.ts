@@ -630,6 +630,7 @@ describe("dispatchDueScheduledPosts", () => {
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
       undefined,
+      undefined,
     );
   });
 
@@ -666,6 +667,7 @@ describe("dispatchDueScheduledPosts", () => {
       [expect.objectContaining({ accountId: "a1", postId: "successful-source-tweet" })],
       undefined,
       expect.objectContaining({ postId: "quote-1", source: "scheduler" }),
+      undefined,
       undefined,
     );
     expect(result.publishedPosts).toBe(1);

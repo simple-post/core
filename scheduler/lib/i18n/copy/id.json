@@ -1334,5 +1334,17 @@
   "{{period}} · gained per interval": "{{period}} · pertambahan per interval",
   "Based on {{count, number}} posts": "Berdasarkan {{count, number}} postingan",
   "{{count, number}} waiting for their first read.": "{{count, number}} menunggu pembacaan pertama.",
-  "Pick a start and end date for the custom range.": "Pilih tanggal mulai dan selesai untuk rentang khusus."
+  "Pick a start and end date for the custom range.": "Pilih tanggal mulai dan selesai untuk rentang khusus.",
+  "Page video": "Video Halaman",
+  "Page video and Story": "Video Halaman dan Cerita",
+  "Page video only": "Video Halaman saja",
+  "Reel": "Reel",
+  "Reel and Story": "Reel dan Cerita",
+  "Reel only": "Reel saja",
+  "Retry uses the original placements and skips any that already published.": "Percobaan ulang menggunakan penempatan semula dan melewati penempatan yang sudah dipublikasikan.",
+  "Story": "Cerita",
+  "Story only": "Cerita saja",
+  "Video placement": "Penempatan video",
+  "View": "Lihat",
+  "View Story": "Lihat Cerita"
 }

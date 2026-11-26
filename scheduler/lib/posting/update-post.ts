@@ -15,7 +15,7 @@ import { ingestPostMedia } from "@/lib/media-ingestion";
 import { getCredentialIssuesForPublishTime } from "@/lib/oauth/credential-health";
 import { postToAccounts, getPostingSummary } from "@/lib/posting";
 import type { PostingResultCallback } from "@/lib/posting";
-import { mergeAccountResults } from "@/lib/posting/account-results";
+import { mergeAccountResults, videoPlacementsChanged } from "@/lib/posting/account-results";
 import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { sanitizePostingResult } from "@/lib/posting/progress-stream";
 import { longestThreadLength } from "@/lib/posting/thread-length";
@@ -108,6 +108,15 @@ export async function executePostUpdate(
     throw new ConflictError(serverMessage("This post changed. Reload it before saving or publishing."));
   }
   const isRetry = currentPost.status === "failed";
+  const keepPublishingResults =
+    isRetry || Object.values(currentPost.accountResults ?? {}).some((result) => result.placementResults?.length);
+  if (keepPublishingResults) {
+    const accountOptions = { ...currentPost.accountOptions, ...validated.accountOptions };
+    if (videoPlacementsChanged(currentPost.accountIds, currentPost.accountOptions, accountOptions)) {
+      throw new BadRequestError(serverMessage("Retries use the original video placements."));
+    }
+    validated = { ...validated, accountOptions };
+  }
   if (isRetry) {
     if (validated.accountIds.some((accountId) => !currentPost.accountIds.includes(accountId)))
       throw new BadRequestError(
@@ -259,8 +268,8 @@ export async function executePostUpdate(
         errorMessage: null,
         errorDetails: null,
         publishedAt: null,
-        threadResults: isRetry ? currentPost.threadResults : null,
-        accountResults: isRetry ? currentPost.accountResults : null,
+        threadResults: keepPublishingResults ? currentPost.threadResults : null,
+        accountResults: keepPublishingResults ? currentPost.accountResults : null,
         accountOptions: validated.accountOptions,
         accountOverrides: validated.accountOverrides,
         repostEnabled: repostSettings.enabled,
@@ -309,10 +318,11 @@ export async function executePostUpdate(
       onPostingResult,
       { postId: post.id, source: "api" },
       tiktokRetryApproved,
+      keepPublishingResults ? currentPost.accountResults : undefined,
     );
     const summary = getPostingSummary(results);
 
-    const threadResultsByAccount: Record<string, ThreadSegmentResult[]> = isRetry
+    const threadResultsByAccount: Record<string, ThreadSegmentResult[]> = keepPublishingResults
       ? { ...currentPost.threadResults }
       : {};
     for (const result of results) {
@@ -320,7 +330,7 @@ export async function executePostUpdate(
     }
     const hasThreadResults = Object.keys(threadResultsByAccount).length > 0;
     const accountResults = sanitizeForJson(
-      mergeAccountResults(isRetry ? (currentPost.accountResults ?? undefined) : undefined, results),
+      mergeAccountResults(keepPublishingResults ? currentPost.accountResults : undefined, results),
     ) as AccountResultsMap;
 
     const deferred = await deferPostRetry(

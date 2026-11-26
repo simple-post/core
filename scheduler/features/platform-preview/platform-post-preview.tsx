@@ -123,7 +123,7 @@ export function PlatformPostPreview({
         username: activeAccount.username,
         profilePicture: previewProfilePicture(activeAccount, platform),
       },
-      message: effectiveMessage,
+      message: options.placement === "story" ? "" : effectiveMessage,
       media: toPreviewMedia(effectiveMedia),
       options,
       thread: effectiveThread.map((segment) => ({
@@ -143,7 +143,14 @@ export function PlatformPostPreview({
           <span className="section-kicker-label">{copy("Platform preview")}</span>
         </div>
         {platformConfig ? (
-          <span className="text-xs font-medium text-muted-foreground">{platformConfig.name}</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {platformConfig.name}
+            {options.placement === "story"
+              ? ` · ${copy("Story only")}`
+              : options.placement === "both"
+                ? ` · ${platform === "instagram" ? copy("Reel and Story") : copy("Page video and Story")}`
+                : ""}
+          </span>
         ) : null}
       </div>
 

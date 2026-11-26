@@ -1372,5 +1372,17 @@
   "{{period}} · gained per interval": "{{period}} · हर अंतराल में बढ़त",
   "Based on {{count, number}} posts": "{{count, number}} पोस्ट के आधार पर",
   "{{count, number}} waiting for their first read.": "{{count, number}} पहली रीडिंग के इंतज़ार में हैं।",
-  "Pick a start and end date for the custom range.": "कस्टम अवधि के लिए शुरू और खत्म होने की तारीख चुनें।"
+  "Pick a start and end date for the custom range.": "कस्टम अवधि के लिए शुरू और खत्म होने की तारीख चुनें।",
+  "Page video": "पेज वीडियो",
+  "Page video and Story": "पेज वीडियो और स्टोरी",
+  "Page video only": "सिर्फ़ पेज वीडियो",
+  "Reel": "रील",
+  "Reel and Story": "रील और स्टोरी",
+  "Reel only": "सिर्फ़ रील",
+  "Retry uses the original placements and skips any that already published.": "दोबारा कोशिश करने पर मूल प्रकाशन स्थान इस्तेमाल होंगे और जहाँ वीडियो प्रकाशित हो चुका है, उन्हें छोड़ दिया जाएगा।",
+  "Story": "स्टोरी",
+  "Story only": "सिर्फ़ स्टोरी",
+  "Video placement": "वीडियो प्रकाशित करने का स्थान",
+  "View": "देखें",
+  "View Story": "स्टोरी देखें"
 }

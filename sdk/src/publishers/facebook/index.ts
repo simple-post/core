@@ -117,6 +117,7 @@ export class FacebookPublisher extends Publisher {
   }
 
   async postContent(content: Content, options: PostOptionsWithCredentials): Promise<PostResult> {
+    if (options?.facebook?.placement === "both") return this.post(content, options);
     // Validate the content
     const validation = FacebookPublisher.validate(content, options?.facebook);
     if (!validation.isValid) {
@@ -135,6 +136,12 @@ export class FacebookPublisher extends Publisher {
         const { path: resolvedPath, cleanup } = await resolveMediaPath(video);
         tempFileManager.add(cleanup);
 
+        if (options?.facebook?.placement === "story") {
+          const uploader = new FacebookVideoUpload(this.client, this.pageId, this.pageAccessToken, (error) =>
+            this.throwIfCredentialRevoked(error),
+          );
+          return await uploader.publishStory(resolvedPath);
+        }
         return await this.postVideo(video, resolvedPath, options, content.text);
       }
 

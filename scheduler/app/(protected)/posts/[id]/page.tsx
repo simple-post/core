@@ -382,6 +382,9 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
               <div className="space-y-3 mt-2">
                 {postAccounts.map((account: ConnectedAccount) => {
                   const platformConfig = getPlatformById(account.platform);
+                  const placement = post.accountOptions?.[account.id]?.placement;
+                  const outcomes = post.accountResults?.[account.id]?.placementResults;
+                  const regularLabel = account.platform === "instagram" ? copy("Reel") : copy("Page video");
                   return (
                     <div key={account.id} className="flex items-center gap-3">
                       <PlatformIconBadge platform={account.platform} className="size-7" iconClassName="text-xs" />
@@ -389,7 +392,23 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
                         <div className="text-sm font-medium">{getAccountDisplayName(account)}</div>
                         <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground mt-0.5">
                           {platformConfig?.name}
+                          {placement === "story"
+                            ? ` · ${copy("Story only")}`
+                            : placement === "both"
+                              ? ` · ${account.platform === "instagram" ? copy("Reel and Story") : copy("Page video and Story")}`
+                              : ""}
                         </div>
+                        {outcomes?.length ? (
+                          <ul className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                            {outcomes.map((result) => (
+                              <li key={result.placement}>
+                                {result.placement === "story" ? copy("Story") : regularLabel}
+                                {" · "}
+                                {result.success ? copy("Posted") : copy("Failed")}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </div>
                     </div>
                   );

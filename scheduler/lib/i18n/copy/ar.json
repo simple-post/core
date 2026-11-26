@@ -1,4 +1,9 @@
 {
+  "Finish on {{platform}} to return to SimplePost.": "أكمل العملية على {{platform}} للعودة إلى SimplePost.",
+  "Last checked {{time}}": "آخر تحقق {{time}}",
+  "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "لا توجد منشورات بمعرّف محفوظ للمنصة. يبدأ النشاط بالمنشورات المنشورة عبر SimplePost.",
+  "Reconnect to sync likes from X.": "أعِد الربط لمزامنة الإعجابات من X.",
+  "Reconnect {{platform}}": "إعادة ربط {{platform}}",
   "Setup reminder scheduled.": "تمت جدولة تذكير الإعداد.",
   "Cancel setup reminder": "إلغاء تذكير الإعداد",
   "Email me once if I haven’t connected an account two days after signup.": "أرسل إليّ تذكيرًا واحدًا بالبريد الإلكتروني إذا لم أربط حسابًا بعد يومين من التسجيل.",
@@ -1492,7 +1497,6 @@
   "Analytics Dashboard": "لوحة التحليلات",
   "Check older posts": "التحقق من المنشورات الأقدم",
   "Checking for new activity…": "جارٍ التحقق من النشاط الجديد…",
-  "Continue on the platform to authorize this connection.": "تابع على المنصة للسماح بهذا الربط.",
   "Go back": "رجوع",
   "Higher": "أعلى",
   "Last 8 days": "آخر 8 أيام",

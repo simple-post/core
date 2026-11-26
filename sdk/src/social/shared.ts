@@ -79,6 +79,12 @@ function errorCode(platform: string, status: number, providerError?: JsonRecord)
   if (["Facebook", "Instagram", "Threads"].includes(platform)) {
     if (Number(code) === 190) return "authentication";
     if ([4, 17, 32, 613, 80_001].includes(Number(code))) return "rate_limited";
+    if (
+      Number(code) === 10 &&
+      typeof providerError?.message === "string" &&
+      /application does not have permission for this action/i.test(providerError.message)
+    )
+      return "app_permission_required";
     if ([10, 200, 283, 400].includes(Number(code))) return "permission_required";
   }
   if (platform === "YouTube" && Array.isArray(providerError?.errors)) {
@@ -104,6 +110,9 @@ function messageFor(code: SocialActivityErrorCode): string {
   switch (code) {
     case "authentication": {
       return "the account needs to be reconnected.";
+    }
+    case "app_permission_required": {
+      return "Meta is blocking Inbox access for SimplePost at the app level.";
     }
     case "permission_required": {
       return "the connected account needs the required permission.";

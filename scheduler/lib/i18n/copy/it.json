@@ -1,4 +1,9 @@
 {
+  "Finish on {{platform}} to return to SimplePost.": "Completa la procedura su {{platform}} per tornare a SimplePost.",
+  "Last checked {{time}}": "Ultimo controllo alle {{time}}",
+  "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Nessun post ha un ID della piattaforma salvato. L’attività inizia con i post pubblicati tramite SimplePost.",
+  "Reconnect to sync likes from X.": "Ricollega X per sincronizzare i Mi piace.",
+  "Reconnect {{platform}}": "Ricollega {{platform}}",
   "Setup reminder scheduled.": "Promemoria di configurazione programmato.",
   "Cancel setup reminder": "Annulla il promemoria",
   "Email me once if I haven’t connected an account two days after signup.": "Mandami una sola email se non ho collegato un account due giorni dopo la registrazione.",
@@ -1378,7 +1383,6 @@
   "Analytics Dashboard": "Dashboard di analisi",
   "Check older posts": "Controlla i post precedenti",
   "Checking for new activity…": "Ricerca di nuove attività…",
-  "Continue on the platform to authorize this connection.": "Continua sulla piattaforma per autorizzare questa connessione.",
   "Go back": "Indietro",
   "Higher": "Più alto",
   "Last 8 days": "Ultimi 8 giorni",

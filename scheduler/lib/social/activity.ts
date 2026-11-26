@@ -23,7 +23,8 @@ import { enabledInboxScopes, hasInboxScopes } from "./permissions";
 import type { SocialActivityAccount, SocialActivityError, SocialComment } from "@simple-post/sdk";
 
 const MAX_REQUESTS = 8;
-const RECENT_SYNC_INTERVAL_MS = 5 * 60_000;
+const RECENT_SYNC_INTERVAL_MS = 2 * 60_000;
+const X_SYNC_INTERVAL_MS = 5 * 60_000;
 const SYNC_BUDGET_MS = 20_000;
 const MAX_ACCOUNTS = 12;
 const POSTS_PER_SNAPSHOT = 25;
@@ -190,20 +191,24 @@ async function ownedTargetPage(
   accountId: string,
   workspaceId: string | null,
   after?: string,
-  limit = POSTS_PER_SNAPSHOT,
+  recent = false,
 ) {
+  const limit = recent ? RECENT_POSTS_PER_SNAPSHOT : POSTS_PER_SNAPSHOT;
   const cursor = decodePostCursor(after);
   const posts = await prisma.post.findMany({
     where: {
       userId,
       accounts: { some: { id: accountId, userId, workspaceId } },
       status: { in: ["published", "failed"] },
+      accountResults: { path: [accountId, "success"], equals: true },
       ...(cursor
         ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] }
         : {}),
     },
     include: { accounts: { where: { id: accountId, userId, workspaceId } } },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: recent
+      ? [{ publishedAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }, { id: "desc" }]
+      : [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
   });
   const page = posts.slice(0, limit);
@@ -399,30 +404,44 @@ async function saveItems(
   }
 }
 
-async function syncXLikes(account: ConnectedAccount, leaseToken: string, signal: AbortSignal) {
+async function syncXLikes(account: ConnectedAccount, leaseToken: string, maxPages: number, signal: AbortSignal) {
   if (
     mapPlatformName(account.platform) !== "x" ||
     !/^\d+$/.test(account.platformAccountId) ||
     !hasInboxScopes(account.scope, ["like.read"])
   )
-    return;
+    return false;
 
   const startedAt = new Date();
   const url = new URL(`https://api.x.com/2/users/${account.platformAccountId}/liked_tweets?max_results=100`);
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${account.accessToken}` },
-    redirect: "error",
-    signal,
-  });
-  if (!response.ok) return;
-  const payload = object(await response.json());
-  const meta = object(payload.meta);
-  const likes = Array.isArray(payload.data) ? payload.data : [];
-  if (typeof meta.result_count !== "number" || likes.length !== meta.result_count || Array.isArray(payload.errors))
-    return;
-
-  const ids = likes.map((like: unknown) => object(like).id).filter((id) => isUsableNativeId(id));
-  if (ids.length !== likes.length) return;
+  const ids = new Set<string>();
+  let hadValidPage = false;
+  let complete = false;
+  for (let page = 0; page < maxPages; page += 1) {
+    const response = await fetch(new URL(url), {
+      headers: { Authorization: `Bearer ${account.accessToken}` },
+      redirect: "error",
+      signal,
+    }).catch(() => null);
+    if (!response?.ok) break;
+    const payload = object(await response.json().catch(() => null));
+    const meta = object(payload.meta);
+    const likes = Array.isArray(payload.data) ? payload.data : [];
+    if (typeof meta.result_count !== "number" || likes.length !== meta.result_count || Array.isArray(payload.errors))
+      break;
+    const pageIds = likes.map((like: unknown) => object(like).id).filter((id) => isUsableNativeId(id));
+    if (pageIds.length !== likes.length) break;
+    hadValidPage = true;
+    for (const id of pageIds) ids.add(id);
+    if (meta.next_token == null) {
+      complete = true;
+      break;
+    }
+    const next = typeof meta.next_token === "string" ? safeProviderCursor(meta.next_token) : undefined;
+    if (!next || next === url.searchParams.get("pagination_token")) break;
+    url.searchParams.set("pagination_token", next);
+  }
+  if (!hadValidPage) return false;
   const where = {
     accountId: account.id,
     OR: [
@@ -430,24 +449,24 @@ async function syncXLikes(account: ConnectedAccount, leaseToken: string, signal:
       { likeAttemptAt: { lt: startedAt }, OR: [{ likeStatus: null }, { likeStatus: { not: "pending" } }] },
     ],
   };
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const lease = await tx.socialActivitySync.updateMany({
       where: { accountId: account.id, leaseToken },
       data: { leaseToken },
     });
-    if (!lease.count) return;
+    if (!lease.count) return false;
     await tx.socialActivityItem.updateMany({
-      where: { ...where, nativeId: { in: ids } },
+      where: { ...where, nativeId: { in: [...ids] } },
       data: { liked: true, likeStatus: "sent", likeError: null },
     });
     // A truncated list only establishes positive matches. Give a recent
     // local write time to become visible in a complete provider response.
-    if (!meta.next_token) {
+    if (complete) {
       await tx.socialActivityItem.updateMany({
         where: {
           ...where,
           liked: true,
-          nativeId: { notIn: ids },
+          nativeId: { notIn: [...ids] },
           AND: [
             {
               OR: [
@@ -460,6 +479,7 @@ async function syncXLikes(account: ConnectedAccount, leaseToken: string, signal:
         data: { liked: false, likeStatus: null, likeError: null },
       });
     }
+    return true;
   });
 }
 
@@ -594,13 +614,22 @@ export async function getSocialInbox(userId: string, options: SocialInboxQuery =
         platform: mapPlatformName(account.platform),
         name: accountLabel(account),
         canSync: supportsInbox(account.platform),
-        hasMore: hasMoreInboxWork(account.socialActivitySync),
+        hasMore:
+          account.socialActivitySync?.lastErrorCode !== "no_tracked_posts" &&
+          hasMoreInboxWork(account.socialActivitySync),
+        needsLikePermission:
+          mapPlatformName(account.platform) === "x" &&
+          enabledInboxScopes("x").includes("like.read") &&
+          !hasInboxScopes(account.scope, ["like.read"]),
+        noTrackedPosts: account.socialActivitySync?.lastErrorCode === "no_tracked_posts",
+        lastCheckedAt: account.socialActivitySync?.lastAttemptAt?.toISOString(),
         permissionUrl:
-          account.socialActivitySync?.lastErrorCode === "authentication" ||
-          !hasInboxScopes(
-            account.scope,
-            enabledInboxScopes(mapPlatformName(account.platform)).filter((scope) => scope !== "like.read"),
-          )
+          account.socialActivitySync?.lastErrorCode !== "app_permission_required" &&
+          (account.socialActivitySync?.lastErrorCode === "authentication" ||
+            !hasInboxScopes(
+              account.scope,
+              enabledInboxScopes(mapPlatformName(account.platform)).filter((scope) => scope !== "like.read"),
+            ))
             ? `/api/connect/${account.platform}?inboxAccountId=${encodeURIComponent(account.id)}`
             : undefined,
         lastSyncedAt: account.socialActivitySync?.lastSyncedAt?.toISOString(),
@@ -629,6 +658,7 @@ function supportsInbox(platform: string) {
 }
 
 function retryAt(error: SocialActivityError) {
+  if (error.code === "app_permission_required") return new Date(Date.now() + 30 * 60_000);
   if (error.code !== "rate_limited" && error.code !== "transient") return null;
   return new Date(Date.now() + Math.min(error.retryAfterSeconds ?? 60, 86_400) * 1000);
 }
@@ -658,14 +688,15 @@ export async function refreshSocialInbox(
     },
     select: feedAccountSelect,
   });
-  const dueBefore = new Date(Date.now() - RECENT_SYNC_INTERVAL_MS);
+  const dueBefore = (platform: string) =>
+    new Date(Date.now() - (mapPlatformName(platform) === "x" ? X_SYNC_INTERVAL_MS : RECENT_SYNC_INTERVAL_MS));
   const accounts = connected
     .filter((account) => supportsInbox(account.platform))
     .filter(
       (account) =>
         !options.automatic ||
         !account.socialActivitySync?.lastAttemptAt ||
-        account.socialActivitySync.lastAttemptAt <= dueBefore,
+        account.socialActivitySync.lastAttemptAt <= dueBefore(account.platform),
     )
     .sort(
       (a, b) =>
@@ -687,7 +718,9 @@ export async function refreshSocialInbox(
         AND: [
           { OR: [{ leaseUntil: null }, { leaseUntil: { lte: now } }] },
           { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
-          ...(options.automatic ? [{ OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: dueBefore } }] }] : []),
+          ...(options.automatic
+            ? [{ OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: dueBefore(account.platform) } }] }]
+            : []),
         ],
       },
       data: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastAttemptAt: now },
@@ -732,13 +765,7 @@ export async function refreshSocialInbox(
       if (startRecent || !hasSnapshot || index >= stored.targets.length) {
         const after = startRecent ? undefined : stored.nextPostCursor;
         if (startRecent || !hasSnapshot || after) {
-          const page = await ownedTargetPage(
-            userId,
-            accountId,
-            workspaceId,
-            after,
-            options.automatic ? RECENT_POSTS_PER_SNAPSHOT : POSTS_PER_SNAPSHOT,
-          );
+          const page = await ownedTargetPage(userId, accountId, workspaceId, after, options.automatic);
           stored = serializeTargetSnapshot(page.targets, options.automatic ? undefined : page.nextPostCursor);
           index = 0;
           cursor = undefined;
@@ -746,9 +773,26 @@ export async function refreshSocialInbox(
         }
       }
       const capabilities = getSocialActivityCapabilities(account.platform);
-      const fresh = index < stored.targets.length ? await refreshedAccount(userId, accountId, workspaceId) : undefined;
+      const hasTargets = index < stored.targets.length;
+      const canReadLikes = mapPlatformName(account.platform) === "x" && hasInboxScopes(account.scope, ["like.read"]);
+      const syncLikes =
+        canReadLikes &&
+        (hasTargets ||
+          Boolean(
+            await prisma.socialActivityItem.findFirst({
+              where: { accountId, userId, canLike: true },
+              select: { id: true },
+            }),
+          ));
+      const fresh = hasTargets || syncLikes ? await refreshedAccount(userId, accountId, workspaceId) : undefined;
       // A small per-account budget keeps busy destinations from starving others.
-      while (fresh && index < stored.targets.length && remaining > 0 && attempted < 3 && Date.now() < deadline) {
+      while (
+        fresh &&
+        index < stored.targets.length &&
+        remaining > Number(syncLikes) &&
+        attempted < 3 &&
+        Date.now() < deadline
+      ) {
         await requireSocialInbox(userId);
         remaining -= 1;
         attempted += 1;
@@ -792,26 +836,37 @@ export async function refreshSocialInbox(
         );
         if (!saved || (!response.ok && !skippable)) break;
       }
-      if (
-        fresh &&
-        remaining > 0 &&
-        Date.now() < deadline &&
-        mapPlatformName(account.platform) === "x" &&
-        hasInboxScopes(fresh.scope, ["like.read"])
-      ) {
-        remaining -= 1;
-        await syncXLikes(fresh, token, AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now())))).catch(
-          () => {},
-        );
+      if (fresh && remaining > 0 && Date.now() < deadline && syncLikes && hasInboxScopes(fresh.scope, ["like.read"])) {
+        // A manual refresh focused on X can look further back without taking
+        // requests away from other platforms during routine polling.
+        const pages = !options.automatic && platforms.length === 1 ? Math.min(2, remaining) : 1;
+        remaining -= pages;
+        const synced = await syncXLikes(
+          fresh,
+          token,
+          pages,
+          AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now()))),
+        ).catch(() => false);
+        if (!synced && !failure) {
+          failure = "X could not sync likes. Replies and quotes are still available.";
+          await prisma.socialActivitySync.updateMany({
+            where: { accountId, leaseToken: token },
+            data: { lastError: failure, lastErrorCode: "likes_unavailable" },
+          });
+        } else if (synced && !failure) {
+          await prisma.socialActivitySync.updateMany({
+            where: { accountId, leaseToken: token, lastErrorCode: "likes_unavailable" },
+            data: { lastError: null, lastErrorCode: null },
+          });
+        }
       }
-      if (!fresh) {
+      if (!hasTargets && (options.automatic || options.reset || !hasSnapshot)) {
         await prisma.socialActivitySync.updateMany({
           where: { accountId, leaseToken: token },
           data: {
             ...syncProgress(),
-            lastSyncedAt: new Date(),
-            lastError: null,
-            lastErrorCode: null,
+            lastError: failure ?? null,
+            lastErrorCode: failure ? "likes_unavailable" : "no_tracked_posts",
           },
         });
       }
@@ -871,6 +926,7 @@ function providerTarget(item: Awaited<ReturnType<typeof ownedItem>>): SocialComm
 function definitelyFailed(error: SocialActivityError): boolean {
   return [
     "permission_required",
+    "app_permission_required",
     "authentication",
     "not_found",
     "unsupported",

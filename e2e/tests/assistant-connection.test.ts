@@ -175,7 +175,7 @@ for (const pilot of [false, true]) {
       if (location.pathname !== "/accounts") return;
       const observer = new MutationObserver(() => {
         const dialog = [...document.querySelectorAll('[role="dialog"]')].find((element) =>
-          element.textContent?.startsWith("Opening X"),
+          element.textContent?.startsWith("Reconnect X"),
         );
         if (dialog) {
           sessionStorage.setItem("forwarding-dialog-seen", "true");

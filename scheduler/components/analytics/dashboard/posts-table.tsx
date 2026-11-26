@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImageIcon, Play } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Play } from "lucide-react";
 
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { Button } from "@/components/ui/button";
@@ -31,18 +31,13 @@ function PostMetricValue({ post, metric, locale }: { post: PostSummaryItem; metr
 }
 
 function PostThumb({ post }: { post: PostSummaryItem }) {
+  if (!post.thumbnailUrl) return null;
   return (
-    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
-      {post.thumbnailUrl ? (
-        <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-          {post.mediaType === "video" ? <Play className="h-4 w-4" /> : <ImageIcon className="h-4 w-4 opacity-40" />}
-        </div>
+    <div className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md border border-border bg-secondary">
+      <img src={post.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+      {post.mediaType === "video" && (
+        <Play className="absolute bottom-1 end-1 h-3 w-3 fill-white text-white drop-shadow" aria-hidden />
       )}
-      {post.mediaType === "video" && post.thumbnailUrl ? (
-        <Play className="absolute bottom-1 end-1 h-3 w-3 fill-white text-white drop-shadow" />
-      ) : null}
     </div>
   );
 }
@@ -141,9 +136,8 @@ export function PostsTable({
                         ? `/posts/${post.teamPostId}?workspace=${encodeURIComponent(post.teamWorkspaceId)}`
                         : `/posts/${post.postId}`
                     }
-                    className="flex items-center gap-3">
-                    <PostThumb post={post} />
-                    <div className="min-w-0">
+                    className="flex items-center gap-3 pe-3">
+                    <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm" dir="auto">
                         {post.message || copy("(No text)")}
                       </p>
@@ -158,6 +152,7 @@ export function PostsTable({
                         ))}
                       </span>
                     </div>
+                    <PostThumb post={post} />
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">

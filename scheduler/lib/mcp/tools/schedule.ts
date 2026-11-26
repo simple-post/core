@@ -283,7 +283,7 @@ export async function getSchedule(
     accountIds.length === 0
       ? []
       : await prisma.connectedAccount.findMany({
-          where: { userId, id: { in: accountIds } },
+          where: { userId, workspaceId: null, id: { in: accountIds } },
           select: { id: true, platform: true },
         });
   const platformByAccount = new Map(accounts.map((account) => [account.id, account.platform]));

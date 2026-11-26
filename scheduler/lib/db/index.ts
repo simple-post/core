@@ -87,6 +87,7 @@ export class PostsModel {
     const skip = (page - 1) * limit;
     const where = {
       userId: this.userId,
+      workspaceReviewId: null,
       status: "scheduled",
     };
 
@@ -126,6 +127,7 @@ export class PostsModel {
     const posts = await prisma.post.findMany({
       where: {
         userId: this.userId,
+        workspaceReviewId: null,
         status: { not: "draft" },
         scheduledFor: {
           gte: start,
@@ -150,6 +152,7 @@ export class PostsModel {
 
     const where = {
       userId: this.userId,
+      workspaceReviewId: null,
       status: "draft",
     };
 
@@ -195,6 +198,7 @@ export class PostsModel {
     const analyticsEnabled = await hasFeature(this.userId, "POST_ANALYTICS");
     const where = {
       userId: this.userId,
+      workspaceReviewId: null,
       status: "published",
     };
 
@@ -244,6 +248,7 @@ export class PostsModel {
 
     const where = {
       userId: this.userId,
+      workspaceReviewId: null,
       status: "failed",
     };
 
@@ -277,7 +282,7 @@ export class PostsModel {
   }
 
   async createPost(
-    postData: Omit<SocialPost, "id" | "createdAt">,
+    postData: Omit<SocialPost, "id" | "createdAt"> & { workspaceId?: string; workspaceReviewId?: string },
     userId: string,
     client: PostWriteClient = prisma,
   ): Promise<PostSnapshot> {
@@ -287,6 +292,7 @@ export class PostsModel {
     const post = await client.post.create({
       data: {
         userId,
+        workspaceReviewId: postData.workspaceReviewId,
         message: postData.message,
         scheduledFor: postData.scheduledFor,
         status: postData.status,
@@ -301,7 +307,7 @@ export class PostsModel {
         thread: postData.thread ? (postData.thread as unknown as object) : undefined,
         quotePostId: postData.quotePostId ?? undefined,
         accounts: {
-          connect: postData.accountIds.map((id) => ({ id })),
+          connect: postData.accountIds.map((id) => ({ id, userId, workspaceId: postData.workspaceId ?? null })),
         },
         media: {
           create: postData.media.map((m) => ({
@@ -462,6 +468,7 @@ export class PostsModel {
       where: {
         id,
         userId: this.userId,
+        workspaceReviewId: null,
       },
       include: {
         media: true,

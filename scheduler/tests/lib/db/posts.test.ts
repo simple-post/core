@@ -61,9 +61,11 @@ it("includes overdue scheduled posts in the queue and pagination count", async (
   expect(result.data.map((post) => post.id)).toEqual(["p1"]);
   expect(result.pagination.total).toBe(1);
   expect(postMock.findMany).toHaveBeenCalledWith(
-    expect.objectContaining({ where: { userId: "u1", status: "scheduled" } }),
+    expect.objectContaining({ where: { userId: "u1", workspaceReviewId: null, status: "scheduled" } }),
   );
-  expect(postMock.count).toHaveBeenCalledWith({ where: { userId: "u1", status: "scheduled" } });
+  expect(postMock.count).toHaveBeenCalledWith({
+    where: { userId: "u1", workspaceReviewId: null, status: "scheduled" },
+  });
 });
 
 it.each([
@@ -99,13 +101,13 @@ it.each([
   const result = await new PostsModel("u1")[method]({ page: 2, limit: 25 });
 
   expect(postMock.findMany).toHaveBeenCalledWith({
-    where: { userId: "u1", status },
+    where: { userId: "u1", workspaceReviewId: null, status },
     include: include ?? { media: true, accounts: true },
     orderBy,
     skip: 25,
     take: 25,
   });
-  expect(postMock.count).toHaveBeenCalledWith({ where: { userId: "u1", status } });
+  expect(postMock.count).toHaveBeenCalledWith({ where: { userId: "u1", workspaceReviewId: null, status } });
   expect(result.pagination).toEqual({
     page: 2,
     limit: 25,

@@ -124,6 +124,8 @@ export async function handleThreadsCallback(ctx: CallbackContext): Promise<NextR
   }
   await upsertConnectedAccount({
     userId: ctx.userId,
+    ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+    ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: "threads",
     platformAccountId,
     accessToken: longLivedToken,

@@ -11,8 +11,10 @@ interface AccountsResponse {
   accounts: ConnectedAccount[];
 }
 
-async function fetchAccounts(copy: SourceCopy): Promise<ConnectedAccount[]> {
-  const response = await fetch("/api/v1/accounts");
+async function fetchAccounts(copy: SourceCopy, workspaceId?: string | null): Promise<ConnectedAccount[]> {
+  const response = await fetch(
+    workspaceId ? `/api/v1/accounts?workspace=${encodeURIComponent(workspaceId)}` : "/api/v1/accounts",
+  );
   if (!response.ok) {
     throw new ApiResponseError(
       await response.json().catch(() => null),
@@ -24,10 +26,10 @@ async function fetchAccounts(copy: SourceCopy): Promise<ConnectedAccount[]> {
   return data.accounts || [];
 }
 
-export function useAccounts() {
+export function useAccounts(workspaceId?: string | null) {
   const { copy } = useUiCopy();
   return useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: () => fetchAccounts(copy),
+    queryKey: workspaceId ? [...queryKeys.accounts, workspaceId] : queryKeys.accounts,
+    queryFn: () => fetchAccounts(copy, workspaceId),
   });
 }

@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { TrialBanner } from "@/components/billing/trial-banner";
-import { CreatePostWebMcp } from "@/components/create-post-webmcp";
 import { DashboardStatusTabs } from "@/components/dashboard-status-tabs";
 import { OnboardingModal } from "@/components/onboarding/onboarding-modal";
 import { PostsDashboard } from "@/components/posts-dashboard";
@@ -105,7 +104,6 @@ function PersonalDashboard() {
         <>
           <TrialBanner />
           <OnboardingModal />
-          <CreatePostWebMcp />
         </>
       }
       calendar={<ScheduleCalendar />}>

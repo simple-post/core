@@ -81,6 +81,8 @@ export async function handleBlueskyCallback(ctx: CallbackContext): Promise<NextR
 
   await upsertConnectedAccount({
     userId: ctx.userId,
+    ...(ctx.workspaceId && { workspaceId: ctx.workspaceId }),
+    ...(ctx.reconnectAccountId && { reconnectAccountId: ctx.reconnectAccountId }),
     platform: "bluesky",
     platformAccountId: did,
     accessToken: ctx.accessToken,

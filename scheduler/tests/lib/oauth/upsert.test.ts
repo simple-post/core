@@ -13,9 +13,11 @@ jest.mock("@/lib/prisma", () => ({
   prisma: {
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
+    socialActivitySync: { updateMany: jest.fn() },
+    postAnalytics: { updateMany: jest.fn() },
     connectedAccount: {
-      findUnique: jest.fn(),
-      upsert: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
       updateMany: jest.fn(),
     },
   },
@@ -25,8 +27,8 @@ const prismaMock = prisma as unknown as {
   $queryRaw: jest.Mock;
   $transaction: jest.Mock;
   connectedAccount: {
-    findUnique: jest.Mock;
-    upsert: jest.Mock;
+    findFirst: jest.Mock;
+    update: jest.Mock;
     updateMany: jest.Mock;
   };
 };
@@ -37,8 +39,8 @@ beforeEach(() => {
   prismaMock.$transaction.mockImplementation(async (callback: (client: typeof prismaMock) => unknown) =>
     callback(prismaMock),
   );
-  prismaMock.connectedAccount.findUnique.mockResolvedValue({ id: "acct-1" });
-  prismaMock.connectedAccount.upsert.mockResolvedValue({});
+  prismaMock.connectedAccount.findFirst.mockResolvedValue({ id: "acct-1" });
+  prismaMock.connectedAccount.update.mockResolvedValue({});
   prismaMock.connectedAccount.updateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -60,7 +62,7 @@ describe("verified legacy YouTube identities", () => {
   };
 
   it("upgrades the same row before quota checks so scheduled posts and account slots are preserved", async () => {
-    prismaMock.connectedAccount.findUnique
+    prismaMock.connectedAccount.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: "legacy-row" })
       .mockResolvedValueOnce({ id: "legacy-row" });
@@ -70,6 +72,7 @@ describe("verified legacy YouTube identities", () => {
       where: {
         id: "legacy-row",
         userId: "user-1",
+        workspaceId: null,
         platform: "youtube",
         platformAccountId: "1234567890",
         updatedAt,
@@ -80,15 +83,9 @@ describe("verified legacy YouTube identities", () => {
     expect((lockUserForQuota as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(updateOrder);
     expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(updateOrder);
     expect(updateOrder).toBeLessThan((assertCanConnectAccount as jest.Mock).mock.invocationCallOrder[0]);
-    expect(prismaMock.connectedAccount.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.connectedAccount.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          userId_platform_platformAccountId: {
-            userId: "user-1",
-            platform: "youtube",
-            platformAccountId: "UC-channel",
-          },
-        },
+        where: { id: "legacy-row" },
       }),
     );
   });
@@ -96,17 +93,17 @@ describe("verified legacy YouTube identities", () => {
   it("reconnects an existing canonical channel without changing another legacy row", async () => {
     await upsertConnectedAccount(data);
     expect(prismaMock.connectedAccount.updateMany).not.toHaveBeenCalled();
-    expect(prismaMock.connectedAccount.upsert).toHaveBeenCalled();
+    expect(prismaMock.connectedAccount.update).toHaveBeenCalled();
   });
 
   it.each(["changed", "deleted"])("aborts when the verified legacy row was %s during authorization", async (state) => {
-    prismaMock.connectedAccount.findUnique
+    prismaMock.connectedAccount.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(state === "deleted" ? null : { id: "legacy-row" });
     prismaMock.connectedAccount.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(upsertConnectedAccount(data)).rejects.toMatchObject({ code: "profile_fetch_failed" });
-    expect(prismaMock.connectedAccount.upsert).not.toHaveBeenCalled();
+    expect(prismaMock.connectedAccount.update).not.toHaveBeenCalled();
     expect(assertCanConnectAccount).not.toHaveBeenCalled();
   });
 });
@@ -129,11 +126,11 @@ describe("upsertConnectedAccount", () => {
 
     expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(1);
     expect(prismaMock.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
-      prismaMock.connectedAccount.upsert.mock.invocationCallOrder[0],
+      prismaMock.connectedAccount.update.mock.invocationCallOrder[0],
     );
-    expect(prismaMock.connectedAccount.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.connectedAccount.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        update: expect.objectContaining({
+        data: expect.objectContaining({
           credentialRefreshBlockedAt: null,
           credentialRefreshRetryAt: null,
           tokenMetadata: Prisma.DbNull,

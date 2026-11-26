@@ -7,6 +7,7 @@
 export const ANALYTICS_PERIODS = [
   "last_24h",
   "last_7d",
+  "last_8d",
   "last_30d",
   "last_90d",
   "last_365d",
@@ -185,6 +186,7 @@ export function resolvePeriod(params: {
       break;
     }
     case "last_7d":
+    case "last_8d":
     case "last_30d":
     case "last_90d":
     case "last_365d": {

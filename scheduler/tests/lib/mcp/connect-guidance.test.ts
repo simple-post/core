@@ -45,7 +45,10 @@ describe("account resolution ahead of media import", () => {
       maxAutomaticRetries: 0,
       message: expect.stringContaining(`[Connect a social account](${CONNECT_URL})`),
     });
-    expect(prisma.connectedAccount.count).toHaveBeenCalledWith({ where: { userId: "user" }, take: 1 });
+    expect(prisma.connectedAccount.count).toHaveBeenCalledWith({
+      where: { userId: "user", workspaceId: null },
+      take: 1,
+    });
   });
 
   it("leaves wrong IDs to the usual missing-account error when the user has accounts", async () => {

@@ -8,12 +8,18 @@ import { requireAuth } from "@/lib/middleware/auth";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { fetchForem, normalizeForemInstanceUrl } from "@/lib/security/forem";
 import { BadRequestError, handleApiError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 export async function POST(request: NextRequest) {
   let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
     const session = await requireAuth(request, { action: "connect_social_account", platform: "forem" });
     measurementUserId = session.user.id;
+    const { workspaceId } = await workspaceConnections(
+      session.user.id,
+      request.nextUrl.searchParams.get("workspace"),
+      true,
+    );
     const body = await request.json();
     source = handoffSource(body.handoffToken, session.user.id, "forem");
     await recordFunnelEvent(measurementUserId, "social_connection_started", {
@@ -45,6 +51,7 @@ export async function POST(request: NextRequest) {
       throw new BadRequestError(user.error || serverMessage("Forem rejected this API key"));
     await upsertConnectedAccount({
       userId: session.user.id,
+      ...(workspaceId && { workspaceId }),
       platform: "forem",
       platformAccountId: `${instanceUrl}#${user.id}`,
       accessToken: apiKey,

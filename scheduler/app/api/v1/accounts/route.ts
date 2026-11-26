@@ -3,12 +3,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isPreviewOnlyTokenMetadata } from "@/lib/accounts/account-state";
 import { getReconnectImpact } from "@/lib/accounts/reconnect-impact";
 import { localeFromRequestHeaders } from "@/lib/i18n/locales";
-import { requireReadAuth } from "@/lib/middleware/auth";
 import { credentialStatusDisplay } from "@/lib/i18n/validation-display";
+import { requireReadAuth } from "@/lib/middleware/auth";
 import { getConnectedAccountCredentialStatus } from "@/lib/oauth/credential-health";
 import { prisma } from "@/lib/prisma";
 import { decryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
 import { handleApiError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,16 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireReadAuth(req);
 
+    const { userId, workspaceId, canManage } = await workspaceConnections(
+      session.user.id,
+      req.nextUrl.searchParams.get("workspace"),
+    );
+
     // Fetch user's connected social media accounts (for posting)
     const storedAccounts = await prisma.connectedAccount.findMany({
       where: {
-        userId: session.user.id,
+        userId,
+        workspaceId,
       },
       orderBy: {
         createdAt: "desc",
@@ -33,12 +40,13 @@ export async function GET(req: NextRequest) {
 
       return {
         ...safeAccount,
+        ...(!canManage && { email: null, scope: null }),
         previewOnly,
         credentialStatus: credentialStatusDisplay(getConnectedAccountCredentialStatus(account), locale),
       };
     });
     const reconnectImpact = await getReconnectImpact(
-      session.user.id,
+      userId,
       connectedAccounts
         .filter((account) => account.credentialStatus.state === "reauth_required")
         .map((account) => account.id),

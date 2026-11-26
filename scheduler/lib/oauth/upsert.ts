@@ -11,6 +11,8 @@ import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account
 
 export interface UpsertAccountData {
   userId: string;
+  workspaceId?: string;
+  reconnectAccountId?: string;
   platform: string;
   platformAccountId: string;
   accessToken: string;
@@ -43,71 +45,61 @@ export async function upsertConnectedAccount(data: UpsertAccountData, tx?: Trans
   // consistent lock order prevents two reconnect requests from deadlocking.
   await lockUserForQuota(client, data.userId);
 
-  if (data.previousIdentity) {
-    const canonicalAccount = await client.connectedAccount.findUnique({
+  const identity = {
+    userId: data.userId,
+    workspaceId: data.workspaceId ?? null,
+    platform: data.platform,
+    platformAccountId: data.platformAccountId,
+  };
+  // Check again inside the write transaction after the OAuth round trip.
+  if (
+    data.workspaceId &&
+    !(await client.teamWorkspace.findFirst({
       where: {
-        userId_platform_platformAccountId: {
-          userId: data.userId,
-          platform: data.platform,
-          platformAccountId: data.platformAccountId,
-        },
+        id: data.workspaceId,
+        creatorId: data.userId,
+        members: { some: { userId: data.userId, role: "Admin" } },
       },
       select: { id: true },
-    });
-    if (!canonicalAccount) {
-      const legacyAccount = await client.connectedAccount.findUnique({
-        where: {
-          userId_platform_platformAccountId: {
-            userId: data.userId,
-            platform: data.platform,
-            platformAccountId: data.previousIdentity.platformAccountId,
-          },
-        },
-        select: { id: true },
-      });
-      if (!legacyAccount) {
-        throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
-      }
-      await acquireConnectedAccountCredentialLock(client, legacyAccount.id);
-      const migrated = await client.connectedAccount.updateMany({
-        where: {
-          id: legacyAccount.id,
-          userId: data.userId,
-          platform: data.platform,
-          platformAccountId: data.previousIdentity.platformAccountId,
-          updatedAt: data.previousIdentity.updatedAt,
-        },
-        data: { platformAccountId: data.platformAccountId },
-      });
-      if (migrated.count !== 1) {
-        throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
-      }
-    }
-  }
+    }))
+  )
+    throw new OAuthCallbackError("invalid_state", "Workspace is unavailable.");
 
-  await assertCanConnectAccount(
-    {
-      userId: data.userId,
-      platform: data.platform,
-      platformAccountId: data.platformAccountId,
-      accountLabel: data.username ?? data.displayName ?? data.platformAccountId,
-    },
-    client,
-  );
+  if (data.previousIdentity && !(await client.connectedAccount.findFirst({ where: identity, select: { id: true } }))) {
+    const previous = { ...identity, platformAccountId: data.previousIdentity.platformAccountId };
+    const legacyAccount = await client.connectedAccount.findFirst({ where: previous, select: { id: true } });
+    if (!legacyAccount)
+      throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
+    await acquireConnectedAccountCredentialLock(client, legacyAccount.id);
+    const migrated = await client.connectedAccount.updateMany({
+      where: { ...previous, id: legacyAccount.id, updatedAt: data.previousIdentity.updatedAt },
+      data: { platformAccountId: data.platformAccountId },
+    });
+    if (migrated.count !== 1)
+      throw new OAuthCallbackError("profile_fetch_failed", "Legacy account changed. Please connect again.");
+  }
 
   // Reconnects replace the complete credential set. Serialize them with token
   // refreshes so a refresh that started with an old single-use token cannot
   // overwrite the newly authorized session.
-  const existingAccount = await client.connectedAccount.findUnique({
+  const existingAccount = await client.connectedAccount.findFirst({
     where: {
-      userId_platform_platformAccountId: {
-        userId: data.userId,
-        platform: data.platform,
-        platformAccountId: data.platformAccountId,
-      },
+      ...identity,
+      ...(data.reconnectAccountId && { id: data.reconnectAccountId }),
+      ...(data.reconnectAccountId && data.platform === "x" && { platform: { in: ["x", "twitter"] } }),
     },
-    select: { id: true },
+    select: { id: true, platform: true },
   });
+  if (data.reconnectAccountId && existingAccount?.id !== data.reconnectAccountId)
+    throw new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect.");
+  await assertCanConnectAccount(
+    {
+      ...identity,
+      platform: existingAccount?.platform ?? identity.platform,
+      accountLabel: data.username ?? data.displayName ?? data.platformAccountId,
+    },
+    client,
+  );
   if (existingAccount) {
     await acquireConnectedAccountCredentialLock(client, existingAccount.id);
   }
@@ -118,40 +110,41 @@ export async function upsertConnectedAccount(data: UpsertAccountData, tx?: Trans
     tokenMetadata: data.tokenMetadata,
   });
 
-  await client.connectedAccount.upsert({
-    where: {
-      userId_platform_platformAccountId: {
-        userId: data.userId,
-        platform: data.platform,
-        platformAccountId: data.platformAccountId,
+  const profile = {
+    expiresAt: data.expiresAt,
+    scope: data.scope,
+    username: data.username,
+    displayName: data.displayName,
+    email: data.email,
+    profilePicture: data.profilePicture,
+  };
+  if (existingAccount) {
+    await client.connectedAccount.update({
+      where: { id: existingAccount.id },
+      data: {
+        ...encryptedCredentials,
+        ...profile,
+        tokenMetadata: encryptedCredentials.tokenMetadata ?? Prisma.DbNull,
+        credentialRefreshBlockedAt: null,
+        credentialRefreshRetryAt: null,
       },
-    },
-    create: {
-      userId: data.userId,
-      platform: data.platform,
-      platformAccountId: data.platformAccountId,
-      ...encryptedCredentials,
-      expiresAt: data.expiresAt,
-      scope: data.scope,
-      username: data.username,
-      displayName: data.displayName,
-      email: data.email,
-      profilePicture: data.profilePicture,
-    },
-    update: {
-      ...encryptedCredentials,
-      // `undefined` means "leave unchanged" to Prisma. A reconnect without
-      // provider metadata must instead clear old DPoP keys/error state.
-      tokenMetadata: encryptedCredentials.tokenMetadata ?? Prisma.DbNull,
-      credentialRefreshBlockedAt: null,
-      credentialRefreshRetryAt: null,
-      expiresAt: data.expiresAt,
-      scope: data.scope,
-      username: data.username,
-      displayName: data.displayName,
-      email: data.email,
-      profilePicture: data.profilePicture,
-      updatedAt: new Date(),
-    },
-  });
+    });
+    await client.socialActivitySync.updateMany({
+      where: { accountId: existingAccount.id },
+      data: {
+        lastError: null,
+        lastErrorCode: null,
+        lastAttemptAt: null,
+        retryAt: null,
+        leaseToken: null,
+        leaseUntil: null,
+      },
+    });
+    await client.postAnalytics.updateMany({
+      where: { accountId: existingAccount.id, status: { in: ["missing_permission", "credentials_error"] } },
+      data: { status: "pending", nextRefreshAt: new Date(), leaseToken: null, leaseUntil: null, message: null },
+    });
+  } else {
+    await client.connectedAccount.create({ data: { ...identity, ...encryptedCredentials, ...profile } });
+  }
 }

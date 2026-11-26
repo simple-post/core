@@ -1,5 +1,16 @@
 import { useState } from "react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -76,6 +87,12 @@ export function PostDetail({
   const pending = state.kind === "review" && review && !review.outcome;
   const snapshot = queue && review ? review.snapshot : p;
   const connected = snapshot.variants.some((v) => v.accountId);
+  const ownsConnections = w.creatorId === w.member.userId;
+  const missingDestination =
+    ownsConnections &&
+    snapshot.variants.some(
+      (variant) => variant.accountId && !w.accounts.some((account) => account.id === variant.accountId),
+    );
   return (
     <article className="min-w-0 space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
       <header className="space-y-2">
@@ -102,6 +119,12 @@ export function PostDetail({
         </div>
       </header>
       <Content workspace={w} snapshot={snapshot} />
+      {!p.deliveredAt && missingDestination && state.kind === "approved" && (
+        <p className="text-sm text-muted-foreground">
+          Select a destination connected to this workspace in the post editor, then request approval for the updated
+          post.
+        </p>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         {editor && !queue && (
           <Button variant="outline" size="sm" onClick={edit}>
@@ -150,11 +173,38 @@ export function PostDetail({
           !p.deliveredAt &&
           state.kind === "approved" &&
           review &&
-          (!connected || w.creatorId === w.member.userId) && (
+          !missingDestination &&
+          (!connected || ownsConnections) && (
             <Button size="sm" onClick={() => void run({ action: "release", postId: p.id, reviewId: review.id })}>
               {connected ? "Schedule with SimplePost" : "Mark as published natively"}
             </Button>
           )}
+        {p.deliveredAt &&
+          w.member.userId === w.creatorId &&
+          review?.deliveries
+            .filter((delivery) => delivery.status === "scheduled")
+            .map((delivery) => (
+              <AlertDialog key={delivery.id}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    Cancel delivery
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
+                    <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
+                      Cancel delivery
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ))}
         {p.deliveredAt && (
           <strong>
             {connected

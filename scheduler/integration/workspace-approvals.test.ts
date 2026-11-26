@@ -2,13 +2,17 @@
 import { uploadFromBuffer, deleteFromStorage } from "@simple-post/sdk";
 
 import { PostsModel } from "@/lib/db";
+import { upsertConnectedAccount } from "@/lib/oauth/upsert";
+import { listPostAnalytics } from "@/lib/post-analytics/query";
+import { ensureAnalyticsRowsForUser } from "@/lib/post-analytics/service";
 import { prisma } from "@/lib/prisma";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { acceptInvite, createWorkspace, readWorkspace } from "@/lib/workspaces/access";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 import { commandSchema, type Actor } from "@/lib/workspaces/contracts";
 import { readFile, saveFile } from "@/lib/workspaces/files";
 import { runCommand } from "@/lib/workspaces/posts";
-import { release } from "@/lib/workspaces/release";
+import { cancelDelivery, release } from "@/lib/workspaces/release";
 
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
@@ -38,6 +42,7 @@ let wid: string;
 function send(who: Actor, cmd: unknown) {
   const parsed = commandSchema.parse(cmd);
   if (parsed.action === "release") return release(who, wid, parsed.postId, parsed.reviewId);
+  if (parsed.action === "cancelDelivery") return cancelDelivery(who, wid, parsed.postId, parsed.deliveryId);
   return runCommand(who, wid, parsed);
 }
 async function clean() {
@@ -177,6 +182,7 @@ it("queues only an approved connected snapshot once, leaving personal editing an
   const account = await prisma.connectedAccount.create({
     data: {
       userId: admin.id,
+      workspaceId: wid,
       platform: "linkedin",
       platformAccountId: "launch-brand",
       accessToken: "fixture",
@@ -215,7 +221,8 @@ it("queues only an approved connected snapshot once, leaving personal editing an
   await expect(
     repo.updatePost(personal.id, { message: "Edited" }, { updatedAt: personal.updatedAt, status: "scheduled" }),
   ).resolves.toMatchObject({ message: "Edited" });
-  expect(await repo.getPostsBetween(new Date("2035-01-01"), new Date("2035-01-02"))).toHaveLength(2);
+  expect(await repo.getPostsBetween(new Date("2035-01-01"), new Date("2035-01-02"))).toHaveLength(1);
+  await expect(repo.getPostById(deliveries[0].id)).resolves.toBeNull();
 });
 
 it("serializes a decision racing a content edit and retains the exact submitted media", async () => {
@@ -263,7 +270,13 @@ it("retains a shared approved file across two connected deliveries and audits ca
     const variants = [];
     for (const platform of ["instagram", "linkedin"]) {
       const account = await prisma.connectedAccount.create({
-        data: { userId: admin.id, platform, platformAccountId: platform + "-studio", accessToken: "fixture" },
+        data: {
+          userId: admin.id,
+          workspaceId: wid,
+          platform,
+          platformAccountId: platform + "-studio",
+          accessToken: "fixture",
+        },
       });
       variants.push({ ...fields.variants[0], platform, accountId: account.id, fileIds: [file.id] });
     }
@@ -281,7 +294,7 @@ it("retains a shared approved file across two connected deliveries and audits ca
     await prisma.storageDeletion.update({ where: { key: sharedKey }, data: { dueAt: new Date(0) } });
     await collectUnusedStorage();
     expect(jest.mocked(deleteFromStorage).mock.calls.map(([key]) => key)).not.toContain(sharedKey);
-    await new PostsModel(admin.id).deletePost(deliveries[0].id, deliveries[0].updatedAt);
+    await cancelDelivery(admin, wid, postId, deliveries[0].id);
     expect(await prisma.teamEvent.count({ where: { postId, reviewId, kind: "delivery removed" } })).toBe(1);
     // Owner erasure cascades to originals, reviews and remaining deliveries in one statement.
     await prisma.user.delete({ where: { id: admin.id } });
@@ -291,4 +304,104 @@ it("retains a shared approved file across two connected deliveries and audits ca
     if (previousBase === undefined) delete process.env.S3_STORAGE_BASE_URL;
     else process.env.S3_STORAGE_BASE_URL = previousBase;
   }
+});
+
+it("stores the same native identity independently in Personal and two workspaces", async () => {
+  const first = await createWorkspace(admin, { ...newTeam, name: "First" });
+  const second = await createWorkspace(admin, { ...newTeam, name: "Second" });
+  const connection = {
+    userId: admin.id,
+    platform: "instagram",
+    platformAccountId: "shared-native",
+    accessToken: "initial",
+    refreshToken: null,
+    expiresAt: null,
+    scope: null,
+    username: "brand",
+    displayName: "Brand",
+    email: null,
+    profilePicture: null,
+  };
+  await upsertConnectedAccount(connection);
+  await upsertConnectedAccount({ ...connection, workspaceId: first.id });
+  const firstAccount = await prisma.connectedAccount.findFirstOrThrow({ where: { workspaceId: first.id } });
+  await upsertConnectedAccount({ ...connection, workspaceId: second.id });
+  await upsertConnectedAccount({
+    ...connection,
+    workspaceId: first.id,
+    reconnectAccountId: firstAccount.id,
+    displayName: "Renamed in First",
+  });
+  await expect(
+    upsertConnectedAccount({ ...connection, workspaceId: second.id, reconnectAccountId: firstAccount.id }),
+  ).rejects.toThrow("Choose the same account");
+  expect(await prisma.connectedAccount.count({ where: { userId: admin.id } })).toBe(3);
+  const firstDetail = await readWorkspace(admin, first.id);
+  const secondDetail = await readWorkspace(admin, second.id);
+  expect(firstDetail.accounts).toMatchObject([{ id: firstAccount.id, displayName: "Renamed in First" }]);
+  expect(secondDetail.accounts).toMatchObject([{ displayName: "Brand" }]);
+  await expect(workspaceConnections(other.id, first.id)).rejects.toMatchObject({ statusCode: 404 });
+  const personal = await prisma.connectedAccount.findFirstOrThrow({ where: { userId: admin.id, workspaceId: null } });
+  await expect(
+    runCommand(
+      admin,
+      first.id,
+      commandSchema.parse({
+        action: "createPost",
+        ...fields,
+        variants: [{ ...fields.variants[0], platform: "instagram", accountId: personal.id }],
+      }) as Parameters<typeof runCommand>[2],
+    ),
+  ).rejects.toThrow("Connected destination unavailable");
+});
+
+it("allows editors to update a legacy destination without releasing through Personal", async () => {
+  const { id: postId } = await setup();
+  const account = await prisma.connectedAccount.create({
+    data: { userId: admin.id, platform: "linkedin", platformAccountId: "legacy-brand", accessToken: "fixture" },
+  });
+  const destination = { platformAccountId: account.platformAccountId, label: "Legacy brand" };
+  const variant = { ...fields.variants[0], accountId: account.id };
+  await prisma.teamPost.update({ where: { id: postId }, data: { variants: [{ ...variant, destination }] } });
+
+  await send(editor, {
+    action: "edit",
+    postId,
+    revision: 1,
+    ...fields,
+    variants: [{ ...variant, caption: "Updated" }],
+  });
+  const edited = await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } });
+  expect(edited.variants).toMatchObject([{ accountId: account.id, caption: "Updated", destination }]);
+  await send(editor, { action: "submit", postId, revision: edited.revision });
+  const reviewId = (await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } })).currentReviewId!;
+  await send(viewer, { action: "decide", postId, reviewId, outcome: "approved", body: "" });
+  await expect(release(admin, wid, postId, reviewId)).rejects.toThrow("reviewed destination is unavailable");
+});
+
+it("retains analytics for old team deliveries under the publishing connection", async () => {
+  const { id: postId } = await setup();
+  await send(editor, { action: "submit", postId, revision: 1 });
+  const reviewId = (await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } })).currentReviewId!;
+  const account = await prisma.connectedAccount.create({
+    data: { userId: admin.id, platform: "instagram", platformAccountId: "legacy-profile", accessToken: "fixture" },
+  });
+  const delivery = await prisma.post.create({
+    data: {
+      workspaceReviewId: reviewId,
+      userId: admin.id,
+      message: "Legacy team delivery",
+      status: "published",
+      publishedAt: new Date(Date.now() - 60_000),
+      accounts: { connect: { id: account.id } },
+      accountResults: {
+        [account.id]: { accountId: account.id, platform: "instagram", postId: "legacy-native-post", success: true },
+      },
+    },
+  });
+  await ensureAnalyticsRowsForUser(admin.id, { postIds: [delivery.id] });
+  const personal = await listPostAnalytics(admin.id, { period: "last_7d" });
+  expect(personal.posts).toMatchObject([{ postId: delivery.id, teamPostId: postId, teamWorkspaceId: wid }]);
+  const team = await listPostAnalytics(admin.id, { period: "last_7d", workspaceId: wid });
+  expect(team.posts).toEqual([]);
 });

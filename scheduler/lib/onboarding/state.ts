@@ -23,7 +23,7 @@ export async function hasOnboardingPost(userId: string): Promise<boolean> {
  */
 export async function getOnboardingState(userId: string, now: Date = new Date()): Promise<OnboardingState> {
   const [connectedAccounts, hasPost, publishedPosts, mcpTokens, cliTokens, apiKeys] = await Promise.all([
-    prisma.connectedAccount.count({ where: { userId }, take: 1 }),
+    prisma.connectedAccount.count({ where: { userId, workspaceId: null }, take: 1 }),
     hasOnboardingPost(userId),
     prisma.post.count({ where: { userId, status: "published" }, take: 1 }),
     prisma.mcpAccessToken.count({

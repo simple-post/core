@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "Yetkilendirme isteğindeki platform eşleşmiyor.",
   "oauthTokenExchangeFailed": "Yetkilendirme tamamlanamadı. Yeniden deneyin.",
   "oauthProfileFetchFailed": "Hesap profiliniz yüklenemedi. Yeniden deneyin.",
+  "oauthReconnectAccountMismatch": "Yeniden bağlanmak için aynı hesabı seç.",
   "oauthYoutubeNoChannel": "Hiçbir YouTube kanalına yetki verilmedi. Yeniden bağlanın ve kanalınızın sahibi olan Google Hesabı’nı veya Marka Hesabı’nı seçin. YouTube Studio davetleri tek başına API erişimi vermez.",
   "oauthYoutubeAmbiguous": "Tek bir YouTube kanalı belirlenemedi. Yeniden bağlanın ve kullanmak istediğiniz kanalı veya Marka Hesabı’nı seçin.",
   "oauthNoToken": "Erişim belirteci alınmadı. Yeniden deneyin.",

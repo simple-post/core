@@ -8,6 +8,7 @@ import { upsertConnectedAccount } from "@/lib/oauth";
 import { CONNECTED_ACCOUNT_CREDENTIAL_TRANSACTION_OPTIONS } from "@/lib/oauth/connected-account-lock";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, BadRequestError, NotFoundError, GoneError } from "@/lib/utils/errors";
+import { workspaceConnections } from "@/lib/workspaces/connections";
 
 type PendingAccount = {
   id: string;
@@ -21,6 +22,8 @@ type PendingData = {
   source?: "assistant_handoff";
   accounts: PendingAccount[];
   scope?: string | null;
+  workspaceId?: string;
+  reconnectAccountId?: string;
 };
 
 function sanitizeAccounts(accounts: PendingAccount[]) {
@@ -62,11 +65,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       throw new BadRequestError(serverMessage("Invalid pending connection data"));
     }
 
-    return NextResponse.json({
-      id: pending.id,
-      platform: pending.platform,
-      accounts: sanitizeAccounts(data.accounts),
-    });
+    await workspaceConnections(session.user.id, data.workspaceId ?? null, true);
+    const reconnect = data.reconnectAccountId
+      ? await prisma.connectedAccount.findFirst({
+          where: { id: data.reconnectAccountId, userId: session.user.id, workspaceId: data.workspaceId ?? null },
+          select: { platformAccountId: true },
+        })
+      : null;
+    const accounts = data.reconnectAccountId
+      ? data.accounts.filter((account) => account.id === reconnect?.platformAccountId)
+      : data.accounts;
+    if (data.reconnectAccountId && accounts.length === 0)
+      throw new GoneError(serverMessage("Pending connection expired"));
+    return NextResponse.json({ id: pending.id, platform: pending.platform, accounts: sanitizeAccounts(accounts) });
   } catch (error) {
     return handleApiError(error, _req);
   }
@@ -114,6 +125,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       throw new BadRequestError(serverMessage("Invalid pending connection data"));
     }
 
+    await workspaceConnections(session.user.id, data.workspaceId ?? null, true);
+    if (data.reconnectAccountId && selectedAccountIds.length !== 1)
+      throw new BadRequestError("Select the account to reconnect.");
     const selectedAccounts = data.accounts.filter((account) => selectedAccountIds.includes(account.id));
     if (selectedAccounts.length === 0) {
       throw new BadRequestError(serverMessage("Selected accounts not found"));
@@ -129,6 +143,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await upsertConnectedAccount(
           {
             userId: session.user.id,
+            workspaceId: data.workspaceId,
+            reconnectAccountId: data.reconnectAccountId,
             platform: pending.platform,
             platformAccountId: account.id,
             accessToken: account.accessToken,
@@ -151,7 +167,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       key: `pending:${pending.id}`,
       properties: { platform: pending.platform, source: data.source },
     });
-    return NextResponse.json({ success: true, count: selectedAccounts.length, source: data.source });
+    return NextResponse.json({
+      success: true,
+      count: selectedAccounts.length,
+      source: data.source,
+      workspaceId: data.workspaceId,
+    });
   } catch (error) {
     if (measurementUserId)
       await recordFunnelEvent(measurementUserId, "social_connection_failed", {

@@ -30,11 +30,20 @@ async function approved(tx: Tx, actor: Actor, workspaceId: string, postId: strin
   return { post, content };
 }
 
-async function verifyDestination(tx: Tx, userId: string, v: Variant) {
+async function verifyDestination(tx: Tx, userId: string, workspaceId: string, v: Variant) {
   const account = await tx.connectedAccount.findFirst({
-    where: { userId, id: v.accountId!, platform: v.platform, platformAccountId: v.destination!.platformAccountId },
+    where: {
+      userId,
+      workspaceId,
+      id: v.accountId!,
+      platform: v.platform,
+      platformAccountId: v.destination!.platformAccountId,
+    },
   });
-  if (!account) throw new ConflictError("The reviewed destination has changed. Edit the post and submit it again.");
+  if (!account)
+    throw new ConflictError(
+      "The reviewed destination is unavailable in this workspace. Edit the post, select a workspace account, and submit it again.",
+    );
 }
 
 export async function release(actor: Actor, workspaceId: string, postId: string, reviewId: string) {
@@ -46,7 +55,7 @@ export async function release(actor: Actor, workspaceId: string, postId: string,
   for (const variant of connected) {
     if (new Date(content.plannedAt) <= new Date())
       throw new BadRequestError("Choose a future time and resubmit for approval");
-    await verifyDestination(prisma, actor.id, variant);
+    await verifyDestination(prisma, actor.id, workspaceId, variant);
     const accountId = variant.accountId!;
     const media: MediaFile[] = [];
     for (const fileId of variant.fileIds) {
@@ -70,6 +79,7 @@ export async function release(actor: Actor, workspaceId: string, postId: string,
     }
     const params = {
       userId: actor.id,
+      workspaceId,
       message: variant.caption,
       accountIds: [accountId],
       media,
@@ -96,16 +106,30 @@ export async function release(actor: Actor, workspaceId: string, postId: string,
     if (prepared.length > 0 && new Date(content.plannedAt) <= new Date())
       throw new ConflictError("The approved publication time has passed");
     for (const { params, variant } of prepared) {
-      await verifyDestination(tx, actor.id, variant);
+      await verifyDestination(tx, actor.id, workspaceId, variant);
       await assertCanCreatePost(actor.id, tx);
-      const delivery = await new PostsModel(actor.id).createPost(
-        { ...params, scheduledFor: new Date(content.plannedAt), status: "scheduled" },
+      await new PostsModel(actor.id).createPost(
+        { ...params, workspaceReviewId: reviewId, scheduledFor: new Date(content.plannedAt), status: "scheduled" },
         actor.id,
         tx,
       );
-      await tx.post.update({ where: { id: delivery.id }, data: { workspaceReviewId: reviewId } });
     }
     await tx.teamPost.update({ where: { id: postId }, data: { deliveredAt: new Date(), revision: { increment: 1 } } });
     await recordEvent(tx, postId, actor, prepared.length > 0 ? "scheduled" : "published natively", "", reviewId);
+  });
+}
+
+export async function cancelDelivery(actor: Actor, workspaceId: string, postId: string, deliveryId: string) {
+  await prisma.$transaction(async (tx) => {
+    await lockUserForQuota(tx, actor.id);
+    await lockWorkspace(tx, workspaceId);
+    authorize(await membership(tx, workspaceId, actor.id), "edit");
+    const delivery = await tx.post.findFirst({
+      where: { id: deliveryId, userId: actor.id, workspaceReview: { post: { id: postId, workspaceId } } },
+      select: { updatedAt: true, status: true },
+    });
+    if (!delivery) throw new NotFoundError("Delivery unavailable");
+    if (delivery.status !== "scheduled") throw new ConflictError("This delivery is no longer scheduled.");
+    await new PostsModel(actor.id).deletePost(deliveryId, delivery.updatedAt, tx);
   });
 }

@@ -12,6 +12,7 @@ export type OAuthErrorCode =
   | "platform_mismatch"
   | "token_exchange_failed"
   | "profile_fetch_failed"
+  | "reconnect_account_mismatch"
   | "youtube_no_channel"
   | "youtube_ambiguous_channel"
   | "no_access_token"

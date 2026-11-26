@@ -551,6 +551,7 @@
   "oauthPlatformMismatch": "授权请求中的平台不匹配。",
   "oauthTokenExchangeFailed": "无法完成授权。请重试。",
   "oauthProfileFetchFailed": "无法加载账号资料。请重试。",
+  "oauthReconnectAccountMismatch": "请选择同一账号以重新连接。",
   "oauthYoutubeNoChannel": "未授权任何 YouTube 频道。请重新连接，选择拥有该频道的 Google 账号或品牌账号。仅凭 YouTube Studio 的邀请无法访问 API。",
   "oauthYoutubeAmbiguous": "无法确定唯一的 YouTube 频道。请重新连接并选择要使用的频道或品牌账号。",
   "oauthNoToken": "未收到访问令牌。请重试。",

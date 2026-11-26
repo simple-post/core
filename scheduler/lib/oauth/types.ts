@@ -15,6 +15,8 @@ export type OAuthTokenResponse = Record<string, unknown> & {
 
 export interface CallbackContext {
   inboxIdentity?: string;
+  workspaceId?: string;
+  reconnectAccountId?: string;
   source?: "assistant_handoff";
   userId: string;
   platform: string;

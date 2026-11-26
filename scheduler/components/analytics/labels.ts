@@ -49,6 +49,7 @@ export function useAnalyticsLabels() {
     const period: Record<Exclude<AnalyticsPeriod, "custom">, string> = {
       last_24h: copy("Last 24 hours"),
       last_7d: copy("Last 7 days"),
+      last_8d: copy("Last 8 days"),
       last_30d: copy("Last 30 days"),
       last_90d: copy("Last 90 days"),
       last_365d: copy("Last 12 months"),
@@ -64,13 +65,6 @@ export function useAnalyticsLabels() {
       last_year: copy("Last year"),
       all_time: copy("All time"),
     };
-    const shortPeriod: Partial<Record<AnalyticsPeriod, string>> = {
-      last_24h: copy("24h"),
-      last_7d: copy("7d"),
-      last_30d: copy("30d"),
-      last_90d: copy("90d"),
-      last_365d: copy("12m"),
-    };
     const status: Record<string, string> = {
       ok: copy("Up to date"),
       pending: copy("Waiting for first read"),
@@ -81,6 +75,6 @@ export function useAnalyticsLabels() {
       credentials_error: copy("Reconnect needed"),
       error: copy("Could not read"),
     };
-    return { metric, metricHelp, accountMetric, period, shortPeriod, status };
+    return { metric, metricHelp, accountMetric, period, status };
   }, [copy]);
 }

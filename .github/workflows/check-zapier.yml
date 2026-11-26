@@ -1,0 +1,27 @@
+name: Check Zapier integration
+
+on:
+  pull_request:
+    paths:
+      - "integrations/zapier/**"
+      - ".github/workflows/check-zapier.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  zapier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/zapier
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+          cache-dependency-path: integrations/zapier/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run check

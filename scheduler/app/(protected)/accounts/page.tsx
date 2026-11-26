@@ -23,8 +23,9 @@ import { AccountCardView, AccountsHeading, ConnectAccountsEmpty } from "@/compon
 import { useWorkspaceIndex, workspaceHref } from "@/components/workspaces/switcher";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
+import { useFeatures } from "@/hooks/use-features";
 import { useConnectForem, useDisconnectAccount, useConnectTelegram } from "@/hooks/use-mutations";
-import { recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
+import { PILOT_CONNECTION_FEATURES, recoveryReturnPath, resumeRecoveryHref } from "@/lib/accounts/reconnect-navigation";
 import { SOCIAL_PLATFORMS, getPlatformById, getAccountDisplayName } from "@/lib/config";
 import { platformHelpPath } from "@/lib/docs";
 import { useUiTranslation } from "@/lib/i18n/client";
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { ConnectedAccount } from "@/types";
 
 const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
+const WORKSPACE_RETURN_PATH = "/accounts?source=workspace";
 
 function getCredentialBadge(account: ConnectedAccount): string | null {
   const status = account.credentialStatus;
@@ -82,8 +84,8 @@ function TelegramHelpLink({
 }
 
 export default function AccountsPage() {
-  const { id, requested, current, pending } = useWorkspaceIndex();
-  if (requested && (pending || !current)) {
+  const { id, requested, enabled, current, pending } = useWorkspaceIndex();
+  if (requested && (pending || (enabled && !current))) {
     return (
       <>
         <Navbar />
@@ -99,9 +101,13 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
   const { copy } = useUiCopy();
   const { locale, t } = useUiTranslation();
   const readOnly = useWorkspaceReadOnly() || !canManage;
+  const { hasFeature, isPending: featuresPending } = useFeatures();
+  const pilotConnection = Boolean(workspaceId) || PILOT_CONNECTION_FEATURES.some((feature) => hasFeature(feature));
   const router = useRouter();
   const searchParams = useSearchParams();
   const accountsHref = workspaceHref("/accounts", workspaceId);
+  const fromLegacyWorkspace = !pilotConnection && searchParams.get("source") === "workspace";
+  const connectionReturn = fromLegacyWorkspace ? WORKSPACE_RETURN_PATH : accountsHref;
   const queryClient = useQueryClient();
   const handledConnection = useRef(false);
   const onboardingConnection = useRef(false);
@@ -115,7 +121,11 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
   const connectForemMutation = useConnectForem(workspaceId);
 
   const [showConnectDialog, setShowConnectDialog] = useState(false);
-  const [connectingPlatform, setConnectingPlatform] = useState<{ platform: string; accountId?: string } | null>(null);
+  const [connectingPlatform, setConnectingPlatform] = useState<{
+    platform: string;
+    accountId?: string;
+    pilot: boolean;
+  } | null>(null);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<ConnectedAccount | null>(null);
   const [showTelegramDialog, setShowTelegramDialog] = useState(false);
@@ -141,7 +151,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
     void queryClient.invalidateQueries({ queryKey: queryKeys.analytics });
     void queryClient.invalidateQueries({ queryKey: ["social-inbox"] });
     void queryClient.invalidateQueries({ queryKey: ["team-workspace"] });
-    let destination = accountsHref;
+    let destination = connectionReturn;
     try {
       destination = recoveryReturnPath(window.sessionStorage.getItem(CONNECTION_RETURN_KEY)) ?? destination;
       window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
@@ -150,8 +160,11 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
     }
     toast.success(t("accountConnected"));
     if (searchParams.get("source") === "assistant_handoff") return;
-    router.replace(resumeRecoveryHref(destination), { scroll: false });
-  }, [accountsHref, queryClient, router, searchParams, t]);
+    router.replace(
+      destination === WORKSPACE_RETURN_PATH ? `${destination}&connected=true` : resumeRecoveryHref(destination),
+      { scroll: false },
+    );
+  }, [connectionReturn, queryClient, router, searchParams, t]);
 
   useEffect(() => {
     if (!searchParams.get("error")) return;
@@ -174,8 +187,8 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
       return;
     onboardingConnection.current = true;
     setShowConnectDialog(true);
-    router.replace(accountsHref, { scroll: false });
-  }, [accountsHref, readOnly, router, searchParams]);
+    router.replace(connectionReturn, { scroll: false });
+  }, [connectionReturn, readOnly, router, searchParams]);
 
   useEffect(() => {
     function restorePicker(event: PageTransitionEvent) {
@@ -187,6 +200,10 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
 
   useEffect(() => {
     if (!connectingPlatform) return;
+    if (!connectingPlatform.pilot) {
+      const timer = window.setTimeout(() => window.location.assign(`/api/connect/${connectingPlatform.platform}`), 0);
+      return () => window.clearTimeout(timer);
+    }
     // Give the dialog one frame to paint before leaving the page.
     let navigationFrame: number | undefined;
     const paintFrame = requestAnimationFrame(() => {
@@ -206,6 +223,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
   const handleConnect = useCallback(
     (platform: string, returnTo?: string, accountId?: string) => {
       if (readOnly || connectingPlatform) return;
+      if (pilotConnection && platform === "twitter") platform = "x";
       setManualHandoff(null);
       const platformConfig = getPlatformById(platform);
       // Preserve the return destination through the provider's full-page OAuth navigation.
@@ -215,11 +233,11 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
           CONNECTION_RETURN_KEY,
           recoveryReturnPath(returnTo) ??
             recoveryReturnTo ??
-            (workspaceId
-              ? accountsHref
+            (workspaceId || fromLegacyWorkspace
+              ? connectionReturn
               : onboardingConnection.current || (!loading && accounts.length === 0)
                 ? "/"
-                : accountsHref),
+                : connectionReturn),
         );
       } catch {
         // Do not block account connection when storage is disabled.
@@ -235,29 +253,39 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
           setTelegramError("");
         }
       } else {
-        setShowConnectDialog(false);
-        setConnectingPlatform({ platform, accountId });
+        if (pilotConnection) setShowConnectDialog(false);
+        setConnectingPlatform({ platform, accountId, pilot: pilotConnection });
       }
     },
-    [readOnly, connectingPlatform, loading, accounts.length, recoveryReturnTo, workspaceId, accountsHref],
+    [
+      readOnly,
+      connectingPlatform,
+      pilotConnection,
+      loading,
+      accounts.length,
+      recoveryReturnTo,
+      workspaceId,
+      fromLegacyWorkspace,
+      connectionReturn,
+    ],
   );
 
   useEffect(() => {
     const accountId = searchParams.get("reconnect");
-    if (readOnly || loading || !accountId || handledReconnect.current) return;
+    if (readOnly || loading || featuresPending || !accountId || handledReconnect.current) return;
     const account = accounts.find((entry) => entry.id === accountId);
     handledReconnect.current = true;
     if (account)
       handleConnect(
-        account.platform === "twitter" ? "x" : account.platform,
+        account.platform,
         recoveryReturnPath(searchParams.get("returnTo")) ?? accountsHref,
-        account.id,
+        pilotConnection ? account.id : undefined,
       );
     else {
       setConnectionError("accountDisconnectedSaved");
       setRecoveryReturnTo(recoveryReturnPath(searchParams.get("returnTo")));
     }
-  }, [accounts, accountsHref, handleConnect, loading, readOnly, searchParams]);
+  }, [accounts, accountsHref, featuresPending, handleConnect, loading, pilotConnection, readOnly, searchParams]);
   const openManualHandoff = useCallback((platform: string, token: string) => {
     setManualHandoff({ platform, token });
     if (platform === "forem") setShowForemDialog(true);
@@ -266,6 +294,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
   const manualSuccessUrl = (platform: string) => {
     const params = new URLSearchParams({ success: "true", platform });
     if (manualHandoff?.platform === platform) params.set("source", "assistant_handoff");
+    else if (fromLegacyWorkspace) params.set("source", "workspace");
     return workspaceHref(`/accounts?${params}`, workspaceId);
   };
   const closeForemDialog = () => {
@@ -353,7 +382,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
           <Alert variant="destructive" className="mb-4" role="alert">
             <AlertDescription className="space-y-3">
               <p>
-                {searchParams.get("scopeUnavailable") === "tiktok"
+                {pilotConnection && searchParams.get("scopeUnavailable") === "tiktok"
                   ? copy(
                       "TikTok rejected a requested permission. TikTok must approve it before this account can grant access.",
                     )
@@ -373,9 +402,12 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
                     }}>
                     {recoveryReturnTo === "/"
                       ? t("backDashboard")
-                      : recoveryReturnTo.startsWith("/accounts")
+                      : recoveryReturnTo === WORKSPACE_RETURN_PATH ||
+                          (pilotConnection && recoveryReturnTo.startsWith("/accounts"))
                         ? t("backToAccounts")
-                        : copy("Go back")}
+                        : pilotConnection
+                          ? copy("Go back")
+                          : t("backToPost")}
                   </Link>
                 </Button>
               )}
@@ -383,6 +415,11 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
           </Alert>
         )}
         {!workspaceId && !readOnly && <AssistantConnectionHandoff onManual={openManualHandoff} />}
+        {fromLegacyWorkspace && searchParams.get("connected") === "true" && (
+          <Alert className="mb-6 border-primary/25 bg-primary/5">
+            <AlertDescription>{t("handoffComplete")}</AlertDescription>
+          </Alert>
+        )}
         <AccountsHeading
           action={
             readOnly ? undefined : (
@@ -492,11 +529,9 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            handleConnect(
-                              account.platform === "twitter" ? "x" : account.platform,
-                              accountsHref,
-                              account.id,
-                            )
+                            pilotConnection
+                              ? handleConnect(account.platform, accountsHref, account.id)
+                              : handleConnect(account.platform)
                           }
                           aria-label={t("reconnect")}
                           className="gap-1.5">
@@ -522,7 +557,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
         )}
       </main>
 
-      <Dialog open={Boolean(connectingPlatform)}>
+      <Dialog open={connectingPlatform?.pilot === true}>
         <DialogContent
           className="sm:max-w-sm [&>button]:hidden"
           onEscapeKeyDown={(event) => event.preventDefault()}

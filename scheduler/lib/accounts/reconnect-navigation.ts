@@ -1,3 +1,7 @@
+import type { Feature } from "@prisma/client";
+
+export const PILOT_CONNECTION_FEATURES: readonly Feature[] = ["POST_ANALYTICS", "SOCIAL_INBOX", "TEAM_WORKSPACES"];
+
 /** Only return to workspace views; never accept an external or arbitrary redirect. */
 export function recoveryReturnPath(value: string | null | undefined): string | null {
   if (!value || value.includes("\\") || /[\r\n]/.test(value)) return null;

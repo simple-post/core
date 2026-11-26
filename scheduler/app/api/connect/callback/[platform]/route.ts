@@ -47,6 +47,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const baseURL = env.NEXT_PUBLIC_APP_URL;
   const { platform } = await params;
   let workspaceId: string | undefined;
+  let pilotConnection = false;
   let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         measurementUserId = context.userId;
         source = context.source;
         workspaceId = context.workspaceId;
+        pilotConnection = Boolean(context.workspaceId || context.pilotScopes || context.reconnectAccountId);
       }
     }
   } catch {
@@ -93,7 +95,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       authLogger.warn({ platform, error, errorReason, errorDescription }, "OAuth provider returned error");
       await failure("authorization_denied");
       const redirect = new URL(errorRedirect("authorization_denied"));
-      if (platform === "tiktok" && (error === "invalid_scope" || errorReason === "invalid_scope"))
+      if (pilotConnection && platform === "tiktok" && (error === "invalid_scope" || errorReason === "invalid_scope"))
         redirect.searchParams.set("scopeUnavailable", "tiktok");
       return NextResponse.redirect(redirect);
     }

@@ -47,7 +47,8 @@ test.beforeAll(async () => {
               "export {useLoginSession as useSession} from '@/lib/auth/use-login-session'; export const authClient = {signOut: async () => ({})};",
             "@/components/login-form": `import React from 'react'; export const LoginForm = ({callbackURL}) => <button onClick={() => { sessionStorage.signedIn='true'; location.assign(callbackURL); }}>Sign into SimplePost</button>;`,
             "@/components/billing/subscription-gate": "export const SubscriptionGate = ({children}) => children;",
-            "@/hooks/use-features": "export const useFeatures = () => ({hasFeature: () => false, isPending: false});",
+            "@/hooks/use-features":
+              "export const useFeatures = () => ({hasFeature: (flag) => flag === 'POST_ANALYTICS' && new URLSearchParams(location.search).has('pilot'), isPending: false});",
             "@/hooks/use-billing": "export const useWorkspaceReadOnly = () => false;",
             "@/components/create-post-webmcp": "export const WebMcpProvider = ({children}) => children;",
             "@/components/schedule-calendar-context":
@@ -72,11 +73,17 @@ test.beforeAll(async () => {
   bundle = result.outputFiles[0].text;
 });
 
-async function install(page: Page, handoffStatus = 200) {
+async function install(page: Page, handoffStatus = 200, reconnect = false) {
   await page.route("https://handoff.test/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/bundle.js") return route.fulfill({ contentType: "text/javascript", body: bundle });
-    if (url.pathname === "/api/v1/accounts") return route.fulfill({ json: { accounts: [] } });
+    if (url.pathname === "/api/v1/accounts") {
+      return route.fulfill({
+        json: {
+          accounts: reconnect ? [{ id: "account-1", platform: "x", username: "fixture", displayName: "Fixture" }] : [],
+        },
+      });
+    }
     if (url.pathname === "/api/connect/handoff") {
       const body = route.request().postDataJSON();
       return route.fulfill({
@@ -160,3 +167,30 @@ test("Arabic connection guidance keeps the exact provider and handoff token", as
   await expect(page.getByText("سجّل الدخول بحساب SimplePost المرتبط بمساعد الذكاء الاصطناعي لديك.")).toBeVisible();
   await expect(page.getByRole("button", { name: "استخدم حساب SimplePost آخر" })).toBeVisible();
 });
+
+for (const pilot of [false, true]) {
+  test(`account recovery uses the correct handoff for pilot access ${pilot}`, async ({ page }) => {
+    await install(page, 200, true);
+    await page.addInitScript(() => {
+      if (location.pathname !== "/accounts") return;
+      const observer = new MutationObserver(() => {
+        const dialog = [...document.querySelectorAll('[role="dialog"]')].find((element) =>
+          element.textContent?.startsWith("Opening X"),
+        );
+        if (dialog) {
+          sessionStorage.setItem("forwarding-dialog-seen", "true");
+          observer.disconnect();
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
+    const authorization = page.waitForRequest("**/api/connect/x*");
+    await page.goto(`https://handoff.test/accounts?reconnect=account-1&returnTo=%2Fschedule${pilot ? "&pilot=1" : ""}`);
+    const request = await authorization;
+    const url = new URL(request.url());
+    expect(url.searchParams.get("reconnectAccountId")).toBe(pilot ? "account-1" : null);
+    await expect(page.getByRole("heading", { name: "X authorization" })).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem("forwarding-dialog-seen"))).toBe(pilot ? "true" : null);
+    expect(await page.evaluate(() => sessionStorage.getItem("simplepost:account-connection:return"))).toBe("/schedule");
+  });
+}

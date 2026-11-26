@@ -4,6 +4,14 @@ This document lists deployment and client changes that require an explicit
 action when upgrading SimplePost. Read it together with the
 [changelog](../../CHANGELOG.md).
 
+## Workspace account separation
+
+Keep the Analytics, Inbox, and Workspaces grants limited to their current rollout. The web header changes apply to all users. Personal connections without those grants keep their existing OAuth handoff.
+
+The Scheduler image applies `20261126130000_workspace_connections` before serving traffic. The migration creates the two scoped indexes and drops the old unique index in one transaction. Older Scheduler instances can read existing personal accounts after the migration, but their OAuth writes require the dropped index. Have the new image built before starting the cutover. Once the migration commits, route OAuth traffic to the updated Scheduler as soon as its health check passes.
+
+Verify account listing and a standard connect or reconnect using an account without any of the three grants. Roll back to a build that supports scoped account storage once the migration has applied.
+
 ## 1.4.0
 
 Upgrade both `@simple-post/sdk` and `@simple-post/cli` to 1.4.0. CLI 1.4.0

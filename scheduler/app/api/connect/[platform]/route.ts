@@ -1,10 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { handoffSource } from "@/lib/accounts/assistant-handoff";
+import { PILOT_CONNECTION_FEATURES } from "@/lib/accounts/reconnect-navigation";
 import { measurementFailure, recordFunnelEvent } from "@/lib/analytics/events";
 import { isSocialPlatformEnabled } from "@/lib/config";
 import { env } from "@/lib/env";
-import { hasFeature, requireSocialInbox } from "@/lib/features";
+import { getUserFeatures, hasFeature, requireSocialInbox } from "@/lib/features";
 import { serverMessage } from "@/lib/i18n/server";
 import { authLogger } from "@/lib/logger";
 import { requireAuth } from "@/lib/middleware/auth";
@@ -44,20 +45,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       request.nextUrl.searchParams.get("workspace"),
       true,
     );
-    const reconnectAccountId = request.nextUrl.searchParams.get("reconnectAccountId");
-    if (
-      reconnectAccountId &&
-      !(await prisma.connectedAccount.findFirst({
-        where: {
-          id: reconnectAccountId,
-          userId: session.user.id,
-          workspaceId,
-          platform: platform === "x" ? { in: ["x", "twitter"] } : platform,
-        },
-        select: { id: true },
-      }))
-    )
-      throw new BadRequestError("The connection to reconnect is unavailable.");
     const inboxAccountId = request.nextUrl.searchParams.get("inboxAccountId");
     const inboxScopes = enabledInboxScopes(platform);
     if (inboxAccountId) {
@@ -75,6 +62,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       analyticsScope !== config.scope && hasFeature(session.user.id, "POST_ANALYTICS"),
       Boolean(inboxAccountId) || (inboxScopes.length > 0 && hasFeature(session.user.id, "SOCIAL_INBOX")),
     ]);
+    const requestedReconnectId = request.nextUrl.searchParams.get("reconnectAccountId");
+    let reconnectAccountId: string | undefined;
+    if (requestedReconnectId) {
+      const authorized = Boolean(workspaceId || analytics || inbox);
+      const features = authorized ? [] : await getUserFeatures(session.user.id);
+      if (authorized || features.some((feature) => PILOT_CONNECTION_FEATURES.includes(feature))) {
+        reconnectAccountId = requestedReconnectId;
+      }
+    }
+    if (
+      reconnectAccountId &&
+      !(await prisma.connectedAccount.findFirst({
+        where: {
+          id: reconnectAccountId,
+          userId: session.user.id,
+          workspaceId,
+          platform: platform === "x" ? { in: ["x", "twitter"] } : platform,
+        },
+        select: { id: true },
+      }))
+    )
+      throw new BadRequestError("The connection to reconnect is unavailable.");
     const scopeWithAnalytics = analytics ? analyticsScope : config.scope;
     const scope = inbox
       ? [...new Set([...scopeWithAnalytics.split(/[\s,]+/u), ...inboxScopes])].join(
@@ -87,12 +96,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       source,
       inboxAccountId ?? undefined,
       analytics || inbox ? { scope, analytics, inbox } : undefined,
-      { workspaceId: workspaceId ?? undefined, reconnectAccountId: reconnectAccountId ?? undefined },
+      { workspaceId: workspaceId ?? undefined, reconnectAccountId },
     );
 
     // Build authorization URL
     const authUrl = new URL(config.authUrl);
-    authUrl.searchParams.set(platform === "tiktok" ? "client_key" : "client_id", config.clientId);
+    const pilotConnection = Boolean(workspaceId || analytics || inbox || reconnectAccountId);
+    if (platform !== "tiktok" || !pilotConnection) authUrl.searchParams.set("client_id", config.clientId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("scope", scope);
     if ((analytics || inbox) && platform === "facebook") authUrl.searchParams.set("auth_type", "rerequest");
@@ -111,6 +121,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Platform-specific parameters
     switch (platform) {
       case "tiktok": {
+        authUrl.searchParams.set("client_key", config.clientId);
         if (reconnectAccountId) authUrl.searchParams.set("disable_auto_auth", "1");
         break;
       }

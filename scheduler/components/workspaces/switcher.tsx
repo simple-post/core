@@ -40,6 +40,7 @@ export function useWorkspaceIndex() {
   return {
     id,
     requested,
+    enabled,
     data,
     pending: featuresPending || (enabled && query.isPending),
     indexError: query.error,

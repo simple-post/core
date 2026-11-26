@@ -109,3 +109,20 @@ it.each([false, true])("uses the inspected Threads grant for an inbox reconnect 
     expect(handlePlatformCallback).not.toHaveBeenCalled();
   }
 });
+
+it.each([false, true])("adds the TikTok scope notice only for a signed pilot request (%s)", async (pilot) => {
+  jest.mocked(verifyOAuthState).mockReturnValue({
+    userId: "user-1",
+    platform: "tiktok",
+    timestamp: Date.now(),
+    ...(pilot && { pilotScopes: { scope: "video.list", analytics: true, inbox: false } }),
+  });
+
+  const response = await GET(
+    new NextRequest("http://localhost/api/connect/callback/tiktok?state=signed&error=invalid_scope"),
+    { params: Promise.resolve({ platform: "tiktok" }) },
+  );
+  const { searchParams } = new URL(response.headers.get("location")!);
+  expect(searchParams.get("scopeUnavailable")).toBe(pilot ? "tiktok" : null);
+  expect(exchangeCodeForToken).not.toHaveBeenCalled();
+});

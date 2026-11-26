@@ -1,19 +1,23 @@
 import { NextRequest } from "next/server";
 
 import { GET } from "@/app/api/connect/[platform]/route";
-import { hasFeature, requireSocialInbox } from "@/lib/features";
+import { getUserFeatures, hasFeature, requireSocialInbox } from "@/lib/features";
 import { createOAuthState } from "@/lib/oauth";
 import { getPlatformOAuthConfig } from "@/lib/oauth/config";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/utils/errors";
 
 jest.mock("@/lib/middleware/auth", () => ({ requireAuth: async () => ({ user: { id: "user-1" } }) }));
-jest.mock("@/lib/features", () => ({ hasFeature: jest.fn(), requireSocialInbox: jest.fn() }));
+jest.mock("@/lib/features", () => ({
+  getUserFeatures: jest.fn(),
+  hasFeature: jest.fn(),
+  requireSocialInbox: jest.fn(),
+}));
 jest.mock("@/lib/prisma", () => ({ prisma: { connectedAccount: { findFirst: jest.fn() } } }));
 jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn(), measurementFailure: () => "test_error" }));
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: () => true }));
 jest.mock("@/lib/oauth", () => {
-  const config = jest.requireActual<typeof import("@/lib/oauth/config")>("@/lib/oauth/config");
+  const config = jest.requireActual<{ getPlatformOAuthConfig: typeof getPlatformOAuthConfig }>("@/lib/oauth/config");
   return {
     getPlatformOAuthConfig: (platform: string) => ({ ...config.getPlatformOAuthConfig(platform), clientId: "client" }),
     createOAuthState: jest.fn(() => "signed-state"),
@@ -165,5 +169,56 @@ describe("YouTube inbox consent alongside analytics", () => {
     expect(response.status).toBe(403);
     expect(response.headers.get("location")).toBeNull();
     expect(prisma.connectedAccount.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe("TikTok connection rollout", () => {
+  beforeEach(() => {
+    jest.resetAllMocks();
+    jest.mocked(createOAuthState).mockReturnValue("signed-state");
+    jest.mocked(hasFeature).mockResolvedValue(false);
+    jest.mocked(getUserFeatures).mockResolvedValue([]);
+  });
+
+  it("keeps the existing TikTok OAuth request for users without a grant", async () => {
+    const response = await GET(
+      new NextRequest("https://app.simplepost.social/api/connect/tiktok?reconnectAccountId=account-1"),
+      { params: Promise.resolve({ platform: "tiktok" }) },
+    );
+
+    expect(response.status).toBe(307);
+    const { searchParams } = new URL(response.headers.get("location")!);
+    expect(searchParams.get("client_id")).toBe("client");
+    expect(searchParams.get("client_key")).toBe("client");
+    expect(searchParams.get("scope")).toBe(getPlatformOAuthConfig("tiktok")?.scope);
+    expect(searchParams.has("disable_auto_auth")).toBe(false);
+    expect(prisma.connectedAccount.findFirst).not.toHaveBeenCalled();
+    expect(createOAuthState).toHaveBeenCalledWith("user-1", "tiktok", undefined, undefined, undefined, {
+      workspaceId: undefined,
+      reconnectAccountId: undefined,
+    });
+  });
+
+  it("uses the new request for a reconnect with an Analytics grant", async () => {
+    jest.mocked(getUserFeatures).mockResolvedValue(["POST_ANALYTICS"]);
+    jest.mocked(prisma.connectedAccount.findFirst).mockResolvedValue({ id: "account-1" } as never);
+    const response = await GET(
+      new NextRequest("https://app.simplepost.social/api/connect/tiktok?reconnectAccountId=account-1"),
+      { params: Promise.resolve({ platform: "tiktok" }) },
+    );
+
+    expect(response.status).toBe(307);
+    const { searchParams } = new URL(response.headers.get("location")!);
+    expect(searchParams.has("client_id")).toBe(false);
+    expect(searchParams.get("client_key")).toBe("client");
+    expect(searchParams.get("disable_auto_auth")).toBe("1");
+    expect(prisma.connectedAccount.findFirst).toHaveBeenCalledWith({
+      where: { userId: "user-1", id: "account-1", workspaceId: null, platform: "tiktok" },
+      select: { id: true },
+    });
+    expect(createOAuthState).toHaveBeenCalledWith("user-1", "tiktok", undefined, undefined, undefined, {
+      workspaceId: undefined,
+      reconnectAccountId: "account-1",
+    });
   });
 });

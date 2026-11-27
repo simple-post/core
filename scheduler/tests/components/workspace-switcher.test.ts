@@ -71,13 +71,23 @@ it("lets an invited viewer return to Personal without exposing admin settings", 
   );
 });
 
-it("places the admin gear beside its workspace inside the menu", async () => {
+it("shows workspace names in readable color pills with the admin gear beside them", async () => {
   mount({
-    workspaces: [{ id: "studio", role: "Admin", name: "Studio", icon: "S", color: "#b12aba", canManage: true }],
+    workspaces: [
+      { id: "studio", role: "Admin", name: "Studio", icon: "S", color: "#b12aba", canManage: true },
+      { id: "editorial", role: "Viewer", name: "Editorial", icon: "E", color: "lime", canManage: false },
+    ],
   });
   const toggle = await screen.findByRole("button", { name: "Switch workspace: Personal Workspace" });
   expect(screen.queryByLabelText("Settings for Studio")).toBeNull();
   fireEvent.keyDown(toggle, { key: "ArrowDown" });
   const gear = await screen.findByRole("menuitem", { name: "Settings for Studio" });
   expect(gear.getAttribute("href")).toBe("/workspaces/settings?workspace=studio");
+  const studio = screen.getByText("Studio");
+  expect(studio.style.backgroundColor).toBe("rgb(177, 42, 186)");
+  expect(studio.style.color).toBe("rgb(255, 255, 255)");
+  const editorial = screen.getByText("Editorial");
+  expect(editorial.style.backgroundColor).toBe("rgb(163, 230, 53)");
+  expect(editorial.style.color).toBe("rgb(0, 0, 0)");
+  expect(screen.getByText("Personal Workspace", { selector: ".bg-muted" })).toBeTruthy();
 });

@@ -19,11 +19,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
-import { Textarea } from "@/components/ui/textarea";
 import type { WorkspaceColor } from "@/lib/workspaces/colors";
 import { roles } from "@/lib/workspaces/contracts";
 
-import { WorkspaceColorPicker, WorkspaceLogoPicker, workspaceLogoInput } from "./appearance";
+import { WorkspaceGeneralFields, workspaceLogoInput } from "./appearance";
 import { WorkflowSettings } from "./workflow-settings";
 
 import type { Member, Run, Workspace } from "./types";
@@ -47,10 +46,9 @@ export function TeamSettings({
   const removingOwner = removing?.userId === w.creatorId;
   return (
     <div className="space-y-5">
-      <Card id="general" className="scroll-mt-20 gap-4 px-5 sm:px-6">
+      <Card id="general" className="scroll-mt-20 gap-5 px-5 sm:px-6">
         <h2 className="text-lg font-semibold tracking-tight">General</h2>
         <form
-          className="space-y-4"
           onSubmit={async (e) => {
             e.preventDefault();
             const data = new FormData(e.currentTarget);
@@ -70,17 +68,12 @@ export function TeamSettings({
               toast.error(error instanceof Error ? error.message : "Could not save workspace settings.");
             }
           }}>
-          <Label className="max-w-sm flex-col items-stretch">
-            Workspace name
-            <Input name="name" required maxLength={80} defaultValue={w.name} />
-          </Label>
-          <WorkspaceColorPicker color={w.color} />
-          <WorkspaceLogoPicker logo={w.logo} />
-          <Label className="min-w-0 flex-col items-stretch">
-            Description
-            <Textarea name="description" defaultValue={w.description} maxLength={500} />
-          </Label>
-          <Button size="sm">Save changes</Button>
+          <WorkspaceGeneralFields name={w.name} color={w.color} logo={w.logo} description={w.description} />
+          <div className="mt-5 flex justify-end border-t border-border pt-4">
+            <Button type="submit" size="sm" disabled={busy}>
+              Save changes
+            </Button>
+          </div>
         </form>
       </Card>
       <Card id="members" className="scroll-mt-20 gap-4 px-5 sm:px-6">

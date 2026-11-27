@@ -18,6 +18,13 @@ export function tikTokProcessingFailureCode(result: { platform?: string; error?:
   return ["photo_pull_failed", "video_pull_failed", "internal"].find((code) => code === details.code);
 }
 
+/** The SDK reports this inspection error before submitting any media to TikTok. */
+export function tikTokMediaPreparationFailureCode(result: { platform?: string; error?: string; details?: unknown }) {
+  if (result.platform !== "tiktok" || result.error !== "PREPARATION_ERROR") return undefined;
+  const details = result.details as { code?: unknown } | undefined;
+  return details?.code === "media_unavailable" ? details.code : undefined;
+}
+
 export function tikTokCapCode(value: unknown): TikTokCapCode | undefined {
   return TIKTOK_CAP_CODES.find((code) => code === value);
 }
@@ -59,13 +66,19 @@ export function recoveryForResult(
 ) {
   if (result.platform !== "tiktok") return undefined;
   const processingCode = tikTokProcessingFailureCode(result);
-  if (processingCode)
+  const preparationCode = tikTokMediaPreparationFailureCode(result);
+  const mediaCode = processingCode ?? preparationCode;
+  if (mediaCode)
     return {
-      code: processingCode,
-      title: copy("TikTok could not process the media"),
-      message: automatic
-        ? copy("Your post is saved. TikTok confirmed the attempt failed. Another attempt is scheduled automatically.")
-        : copy("TikTok confirmed the attempt failed. Check the media URLs and schedule another attempt."),
+      code: mediaCode,
+      title: preparationCode ? copy("SimplePost could not load the media") : copy("TikTok could not process the media"),
+      message: preparationCode
+        ? automatic
+          ? copy("Your post is saved. Another attempt is scheduled automatically.")
+          : copy("Check the media URLs and schedule another attempt.")
+        : automatic
+          ? copy("Your post is saved. TikTok confirmed the attempt failed. Another attempt is scheduled automatically.")
+          : copy("TikTok confirmed the attempt failed. Check the media URLs and schedule another attempt."),
       state: automatic ? "waiting" : "needs_action",
       automaticRetry: automatic,
       canScheduleRetry: true,

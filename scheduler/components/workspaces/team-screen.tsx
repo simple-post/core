@@ -58,8 +58,13 @@ export function TeamScreen({
     setError("");
     try {
       const result = await request<{ id: string | null; invitationEmailSent?: boolean }>(path, json(cmd));
+      if (cmd.action === "remove" && cmd.userId === session?.user.id) {
+        await refresh();
+        router.replace("/");
+        return true;
+      }
       await query.refetch({ throwOnError: true });
-      if (cmd.action === "settings") await refresh();
+      if (cmd.action === "settings" || cmd.action === "remove" || cmd.action === "member") await refresh();
       if (cmd.action === "invite" || cmd.action === "resendInvite") {
         if (result.invitationEmailSent) toast.success("Invitation email sent");
         else toast.error("Invitation saved. The email could not be sent. Try again from Members.");
@@ -201,7 +206,7 @@ export function TeamScreen({
         {notice}
         {w ? (
           <fieldset disabled={busy || w.member.role !== "Admin"}>
-            <TeamSettings workspace={w} run={run} busy={busy || w.member.role !== "Admin"} />
+            <TeamSettings workspace={w} run={run} busy={busy || w.member.role !== "Admin"} actionError={error} />
           </fieldset>
         ) : (
           !notice && <p role="status">{pending || current ? "Loading workspace…" : "Workspace unavailable."}</p>

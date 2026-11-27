@@ -5,6 +5,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@
 
 import { authorize, lockWorkspace, membership, type Tx } from "./access";
 import { snapshotSchema, type Actor, type Snapshot, type WorkspaceCommand } from "./contracts";
+import { prepareOwnerRemoval } from "./ownership";
 import { changeSettings } from "./settings";
 
 export async function recordEvent(tx: Tx, postId: string, actor: Actor, kind: string, body: string, reviewId?: string) {
@@ -19,11 +20,13 @@ export async function runCommand(
   cmd: Exclude<WorkspaceCommand, { action: "release" | "cancelDelivery" }>,
 ) {
   return prisma.$transaction(async (tx) => {
+    const successor =
+      cmd.action === "remove" ? await prepareOwnerRemoval(tx, workspaceId, actor.id, cmd.userId) : undefined;
     await lockWorkspace(tx, workspaceId);
     const member = await membership(tx, workspaceId, actor.id);
     if (!("postId" in cmd) && cmd.action !== "createPost") {
       authorize(member, "admin");
-      return changeSettings(tx, workspaceId, cmd);
+      return changeSettings(tx, workspaceId, cmd, successor);
     }
     const post =
       "postId" in cmd

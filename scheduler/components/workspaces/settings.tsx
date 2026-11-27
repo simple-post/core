@@ -26,11 +26,25 @@ import { roles } from "@/lib/workspaces/contracts";
 import { WorkspaceColorPicker, WorkspaceLogoPicker, workspaceLogoInput } from "./appearance";
 import { WorkflowSettings } from "./workflow-settings";
 
-import type { Run, Workspace } from "./types";
+import type { Member, Run, Workspace } from "./types";
 type Role = (typeof roles)[number];
-export function TeamSettings({ workspace: w, run, busy }: { workspace: Workspace; run: Run; busy: boolean }) {
+export function TeamSettings({
+  workspace: w,
+  run,
+  busy,
+  actionError,
+}: {
+  workspace: Workspace;
+  run: Run;
+  busy: boolean;
+  actionError: string;
+}) {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState(false);
+  const [removing, setRemoving] = useState<Member>();
+  const [removeError, setRemoveError] = useState(false);
+  const adminCount = w.members.filter((member) => member.role === "Admin").length;
+  const removingOwner = removing?.userId === w.creatorId;
   return (
     <div className="space-y-5">
       <Card id="general" className="scroll-mt-20 gap-4 px-5 sm:px-6">
@@ -115,11 +129,20 @@ export function TeamSettings({ workspace: w, run, busy }: { workspace: Workspace
                 />
                 Approver
               </Label>
-              {m.userId !== w.creatorId && (
-                <Button variant="outline" size="sm" onClick={() => void run({ action: "remove", userId: m.userId })}>
-                  Remove
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                className="size-8 justify-self-end text-destructive"
+                disabled={m.role === "Admin" && adminCount < 2}
+                title={m.role === "Admin" && adminCount < 2 ? "Add another admin first" : "Remove member"}
+                aria-label={`Remove ${m.user.name || m.user.email} from workspace`}
+                onClick={() => {
+                  setRemoveError(false);
+                  setRemoving(m);
+                }}>
+                <Trash2 className="size-4" aria-hidden />
+              </Button>
             </div>
           </div>
         ))}
@@ -160,6 +183,46 @@ export function TeamSettings({ workspace: w, run, busy }: { workspace: Workspace
             </div>
           </div>
         ))}
+        <Dialog
+          open={Boolean(removing)}
+          onOpenChange={(open) => {
+            if (!open) setRemoving(undefined);
+          }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Remove {removing?.user.name || removing?.user.email}?</DialogTitle>
+              <DialogDescription>
+                {removingOwner
+                  ? "Another admin will take ownership of this workspace and manage its connected accounts."
+                  : "This member will lose access to the workspace."}
+              </DialogDescription>
+            </DialogHeader>
+            {removeError && (
+              <p role="alert" className="text-sm text-destructive">
+                {actionError || "Could not remove this member. Reload the workspace and try again."}
+              </p>
+            )}
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={busy}
+                onClick={async () => {
+                  if (!removing || busy) return;
+                  setRemoveError(false);
+                  if (await run({ action: "remove", userId: removing.userId })) setRemoving(undefined);
+                  else setRemoveError(true);
+                }}>
+                Remove member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog open={inviting} onOpenChange={setInviting}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>

@@ -53,7 +53,7 @@ Meta Muse Code can use the same skill and hosted OAuth MCP server. See [Muse age
 | Scheduler app   | Human writing, previewing, posting, and scheduling           | [docs/scheduler-app](https://docs.simplepost.social/scheduler)                 |
 | CLI             | Terminal workflows, scripts, CI jobs, local coding agents    | [docs/cli](https://docs.simplepost.social/cli)                                 |
 | MCP server      | ChatGPT, Claude, Cursor, and other MCP-compatible AI clients | [docs/mcp-server](https://docs.simplepost.social/mcp)                          |
-| n8n node        | Visual automations that publish, schedule, or save drafts    | [integrations/n8n](integrations/n8n/README.md)                                 |
+| n8n node        | Visual automations that publish, schedule, or save drafts    | [simple-post/n8n-nodes-simplepost](https://github.com/simple-post/n8n-nodes-simplepost) |
 
 All five paths build on `@simple-post/sdk`, with different payloads, authentication, and workflow capabilities. The n8n node calls the hosted or self-hosted Scheduler API with an API key. Hosted users share connected accounts across the web app, MCP, CLI, and API. Direct SDK/local CLI use your own credentials. [Compare interfaces](https://docs.simplepost.social/) and [published versus hosted behavior](https://docs.simplepost.social/release-policy#published-packages-and-hosted-features).
 

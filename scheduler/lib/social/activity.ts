@@ -1,16 +1,17 @@
 import { randomUUID } from "node:crypto";
 
-import { Prisma } from "@prisma/client";
+import { Feature, Prisma } from "@prisma/client";
 import {
   getSocialActivityCapabilities,
   likeSocialItem,
   listSocialPostComments,
   listSocialPostQuotes,
+  PlatformSchema,
   replyToSocialComment,
 } from "@simple-post/sdk";
 import { mapPlatformName } from "@simple-post/sdk/platform-names";
 
-import { requireSocialInbox } from "@/lib/features";
+import { requireSocialInbox, usersWithFeature } from "@/lib/features";
 import { refreshConnectedAccountIfNeeded } from "@/lib/oauth/credential-health";
 import { reloadAccountSecrets, withAccountLock } from "@/lib/posting/account-lock";
 import { prisma } from "@/lib/prisma";
@@ -27,6 +28,11 @@ const RECENT_SYNC_INTERVAL_MS = 2 * 60_000;
 const X_SYNC_INTERVAL_MS = 5 * 60_000;
 const SYNC_BUDGET_MS = 20_000;
 const MAX_ACCOUNTS = 12;
+const MAX_BACKGROUND_READS = 24;
+const MAX_BACKGROUND_ACCOUNTS = 24;
+const MAX_BACKGROUND_READS_PER_ACCOUNT = 6;
+const DEFAULT_X_BACKGROUND_INTERVAL_MINUTES = 360;
+const X_RECENT_PAGE_SIZE = 10;
 const POSTS_PER_SNAPSHOT = 25;
 const RECENT_POSTS_PER_SNAPSHOT = 5;
 const MAX_CURSOR_LENGTH = 2048;
@@ -48,6 +54,8 @@ export interface SocialInboxQuery {
   limit?: number;
 }
 
+type InboxReadPhase = "comments" | "quotes";
+
 interface OwnedTarget {
   key: string;
   postId: string;
@@ -56,6 +64,7 @@ interface OwnedTarget {
   nativeUrl?: string;
   platformData?: Record<string, unknown>;
   publishedAt?: string;
+  readPhase?: InboxReadPhase;
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -129,8 +138,10 @@ function targetsFromPosts(
     threadResults: unknown;
     accounts: Array<ConnectedAccount & { tokenMetadata: Prisma.JsonValue | null }>;
   }>,
+  prioritizeRootReplies: boolean,
 ): OwnedTarget[] {
   const targets: OwnedTarget[] = [];
+  const segments: OwnedTarget[] = [];
   const seen = new Set<string>();
   for (const post of posts) {
     const results = object(post.accountResults) as Record<string, AccountPublishResult>;
@@ -161,13 +172,21 @@ function targetsFromPosts(
           post.publishedAt,
         );
         if (segmentTarget && !seen.has(segmentTarget.key)) {
-          targets.push(segmentTarget);
+          (prioritizeRootReplies ? segments : targets).push(segmentTarget);
           seen.add(segmentTarget.key);
         }
       }
     }
   }
-  return targets;
+  if (!prioritizeRootReplies) return targets;
+
+  // A Bluesky root read already includes replies in its thread. Give all
+  // recent roots a turn before quote lookups and the separate segment reads.
+  return [
+    ...targets.map((target): OwnedTarget => ({ ...target, readPhase: "comments" })),
+    ...targets.map((target): OwnedTarget => ({ ...target, readPhase: "quotes" })),
+    ...segments,
+  ];
 }
 
 function encodePostCursor(post: { createdAt: Date; id: string }): string {
@@ -190,8 +209,9 @@ async function ownedTargetPage(
   userId: string,
   accountId: string,
   workspaceId: string | null,
-  after?: string,
-  recent = false,
+  after: string | undefined,
+  recent: boolean,
+  prioritizeRootReplies: boolean,
 ) {
   const limit = recent ? RECENT_POSTS_PER_SNAPSHOT : POSTS_PER_SNAPSHOT;
   const cursor = decodePostCursor(after);
@@ -214,7 +234,7 @@ async function ownedTargetPage(
   const page = posts.slice(0, limit);
   const last = page.at(-1);
   return {
-    targets: targetsFromPosts(page),
+    targets: targetsFromPosts(page, prioritizeRootReplies),
     nextPostCursor: posts.length > limit && last ? encodePostCursor(last) : undefined,
   };
 }
@@ -223,13 +243,14 @@ async function refreshedAccount(
   userId: string,
   accountId: string,
   workspaceId: string | null,
+  reason: "manual" | "background" = "manual",
 ): Promise<ConnectedAccount> {
   const stored = await prisma.connectedAccount.findFirst({ where: { id: accountId, userId, workspaceId } });
   if (!stored) throw new NotFoundError("Connected account not found");
   const decrypted = decryptConnectedAccountSecrets(stored);
   const result = await withAccountLock(accountId, async () => {
     const latest = await reloadAccountSecrets(decrypted);
-    return refreshConnectedAccountIfNeeded(latest, { reason: "manual" });
+    return refreshConnectedAccountIfNeeded(latest, { reason });
   });
   if (result.error && result.status.state === "reauth_required") throw new InboxReconnectRequiredError(result.error);
   if (result.error) throw new BadRequestError(result.error);
@@ -260,8 +281,11 @@ function safeProviderCursor(value: string | undefined): string | undefined {
 }
 
 interface TargetSnapshot {
-  targets: Array<Pick<OwnedTarget, "key" | "postId" | "nativePostId" | "nativeUrl" | "platformData" | "publishedAt">>;
+  targets: Array<
+    Pick<OwnedTarget, "key" | "postId" | "nativePostId" | "nativeUrl" | "platformData" | "publishedAt" | "readPhase">
+  >;
   nextPostCursor?: string;
+  rootRepliesFirst?: true;
 }
 
 function targetSnapshot(value: unknown): TargetSnapshot {
@@ -279,11 +303,13 @@ function targetSnapshot(value: unknown): TargetSnapshot {
         nativeUrl: typeof target.nativeUrl === "string" ? safeNativeUrl(target.nativeUrl) : undefined,
         platformData: boundedJson(target.platformData),
         publishedAt: typeof target.publishedAt === "string" ? target.publishedAt : undefined,
-      },
+        readPhase: target.readPhase === "comments" || target.readPhase === "quotes" ? target.readPhase : undefined,
+      } satisfies TargetSnapshot["targets"][number],
     ];
   });
   return {
     targets,
+    ...(stored.rootRepliesFirst === true && { rootRepliesFirst: true }),
     nextPostCursor:
       typeof stored.nextPostCursor === "string" && decodePostCursor(stored.nextPostCursor)
         ? stored.nextPostCursor
@@ -291,17 +317,23 @@ function targetSnapshot(value: unknown): TargetSnapshot {
   };
 }
 
-function serializeTargetSnapshot(targets: OwnedTarget[], nextPostCursor?: string): TargetSnapshot {
+function serializeTargetSnapshot(
+  targets: OwnedTarget[],
+  nextPostCursor: string | undefined,
+  prioritizeRootReplies: boolean,
+): TargetSnapshot {
   return {
-    targets: targets.map(({ key, postId, nativePostId, nativeUrl, platformData, publishedAt }) => ({
+    targets: targets.map(({ key, postId, nativePostId, nativeUrl, platformData, publishedAt, readPhase }) => ({
       key,
       postId,
       nativePostId,
       nativeUrl: safeNativeUrl(nativeUrl),
       platformData: boundedJson(platformData),
       publishedAt,
+      readPhase,
     })),
     nextPostCursor,
+    ...(prioritizeRootReplies && { rootRepliesFirst: true }),
   };
 }
 
@@ -321,7 +353,7 @@ async function saveItems(
   userId: string,
   account: ConnectedAccount,
   target: OwnedTarget,
-  phase: "comments" | "quotes",
+  phase: InboxReadPhase,
   items: SocialComment[],
 ): Promise<void> {
   if (
@@ -404,7 +436,13 @@ async function saveItems(
   }
 }
 
-async function syncXLikes(account: ConnectedAccount, leaseToken: string, maxPages: number, signal: AbortSignal) {
+async function syncXLikes(
+  account: ConnectedAccount,
+  leaseToken: string,
+  maxPages: number,
+  signal: AbortSignal,
+  pageSize = 100,
+) {
   if (
     mapPlatformName(account.platform) !== "x" ||
     !/^\d+$/.test(account.platformAccountId) ||
@@ -413,7 +451,7 @@ async function syncXLikes(account: ConnectedAccount, leaseToken: string, maxPage
     return false;
 
   const startedAt = new Date();
-  const url = new URL(`https://api.x.com/2/users/${account.platformAccountId}/liked_tweets?max_results=100`);
+  const url = new URL(`https://api.x.com/2/users/${account.platformAccountId}/liked_tweets?max_results=${pageSize}`);
   const ids = new Set<string>();
   let hadValidPage = false;
   let complete = false;
@@ -663,6 +701,92 @@ function retryAt(error: SocialActivityError) {
   return new Date(Date.now() + Math.min(error.retryAfterSeconds ?? 60, 86_400) * 1000);
 }
 
+const syncAccountSelect = {
+  id: true,
+  userId: true,
+  workspaceId: true,
+  platform: true,
+  scope: true,
+  socialActivitySync: { select: { lastAttemptAt: true } },
+} satisfies Prisma.ConnectedAccountSelect;
+
+type SyncAccount = Prisma.ConnectedAccountGetPayload<{ select: typeof syncAccountSelect }>;
+
+function dueBefore(platform: string, now: Date, xIntervalMs = X_SYNC_INTERVAL_MS) {
+  return new Date(now.getTime() - (mapPlatformName(platform) === "x" ? xIntervalMs : RECENT_SYNC_INTERVAL_MS));
+}
+
+function syncAvailable(now: Date, before?: Date): Prisma.SocialActivitySyncWhereInput {
+  return {
+    AND: [
+      { OR: [{ leaseUntil: null }, { leaseUntil: { lte: now } }] },
+      { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
+      ...(before ? [{ OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: before } }] }] : []),
+    ],
+  };
+}
+
+function backgroundXIntervalMinutes() {
+  const value = Number(
+    process.env.SOCIAL_INBOX_BACKGROUND_X_INTERVAL_MINUTES?.trim() || DEFAULT_X_BACKGROUND_INTERVAL_MINUTES,
+  );
+  if (!Number.isSafeInteger(value) || value < 0 || value > 1440) return DEFAULT_X_BACKGROUND_INTERVAL_MINUTES;
+  return value === 0 ? 0 : Math.max(60, value);
+}
+
+export async function runBackgroundInboxRefresh() {
+  if (process.env.SOCIAL_INBOX_BACKGROUND_REFRESH?.toLowerCase() === "false") return;
+  const now = new Date();
+  const xIntervalMinutes = backgroundXIntervalMinutes();
+  const xIntervalMs = xIntervalMinutes * 60_000;
+  const platforms = PlatformSchema.options.filter((platform) => platform !== "x" && supportsInbox(platform));
+  const accounts = await prisma.connectedAccount.findMany({
+    where: {
+      user: usersWithFeature(Feature.SOCIAL_INBOX),
+      credentialRefreshBlockedAt: null,
+      posts: { some: { status: { in: ["published", "failed"] } } },
+      AND: [
+        {
+          OR: [{ workspaceId: null }, { user: usersWithFeature(Feature.TEAM_WORKSPACES) }],
+        },
+        {
+          OR: [
+            {
+              platform: { in: platforms },
+              OR: [
+                { socialActivitySync: null },
+                { socialActivitySync: { is: syncAvailable(now, new Date(now.getTime() - RECENT_SYNC_INTERVAL_MS)) } },
+              ],
+            },
+            ...(xIntervalMinutes === 0
+              ? []
+              : [
+                  {
+                    platform: { in: ["x", "twitter"] },
+                    OR: [
+                      { socialActivitySync: null },
+                      { socialActivitySync: { is: syncAvailable(now, dueBefore("x", now, xIntervalMs)) } },
+                    ],
+                  },
+                ]),
+          ],
+        },
+      ],
+    },
+    orderBy: [{ socialActivitySync: { lastAttemptAt: { sort: "asc", nulls: "first" } } }, { id: "asc" }],
+    select: {
+      ...syncAccountSelect,
+      workspace: { select: { creatorId: true, members: { where: { role: "Admin" }, select: { userId: true } } } },
+    },
+    take: MAX_BACKGROUND_ACCOUNTS,
+  });
+  const eligible = accounts.filter(
+    ({ userId, workspace }) =>
+      !workspace || (workspace.creatorId === userId && workspace.members.some((member) => member.userId === userId)),
+  );
+  return refreshInboxAccounts(eligible, { automatic: true, background: true, xIntervalMs });
+}
+
 export async function refreshSocialInbox(
   userId: string,
   options: {
@@ -674,7 +798,7 @@ export async function refreshSocialInbox(
   } = {},
 ) {
   await requireSocialInbox(userId);
-  const stale = new Date(0);
+  const now = new Date();
   const workspaceId = options.workspaceId ?? null;
   const platforms = options.platforms?.length ? options.platforms : options.platform ? [options.platform] : [];
   const connected = await prisma.connectedAccount.findMany({
@@ -686,48 +810,66 @@ export async function refreshSocialInbox(
           ? { in: platforms.flatMap((platform) => (platform === "x" ? ["x", "twitter"] : [platform])) }
           : undefined,
     },
-    select: feedAccountSelect,
+    select: syncAccountSelect,
   });
-  const dueBefore = (platform: string) =>
-    new Date(Date.now() - (mapPlatformName(platform) === "x" ? X_SYNC_INTERVAL_MS : RECENT_SYNC_INTERVAL_MS));
   const accounts = connected
     .filter((account) => supportsInbox(account.platform))
     .filter(
       (account) =>
         !options.automatic ||
         !account.socialActivitySync?.lastAttemptAt ||
-        account.socialActivitySync.lastAttemptAt <= dueBefore(account.platform),
+        account.socialActivitySync.lastAttemptAt <= dueBefore(account.platform, now),
     )
     .sort(
       (a, b) =>
-        (a.socialActivitySync?.lastAttemptAt ?? stale).getTime() -
-          (b.socialActivitySync?.lastAttemptAt ?? stale).getTime() || a.id.localeCompare(b.id),
+        (a.socialActivitySync?.lastAttemptAt?.getTime() ?? 0) - (b.socialActivitySync?.lastAttemptAt?.getTime() ?? 0) ||
+        a.id.localeCompare(b.id),
     );
-  let remaining = MAX_REQUESTS;
+  const result = await refreshInboxAccounts(accounts.slice(0, MAX_ACCOUNTS), {
+    automatic: options.automatic,
+    reset: options.reset,
+    focusedPlatform: platforms.length === 1,
+  });
+  return { ...result, hasMore: result.hasMore || accounts.length > MAX_ACCOUNTS };
+}
+
+async function refreshInboxAccounts(
+  accounts: SyncAccount[],
+  options: {
+    automatic?: boolean;
+    reset?: boolean;
+    background?: boolean;
+    xIntervalMs?: number;
+    focusedPlatform?: boolean;
+  },
+) {
+  let remaining = options.background ? MAX_BACKGROUND_READS : MAX_REQUESTS;
   const deadline = Date.now() + SYNC_BUDGET_MS;
   const statuses: { accountId: string; platform: string; processed: number; hasMore: boolean; error?: string }[] = [];
-  for (const account of accounts.slice(0, MAX_ACCOUNTS)) {
+  for (const account of accounts) {
     if (remaining <= 0 || Date.now() >= deadline) break;
-    const accountId = account.id;
+    const { id: accountId, userId, workspaceId } = account;
     const token = randomUUID();
     const now = new Date();
-    await prisma.socialActivitySync.upsert({ where: { accountId }, create: { accountId }, update: {} });
+    if (!account.socialActivitySync) {
+      try {
+        await prisma.socialActivitySync.createMany({ data: { accountId }, skipDuplicates: true });
+      } catch (error) {
+        // The connection can be deleted between selection and the first sync.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") continue;
+        throw error;
+      }
+    }
+    const before = options.automatic ? dueBefore(account.platform, now, options.xIntervalMs) : undefined;
     const claim = await prisma.socialActivitySync.updateMany({
-      where: {
-        accountId,
-        AND: [
-          { OR: [{ leaseUntil: null }, { leaseUntil: { lte: now } }] },
-          { OR: [{ retryAt: null }, { retryAt: { lte: now } }] },
-          ...(options.automatic
-            ? [{ OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: dueBefore(account.platform) } }] }]
-            : []),
-        ],
-      },
+      where: { accountId, ...syncAvailable(now, before) },
       data: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastAttemptAt: now },
     });
     if (!claim.count) continue;
-    const sync = await prisma.socialActivitySync.findUniqueOrThrow({ where: { accountId } });
-    const recent = object(object(sync.targetSnapshot).recent);
+    const sync = await prisma.socialActivitySync.findUnique({ where: { accountId } });
+    if (!sync) continue;
+    const persistedSnapshot = object(sync.targetSnapshot);
+    const recent = object(persistedSnapshot.recent);
     const snapshot = options.automatic ? recent.snapshot : sync.targetSnapshot;
     const hasSnapshot = Array.isArray(object(snapshot).targets);
     let stored = targetSnapshot(snapshot);
@@ -735,8 +877,7 @@ export async function refreshSocialInbox(
     let cursor = options.automatic
       ? safeProviderCursor(typeof recent.cursor === "string" ? recent.cursor : undefined)
       : (sync.providerCursor ?? undefined);
-    let phase: "comments" | "quotes" =
-      (options.automatic ? recent.phase : sync.phase) === "quotes" ? "quotes" : "comments";
+    let phase: InboxReadPhase = (options.automatic ? recent.phase : sync.phase) === "quotes" ? "quotes" : "comments";
     let processed = 0;
     let attempted = 0;
     let failure: string | undefined;
@@ -747,7 +888,7 @@ export async function refreshSocialInbox(
       if (options.automatic) {
         return {
           targetSnapshot: {
-            ...object(sync.targetSnapshot),
+            ...persistedSnapshot,
             recent: { snapshot: stored, index, cursor: cursor ?? null, phase },
           } as unknown as Prisma.InputJsonValue,
         };
@@ -761,12 +902,28 @@ export async function refreshSocialInbox(
     }
 
     try {
-      const startRecent = options.reset || (options.automatic && index >= stored.targets.length);
+      const prioritizeRootReplies = mapPlatformName(account.platform) === "bluesky";
+      // Replace older automatic Bluesky plans once so requests already in the
+      // queue do not keep the old order until a whole pass completes.
+      const startRecent =
+        options.reset ||
+        (options.automatic && (index >= stored.targets.length || (prioritizeRootReplies && !stored.rootRepliesFirst)));
       if (startRecent || !hasSnapshot || index >= stored.targets.length) {
         const after = startRecent ? undefined : stored.nextPostCursor;
         if (startRecent || !hasSnapshot || after) {
-          const page = await ownedTargetPage(userId, accountId, workspaceId, after, options.automatic);
-          stored = serializeTargetSnapshot(page.targets, options.automatic ? undefined : page.nextPostCursor);
+          const page = await ownedTargetPage(
+            userId,
+            accountId,
+            workspaceId,
+            after,
+            options.automatic === true,
+            prioritizeRootReplies,
+          );
+          stored = serializeTargetSnapshot(
+            page.targets,
+            options.automatic ? undefined : page.nextPostCursor,
+            prioritizeRootReplies,
+          );
           index = 0;
           cursor = undefined;
           phase = "comments";
@@ -774,7 +931,8 @@ export async function refreshSocialInbox(
       }
       const capabilities = getSocialActivityCapabilities(account.platform);
       const hasTargets = index < stored.targets.length;
-      const canReadLikes = mapPlatformName(account.platform) === "x" && hasInboxScopes(account.scope, ["like.read"]);
+      const isX = mapPlatformName(account.platform) === "x";
+      const canReadLikes = isX && hasInboxScopes(account.scope, ["like.read"]);
       const syncLikes =
         canReadLikes &&
         (hasTargets ||
@@ -784,23 +942,31 @@ export async function refreshSocialInbox(
               select: { id: true },
             }),
           ));
-      const fresh = hasTargets || syncLikes ? await refreshedAccount(userId, accountId, workspaceId) : undefined;
-      // A small per-account budget keeps busy destinations from starving others.
+      if (options.background) await requireSocialInbox(userId);
+      const fresh =
+        hasTargets || syncLikes
+          ? await refreshedAccount(userId, accountId, workspaceId, options.background ? "background" : "manual")
+          : undefined;
+      // Keep one account from monopolizing the sweep, and cap billed reads on X.
+      const accountReadLimit = options.background ? (isX ? 1 : MAX_BACKGROUND_READS_PER_ACCOUNT) : 3;
+      // Browser and worker resume the same recent cursor with the same page size.
+      const pageSize = options.automatic && isX ? X_RECENT_PAGE_SIZE : 50;
       while (
         fresh &&
         index < stored.targets.length &&
         remaining > Number(syncLikes) &&
-        attempted < 3 &&
+        attempted < accountReadLimit &&
         Date.now() < deadline
       ) {
         await requireSocialInbox(userId);
         remaining -= 1;
         attempted += 1;
         const target = { ...stored.targets[index], accountId };
-        if (phase === "comments" && !capabilities.has("comments")) phase = "quotes";
+        if (target.readPhase) phase = target.readPhase;
+        else if (phase === "comments" && !capabilities.has("comments")) phase = "quotes";
         const list = phase === "quotes" ? listSocialPostQuotes : listSocialPostComments;
         const itemPhase = phase;
-        const response = await list(socialAccount(fresh), target, { cursor, limit: 50 });
+        const response = await list(socialAccount(fresh), target, { cursor, limit: pageSize });
         const skippable =
           !response.ok &&
           ["not_found", "unsupported", "invalid_request", "permission_required"].includes(response.error.code);
@@ -809,7 +975,7 @@ export async function refreshSocialInbox(
         if (next && next !== cursor) cursor = next;
         else if (response.ok || skippable) {
           cursor = undefined;
-          if (phase === "comments" && capabilities.has("quotes")) phase = "quotes";
+          if (!target.readPhase && phase === "comments" && capabilities.has("quotes")) phase = "quotes";
           else {
             index += 1;
             phase = "comments";
@@ -836,16 +1002,24 @@ export async function refreshSocialInbox(
         );
         if (!saved || (!response.ok && !skippable)) break;
       }
-      if (fresh && remaining > 0 && Date.now() < deadline && syncLikes && hasInboxScopes(fresh.scope, ["like.read"])) {
+      if (
+        fresh &&
+        remaining > 0 &&
+        Date.now() < deadline &&
+        syncLikes &&
+        (!options.background || !failure) &&
+        hasInboxScopes(fresh.scope, ["like.read"])
+      ) {
         // A manual refresh focused on X can look further back without taking
         // requests away from other platforms during routine polling.
-        const pages = !options.automatic && platforms.length === 1 ? Math.min(2, remaining) : 1;
+        const pages = !options.automatic && options.focusedPlatform ? Math.min(2, remaining) : 1;
         remaining -= pages;
         const synced = await syncXLikes(
           fresh,
           token,
           pages,
           AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now()))),
+          options.background ? X_RECENT_PAGE_SIZE : undefined,
         ).catch(() => false);
         if (!synced && !failure) {
           failure = "X could not sync likes. Replies and quotes are still available.";

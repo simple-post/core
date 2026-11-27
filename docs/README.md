@@ -15,7 +15,7 @@ For hosted onboarding and product help, start at [docs.simplepost.social](https:
 | Post from a terminal, script, CI job, or local coding agent           | CLI                | [CLI](cli/README.md)                                                                               |
 | Let AI assistants publish or schedule through MCP                     | MCP server         | [MCP server](mcp-server/README.md)                                                                 |
 | See how published posts perform (views, likes, followers)             | Any interface      | [Post analytics](post-analytics/README.md)                                                         |
-| Publish, schedule, or save drafts from an n8n workflow                | n8n node           | [n8n node](../integrations/n8n/README.md)                                                          |
+| Publish, schedule, or save drafts from an n8n workflow                | n8n node           | [n8n node](https://github.com/simple-post/n8n-nodes-simplepost)                                     |
 
 Most users only need one row. The common concepts below explain how the pieces fit together.
 

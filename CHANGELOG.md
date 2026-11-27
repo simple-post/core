@@ -14,7 +14,7 @@ the Scheduler, MCP server, and self-hosted HTTP server.
 - Analytics HTTP endpoints (`/api/v1/posts/{id}/analytics`, `/api/v1/analytics/{summary,posts,accounts,refresh}`), MCP tools (`get_analytics_summary`, `list_post_analytics`, `get_post_analytics`, `get_account_analytics`), CLI `simplepost analytics` commands and self-hosted server analytics endpoints.
 - Bluesky clickable links, hashtags and resolvable mentions, with UTF-8 facet ranges on posts and thread replies. Unresolved mentions remain plain text.
 - Bluesky external link cards for text posts without explicit media or quotes. Metadata and optional thumbnails use bounded public-only requests; failures fall back to the original clickable link.
-- An `n8n-nodes-simplepost` community node (`integrations/n8n`): create, get, list, and delete posts, list accounts, upload binary media, and trigger workflows on `post.published` and `post.failed` webhooks, with a provenance-enabled npm release workflow.
+- An [`n8n-nodes-simplepost` community node](https://github.com/simple-post/n8n-nodes-simplepost): create, get, list, and delete posts, list accounts, upload binary media, and trigger workflows on `post.published` and `post.failed` webhooks, with a provenance-enabled npm release workflow.
 
 ### Changed
 

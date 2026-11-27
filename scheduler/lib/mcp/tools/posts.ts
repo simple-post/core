@@ -1216,14 +1216,17 @@ export async function discardScheduledPost(userId: string, input: z.infer<typeof
 
 type PostToAccountsResults = Awaited<ReturnType<typeof postToAccounts>>;
 
-function mapPostingResultsForMcp(results: PostToAccountsResults): z.infer<typeof postingResultSchema>[] {
+function mapPostingResultsForMcp(
+  results: PostToAccountsResults,
+  retryScheduled: boolean,
+): z.infer<typeof postingResultSchema>[] {
   return results.map((r) => ({
     accountId: r.accountId,
     platform: r.platform,
     success: r.success,
     error: r.error,
     message: r.message,
-    recovery: recoveryForResult(r),
+    recovery: recoveryForResult(r, retryScheduled),
     postUrl: r.postUrl,
     postId: r.postId,
     placementResults: r.placementResults,
@@ -1571,12 +1574,7 @@ export async function createPost(
       }
 
       const updatedPost = await repository.getPostById(post.id);
-      const sanitizedResults = mapPostingResultsForMcp(results).map((result) => ({
-        ...result,
-        ...(deferred && result.recovery
-          ? { recovery: { ...result.recovery, automaticRetry: true, state: "waiting" } }
-          : {}),
-      }));
+      const sanitizedResults = mapPostingResultsForMcp(results, deferred);
 
       return {
         kind: "post" as const,

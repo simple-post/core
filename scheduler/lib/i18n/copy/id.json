@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Akun Instagram yang dipilih berbeda",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Beralihlah ke akun Instagram yang awalnya kamu hubungkan ke SimplePost, lalu coba lagi.",
+  "Account to reconnect": "Akun yang akan dihubungkan kembali",
   "Automate posting with n8n": "Otomatiskan penerbitan dengan n8n",
   "Finish on {{platform}} to return to SimplePost.": "Selesaikan di {{platform}} untuk kembali ke SimplePost.",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "Instal node komunitas SimplePost, lalu gunakan kunci API dari halaman ini untuk autentikasi.",

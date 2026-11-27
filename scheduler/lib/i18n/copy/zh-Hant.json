@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "選取了另一個 Instagram 帳號",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "請切換至最初連結至 SimplePost 的 Instagram 帳號，再試一次。",
+  "Account to reconnect": "要重新連結的帳號",
   "Automate posting with n8n": "使用 n8n 自動發布貼文",
   "Finish on {{platform}} to return to SimplePost.": "在 {{platform}} 完成操作後即可返回 SimplePost。",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "安裝 SimplePost 社群節點，然後使用此頁面的 API 金鑰進行驗證。",

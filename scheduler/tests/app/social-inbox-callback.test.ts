@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GET } from "@/app/api/connect/callback/[platform]/route";
 import { hasFeature, requireSocialInbox } from "@/lib/features";
 import { exchangeCodeForToken, handlePlatformCallback, verifyOAuthState } from "@/lib/oauth";
+import { OAuthCallbackError } from "@/lib/oauth/errors";
 
 jest.mock("@/lib/analytics/events", () => ({ recordFunnelEvent: jest.fn(), measurementFailure: () => "test_error" }));
 jest.mock("@/lib/config", () => ({ isSocialPlatformEnabled: () => true }));
@@ -126,3 +127,35 @@ it.each([false, true])("adds the TikTok scope notice only for a signed pilot req
   expect(searchParams.get("scopeUnavailable")).toBe(pilot ? "tiktok" : null);
   expect(exchangeCodeForToken).not.toHaveBeenCalled();
 });
+
+it.each(["instagram", "threads"])(
+  "passes the signed target to the Instagram mismatch dialog (%s)",
+  async (platform) => {
+    jest.mocked(verifyOAuthState).mockReturnValue({
+      userId: "user-1",
+      platform,
+      reconnectAccountId: "original-connection",
+      timestamp: Date.now(),
+    });
+    jest.mocked(exchangeCodeForToken).mockResolvedValue({ access_token: "test" });
+    jest
+      .mocked(handlePlatformCallback)
+      .mockRejectedValueOnce(
+        new OAuthCallbackError("reconnect_account_mismatch", "Choose the same account to reconnect."),
+      );
+    const response = await GET(
+      new NextRequest(
+        `http://localhost/api/connect/callback/${platform}?code=code&state=signed&instagramReconnect=other`,
+      ),
+      { params: Promise.resolve({ platform }) },
+    );
+
+    const destination = new URL(response.headers.get("location")!);
+    expect(destination.pathname).toBe("/accounts");
+    expect(destination.searchParams.get("error")).toBe("Choose the same account to reconnect.");
+    expect(destination.searchParams.get("instagramReconnect")).toBe(
+      platform === "instagram" ? "original-connection" : null,
+    );
+    expect(destination.searchParams.has("access_token")).toBe(false);
+  },
+);

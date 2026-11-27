@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Избран е друг акаунт в Instagram",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Превключи към акаунта в Instagram, който първоначално свърза със SimplePost, и опитай отново.",
+  "Account to reconnect": "Акаунт за повторно свързване",
   "Automate posting with n8n": "Автоматизирайте публикуването с n8n",
   "Finish on {{platform}} to return to SimplePost.": "Завършете в {{platform}}, за да се върнете в SimplePost.",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "Инсталирайте общностния възел SimplePost и използвайте API ключ от тази страница за удостоверяване.",

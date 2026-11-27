@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Farklı bir Instagram hesabı seçildi",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Daha önce SimplePost'a bağladığın Instagram hesabına geçip tekrar dene.",
+  "Account to reconnect": "Yeniden bağlanacak hesap",
   "Automate posting with n8n": "n8n ile gönderi yayınlamayı otomatikleştirin",
   "Finish on {{platform}} to return to SimplePost.": "SimplePost’a dönmek için işlemi {{platform}} üzerinde tamamlayın.",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost topluluk düğümünü yükleyin ve kimlik doğrulamak için bu sayfadaki bir API anahtarını kullanın.",

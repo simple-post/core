@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "تم اختيار حساب آخر على Instagram",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "بدّل إلى حساب Instagram الذي ربطته سابقًا بـ SimplePost، ثم حاول مرة أخرى.",
+  "Account to reconnect": "الحساب المراد إعادة ربطه",
   "Automate posting with n8n": "أتمتة النشر باستخدام n8n",
   "Finish on {{platform}} to return to SimplePost.": "أكمل العملية على {{platform}} للعودة إلى SimplePost.",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "ثبّت عقدة SimplePost المجتمعية، ثم استخدم مفتاح API من هذه الصفحة للمصادقة.",

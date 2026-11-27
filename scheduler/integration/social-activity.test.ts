@@ -2,7 +2,13 @@ import { likeSocialItem, listSocialPostComments, listSocialPostQuotes, replyToSo
 
 import { prisma } from "@/lib/prisma";
 import { encryptConnectedAccountSecrets } from "@/lib/security/connected-account-secrets";
-import { getSocialInbox, refreshSocialInbox, sendSocialLike, sendSocialReply } from "@/lib/social/activity";
+import {
+  getSocialInbox,
+  refreshSocialInbox,
+  runBackgroundInboxRefresh,
+  sendSocialLike,
+  sendSocialReply,
+} from "@/lib/social/activity";
 
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
@@ -434,5 +440,110 @@ it("finds a native X like on the second page during a focused manual refresh", a
     expect(inbox.items[0]).toMatchObject({ liked: true });
   } finally {
     provider.mockRestore();
+  }
+});
+
+it("syncs due personal and team accounts with no browser and claims them once across overlapping runs", async () => {
+  await prisma.userFeature.create({ data: { userId, feature: "TEAM_WORKSPACES" } });
+  const workspace = await prisma.teamWorkspace.create({
+    data: {
+      creatorId: userId,
+      name: "Inbox team",
+      icon: "team",
+      description: "",
+      members: { create: { userId, role: "Admin", approver: true } },
+    },
+  });
+  const accounts = [
+    { id: "background-bluesky", userId, workspaceId: null, platform: "bluesky" },
+    { id: "background-youtube", userId, workspaceId: workspace.id, platform: "youtube" },
+    { id: "background-no-grant", userId: otherUserId, workspaceId: null, platform: "bluesky" },
+    { id: "background-unsupported", userId, workspaceId: null, platform: "tiktok" },
+    { id: "background-backoff", userId, workspaceId: null, platform: "youtube" },
+  ];
+  for (const account of accounts) {
+    await prisma.connectedAccount.create({
+      data: { ...account, platformAccountId: account.id, accessToken: "local-fixture-token" },
+    });
+    await prisma.post.create({
+      data: {
+        userId: account.userId,
+        status: "published",
+        message: account.id,
+        publishedAt: new Date(),
+        accounts: { connect: { id: account.id } },
+        accountResults: { [account.id]: { accountId: account.id, success: true, postId: account.id } },
+      },
+    });
+  }
+  await prisma.socialActivitySync.create({
+    data: { accountId: "background-backoff", retryAt: new Date(Date.now() + 60_000) },
+  });
+
+  jest.mocked(listSocialPostComments).mockImplementation(async ({ accountId }, { nativePostId }) =>
+    accountId === "background-bluesky" || accountId === "background-youtube"
+      ? {
+          ok: true,
+          data: { data: [{ nativeId: `${nativePostId}-reply`, nativePostId, body: accountId, canReply: true }] },
+        }
+      : { ok: true, data: { data: [] } },
+  );
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+  await Promise.all([runBackgroundInboxRefresh(), runBackgroundInboxRefresh()]);
+  const expected = ["background-bluesky", "background-youtube", accountId].sort();
+  expect(
+    jest
+      .mocked(listSocialPostComments)
+      .mock.calls.map(([account]) => account.accountId)
+      .sort(),
+  ).toEqual(expected);
+  const personal = await getSocialInbox(userId, { platform: "bluesky" });
+  const team = await getSocialInbox(userId, { workspaceId: workspace.id });
+  expect(personal.items).toMatchObject([{ body: "background-bluesky" }]);
+  expect(team.items).toMatchObject([{ body: "background-youtube" }]);
+  await expect(runBackgroundInboxRefresh()).resolves.toMatchObject({ accounts: [] });
+});
+
+it("checks X on a slower schedule with small pages and applies the background pause switch", async () => {
+  await prisma.connectedAccount.update({ where: { id: accountId }, data: { scope: "like.read" } });
+  jest.mocked(listSocialPostComments).mockResolvedValue({ ok: true, data: { data: [] } });
+  jest.mocked(listSocialPostQuotes).mockResolvedValue({ ok: true, data: { data: [] } });
+  const provider = jest
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async () => Response.json({ data: [{ id: "501" }], meta: { result_count: 1 } }));
+  const env = jest.replaceProperty(process, "env", {
+    ...process.env,
+    SOCIAL_INBOX_BACKGROUND_REFRESH: "true",
+    SOCIAL_INBOX_BACKGROUND_X_INTERVAL_MINUTES: "360",
+  });
+  try {
+    await runBackgroundInboxRefresh();
+    expect(listSocialPostComments).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      cursor: undefined,
+      limit: 10,
+    });
+    expect(listSocialPostQuotes).not.toHaveBeenCalled();
+    const [url] = provider.mock.calls[0];
+    expect(String(url)).toContain("max_results=10");
+    const inbox = await getSocialInbox(userId);
+    expect(inbox.items[0].liked).toBe(true);
+
+    await prisma.socialActivitySync.update({
+      where: { accountId },
+      data: { lastAttemptAt: new Date(Date.now() - 10 * 60_000) },
+    });
+    await expect(runBackgroundInboxRefresh()).resolves.toMatchObject({ accounts: [] });
+    await prisma.socialActivitySync.update({ where: { accountId }, data: { lastAttemptAt: new Date(0) } });
+    process.env.SOCIAL_INBOX_BACKGROUND_X_INTERVAL_MINUTES = "0";
+    await expect(runBackgroundInboxRefresh()).resolves.toMatchObject({ accounts: [] });
+    process.env.SOCIAL_INBOX_BACKGROUND_X_INTERVAL_MINUTES = "360";
+    process.env.SOCIAL_INBOX_BACKGROUND_REFRESH = "false";
+    await expect(runBackgroundInboxRefresh()).resolves.toBeUndefined();
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(listSocialPostComments).toHaveBeenCalledTimes(1);
+    expect(listSocialPostQuotes).not.toHaveBeenCalled();
+  } finally {
+    provider.mockRestore();
+    env.restore();
   }
 });

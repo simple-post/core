@@ -1,12 +1,13 @@
 import crypto from "node:crypto";
 
-import { type NextRequest, NextResponse } from "next/server";
+import { after, type NextRequest, NextResponse } from "next/server";
 
 import { relayOpenAiMilestones } from "@/lib/analytics/openai-ads";
 import { env } from "@/lib/env";
 import { createLogger, serializeError } from "@/lib/logger";
 import { runBackgroundAnalyticsRefresh } from "@/lib/post-analytics/background";
 import { dispatchDueScheduledPosts } from "@/lib/posting/scheduled-dispatcher";
+import { runBackgroundInboxRefresh } from "@/lib/social/activity";
 
 const log = createLogger("api:internal:scheduled-dispatch");
 
@@ -55,6 +56,23 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       log.warn({ err: serializeError(error) }, "Background analytics refresh failed; publishing results are preserved");
     }
+    after(async () => {
+      try {
+        const inbox = await runBackgroundInboxRefresh();
+        if (inbox?.accounts.length) {
+          log.info(
+            {
+              checked: inbox.accounts.length,
+              readsSucceeded: inbox.accounts.reduce((total, account) => total + account.processed, 0),
+              failed: inbox.accounts.filter((account) => account.error).length,
+            },
+            "Refreshed social inbox",
+          );
+        }
+      } catch (error) {
+        log.warn({ err: serializeError(error) }, "Background social inbox refresh failed");
+      }
+    });
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
     log.error({ err: serializeError(error) }, "Scheduled dispatch failed");

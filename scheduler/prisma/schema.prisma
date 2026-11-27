@@ -29,8 +29,9 @@ model UserFeature {
 }
 
 model User {
-  personalWorkspaceName String @default("Personal")
-  personalWorkspaceColor String @default("slate")
+  personalWorkspaceName String @default("Personal Workspace")
+  personalWorkspaceColor String @default("none")
+  personalWorkspaceLogo String?
   ownedWorkspaces TeamWorkspace[]
   teamMemberships TeamMember[]
   features                     UserFeature[]
@@ -987,6 +988,7 @@ model AccountAnalyticsSnapshot {
 }
 
 model TeamWorkspace {
+  logo String?
   color String @default("indigo")
   connectedAccounts ConnectedAccount[]
   id String @id @default(cuid())
@@ -1022,6 +1024,7 @@ model TeamInvite {
   role String
   approver Boolean
   expiresAt DateTime
+  emailSentAt DateTime?
   @@unique([workspaceId,email])
   @@index([email])
 }

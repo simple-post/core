@@ -30,9 +30,12 @@ afterEach(() => {
   mockEnabled = true;
 });
 function mount(index: Partial<WorkspaceIndex> = {}) {
-  jest
-    .mocked(request)
-    .mockResolvedValue({ personal: { name: "Personal", color: "slate" }, workspaces: [], invites: [], ...index });
+  jest.mocked(request).mockResolvedValue({
+    personal: { name: "Personal Workspace", color: "none" },
+    workspaces: [],
+    invites: [],
+    ...index,
+  });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(createElement(QueryClientProvider, { client }, createElement(WorkspaceSwitcher)));
   return client;
@@ -46,7 +49,9 @@ it("leaves the ordinary dashboard alone when the rollout is off", () => {
 });
 it("lets an eligible personal account create its first workspace", async () => {
   mount();
-  fireEvent.keyDown(await screen.findByRole("button", { name: "Switch workspace: Personal" }), { key: "ArrowDown" });
+  fireEvent.keyDown(await screen.findByRole("button", { name: "Switch workspace: Personal Workspace" }), {
+    key: "ArrowDown",
+  });
   expect(await screen.findByRole("menuitem", { name: "Create workspace" })).toBeTruthy();
 });
 it("lets an invited viewer return to Personal without exposing admin settings", async () => {
@@ -55,10 +60,24 @@ it("lets an invited viewer return to Personal without exposing admin settings", 
     workspaces: [{ id: "studio", role: "Viewer", name: "Studio", icon: "S", color: "indigo", canManage: false }],
   });
   fireEvent.keyDown(await screen.findByRole("button", { name: "Switch workspace: Studio" }), { key: "ArrowDown" });
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Personal" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Personal Workspace" }));
   expect(mockPush).toHaveBeenCalledWith("/");
   fireEvent.keyDown(screen.getByRole("button", { name: "Switch workspace: Studio" }), { key: "ArrowDown" });
-  await screen.findByRole("menuitem", { name: "Personal" });
+  await screen.findByRole("menuitem", { name: "Personal Workspace" });
   expect(screen.getByRole("menuitem", { name: "Create workspace" })).toBeTruthy();
-  expect(screen.queryByRole("menuitem", { name: "Workspace settings" })).toBeNull();
+  expect(screen.queryByRole("menuitem", { name: "Settings for Studio" })).toBeNull();
+  expect(screen.getByRole("menuitem", { name: "Settings for Personal Workspace" }).getAttribute("href")).toBe(
+    "/workspaces/settings",
+  );
+});
+
+it("places the admin gear beside its workspace inside the menu", async () => {
+  mount({
+    workspaces: [{ id: "studio", role: "Admin", name: "Studio", icon: "S", color: "#b12aba", canManage: true }],
+  });
+  const toggle = await screen.findByRole("button", { name: "Switch workspace: Personal Workspace" });
+  expect(screen.queryByLabelText("Settings for Studio")).toBeNull();
+  fireEvent.keyDown(toggle, { key: "ArrowDown" });
+  const gear = await screen.findByRole("menuitem", { name: "Settings for Studio" });
+  expect(gear.getAttribute("href")).toBe("/workspaces/settings?workspace=studio");
 });

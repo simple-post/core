@@ -1,18 +1,24 @@
 /* eslint-disable unicorn/no-await-expression-member -- Integration assertions inspect committed database values. */
 import { uploadFromBuffer, deleteFromStorage } from "@simple-post/sdk";
+import sharp from "sharp";
 
 import { PostsModel } from "@/lib/db";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { listPostAnalytics } from "@/lib/post-analytics/query";
 import { ensureAnalyticsRowsForUser } from "@/lib/post-analytics/service";
 import { prisma } from "@/lib/prisma";
+import { sendNotificationEmail } from "@/lib/resend/notification-email";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { acceptInvite, createWorkspace, readWorkspace } from "@/lib/workspaces/access";
 import { workspaceConnections } from "@/lib/workspaces/connections";
 import { commandSchema, type Actor } from "@/lib/workspaces/contracts";
 import { readFile, saveFile } from "@/lib/workspaces/files";
+import { deliverWorkspaceInvitation } from "@/lib/workspaces/invitations";
+import { normalizeWorkspaceLogo } from "@/lib/workspaces/logo";
 import { runCommand } from "@/lib/workspaces/posts";
 import { cancelDelivery, release } from "@/lib/workspaces/release";
+
+jest.mock("@/lib/resend/notification-email", () => ({ sendNotificationEmail: jest.fn() }));
 
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
@@ -404,4 +410,84 @@ it("retains analytics for old team deliveries under the publishing connection", 
   expect(personal.posts).toMatchObject([{ postId: delivery.id, teamPostId: postId, teamWorkspaceId: wid }]);
   const team = await listPostAnalytics(admin.id, { period: "last_7d", workspaceId: wid });
   expect(team.posts).toEqual([]);
+});
+
+it("saves a reordered workflow atomically and refuses stale or protected deletions", async () => {
+  wid = (await createWorkspace(admin, newTeam)).id;
+  const snapshot = async () =>
+    (await readWorkspace(admin, wid)).states.map(({ id, name, position }) => ({ id, name, position }));
+  const expected = await snapshot();
+  const [draft, progress, review, approved] = expected;
+  await send(admin, {
+    action: "workflow",
+    expected,
+    states: [
+      { id: progress.id, name: draft.name },
+      { id: draft.id, name: progress.name },
+      { name: "Design ready" },
+      { id: review.id, name: review.name },
+    ],
+  });
+  const reordered = await snapshot();
+  expect(reordered.map(({ name }) => name)).toEqual(["Draft", "In progress", "Design ready", "In review", "Approved"]);
+  expect(reordered[0].id).toBe(progress.id);
+  expect(reordered.at(-1)?.id).toBe(approved.id);
+  await expect(send(admin, { action: "workflow", expected, states: [draft, progress, review] })).rejects.toThrow(
+    "workflow changed",
+  );
+  await expect(
+    send(admin, { action: "workflow", expected: reordered, states: reordered.slice(1, -1) }),
+  ).rejects.toThrow("Only unused custom states");
+  expect(await snapshot()).toEqual(reordered);
+  await send(admin, { action: "workflow", expected: reordered, states: [reordered[0], reordered[1], reordered[3]] });
+  expect((await snapshot()).map(({ name }) => name)).toEqual(["Draft", "In progress", "In review", "Approved"]);
+});
+
+it("retains the same invite for delivery retry and records successful email delivery", async () => {
+  wid = (await createWorkspace(admin, { ...newTeam, name: "Studio & Design" })).id;
+  const cmd = { action: "invite", email: editor.email, role: "Editor", approver: true };
+  await send(admin, cmd);
+  const invite = await prisma.teamInvite.findFirstOrThrow({ where: { workspaceId: wid } });
+  jest
+    .mocked(sendNotificationEmail)
+    .mockRejectedValueOnce(new Error("provider unreachable"))
+    .mockResolvedValueOnce("confirmed");
+  await expect(deliverWorkspaceInvitation(invite.id)).resolves.toBe(false);
+  await send(admin, cmd);
+  expect(await prisma.teamInvite.count({ where: { workspaceId: wid } })).toBe(1);
+  expect(await prisma.teamInvite.findUniqueOrThrow({ where: { id: invite.id } })).toMatchObject({ emailSentAt: null });
+  const retry = await send(admin, { action: "resendInvite", inviteId: invite.id });
+  expect(retry).toMatchObject({ id: invite.id });
+  await expect(deliverWorkspaceInvitation(invite.id)).resolves.toBe(true);
+  const delivered = await prisma.teamInvite.findUniqueOrThrow({ where: { id: invite.id } });
+  expect(delivered.emailSentAt).toBeInstanceOf(Date);
+  expect(jest.mocked(sendNotificationEmail)).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      to: editor.email,
+      html: expect.stringContaining("Studio &amp; Design"),
+      text: expect.stringContaining(`/workspace-invitation?team=${wid}&invite=${invite.id}`),
+    }),
+    `workspace-invite/${invite.id}`,
+  );
+  await expect(deliverWorkspaceInvitation(delivered.id)).resolves.toBe(true);
+  expect(sendNotificationEmail).toHaveBeenCalledTimes(2);
+});
+
+it("converts workspace logos to bounded WebP and persists custom colors", async () => {
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#CB5AD3" } })
+    .png()
+    .toBuffer();
+  await expect(normalizeWorkspaceLogo("data:image/png;base64,YmFk")).rejects.toThrow("valid PNG");
+  wid = (await createWorkspace(admin, newTeam)).id;
+  await send(admin, {
+    action: "settings",
+    ...newTeam,
+    color: "#CB5AD3",
+    logo: `data:image/png;base64,${png.toString("base64")}`,
+  });
+  const saved = await readWorkspace(admin, wid);
+  expect(saved.color).toBe("#cb5ad3");
+  expect(saved.logo).toMatch(/^data:image\/webp;base64,/);
+  await send(admin, { action: "settings", ...newTeam, color: "indigo", logo: null });
+  expect((await readWorkspace(admin, wid)).logo).toBeNull();
 });

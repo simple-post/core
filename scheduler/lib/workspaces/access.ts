@@ -28,7 +28,10 @@ export async function listWorkspaces(actor: Actor) {
   const [memberships, invites, personal] = await Promise.all([
     prisma.teamMember.findMany({
       where: { userId: actor.id },
-      select: { role: true, workspace: { select: { id: true, name: true, icon: true, color: true, creatorId: true } } },
+      select: {
+        role: true,
+        workspace: { select: { id: true, name: true, icon: true, color: true, logo: true, creatorId: true } },
+      },
       orderBy: { workspace: { name: "asc" } },
     }),
     actor.emailVerified
@@ -39,11 +42,15 @@ export async function listWorkspaces(actor: Actor) {
       : [],
     prisma.user.findUniqueOrThrow({
       where: { id: actor.id },
-      select: { personalWorkspaceName: true, personalWorkspaceColor: true },
+      select: { personalWorkspaceName: true, personalWorkspaceColor: true, personalWorkspaceLogo: true },
     }),
   ]);
   return {
-    personal: { name: personal.personalWorkspaceName, color: personal.personalWorkspaceColor },
+    personal: {
+      name: personal.personalWorkspaceName,
+      color: personal.personalWorkspaceColor,
+      logo: personal.personalWorkspaceLogo,
+    },
     workspaces: memberships.map(({ workspace: { creatorId, ...workspace }, role }) => ({
       ...workspace,
       role,
@@ -96,7 +103,7 @@ export async function readWorkspace(actor: Actor, id: string) {
         where: { id },
         include: {
           members: { include: { user: { select: { name: true, email: true } } }, orderBy: { user: { name: "asc" } } },
-          states: { orderBy: [{ position: "asc" }, { name: "asc" }] },
+          states: { orderBy: [{ position: "asc" }, { id: "asc" }] },
           posts: {
             orderBy: { plannedAt: "asc" },
             include: {

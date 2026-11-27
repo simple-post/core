@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { handleApiError } from "@/lib/utils/errors";
 import { readWorkspace } from "@/lib/workspaces/access";
 import { commandSchema } from "@/lib/workspaces/contracts";
+import { deliverWorkspaceInvitation } from "@/lib/workspaces/invitations";
 import { runCommand } from "@/lib/workspaces/posts";
 import { cancelDelivery, release } from "@/lib/workspaces/release";
 import { requireTeamWorkspaceSession } from "@/lib/workspaces/session";
@@ -28,7 +29,11 @@ export async function POST(req: NextRequest, { params }: Context) {
         : cmd.action === "cancelDelivery"
           ? await cancelDelivery(user, id, cmd.postId, cmd.deliveryId)
           : await runCommand(user, id, cmd);
-    return NextResponse.json({ id: result && "id" in result ? result.id : null });
+    const resultId = result && "id" in result ? result.id : null;
+    if (resultId && (cmd.action === "invite" || cmd.action === "resendInvite")) {
+      return NextResponse.json({ id: resultId, invitationEmailSent: await deliverWorkspaceInvitation(resultId) });
+    }
+    return NextResponse.json({ id: resultId });
   } catch (error) {
     return handleApiError(error, req);
   }

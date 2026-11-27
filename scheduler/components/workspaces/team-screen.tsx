@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { BackLink } from "@/components/back-link";
 import { DashboardStatusTabs, TabCountBadge } from "@/components/dashboard-status-tabs";
@@ -56,9 +57,13 @@ export function TeamScreen({
     setBusy(true);
     setError("");
     try {
-      const result = await request<{ id: string | null }>(path, json(cmd));
+      const result = await request<{ id: string | null; invitationEmailSent?: boolean }>(path, json(cmd));
       await query.refetch({ throwOnError: true });
       if (cmd.action === "settings") await refresh();
+      if (cmd.action === "invite" || cmd.action === "resendInvite") {
+        if (result.invitationEmailSent) toast.success("Invitation email sent");
+        else toast.error("Invitation saved. The email could not be sent. Try again from Members.");
+      }
       if (cmd.action === "createPost" && result.id) router.push(postHref(result.id));
       return true;
     } catch (error_) {
@@ -196,7 +201,7 @@ export function TeamScreen({
         {notice}
         {w ? (
           <fieldset disabled={busy || w.member.role !== "Admin"}>
-            <TeamSettings workspace={w} run={run} />
+            <TeamSettings workspace={w} run={run} busy={busy || w.member.role !== "Admin"} />
           </fieldset>
         ) : (
           !notice && <p role="status">{pending || current ? "Loading workspace…" : "Workspace unavailable."}</p>

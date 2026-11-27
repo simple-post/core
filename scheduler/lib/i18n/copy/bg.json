@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Избран е друг акаунт в Instagram",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Превключи към акаунта в Instagram, който първоначално свърза със SimplePost, и опитай отново.",
+  "Account to reconnect": "Акаунт за повторно свързване",
   "Finish on {{platform}} to return to SimplePost.": "Завършете в {{platform}}, за да се върнете в SimplePost.",
   "Last checked {{time}}": "Последна проверка {{time}}",
   "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Няма публикации със запазен идентификатор на платформата. Активността започва с публикациите, публикувани чрез SimplePost.",

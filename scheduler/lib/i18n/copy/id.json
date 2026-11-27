@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Akun Instagram yang dipilih berbeda",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Beralihlah ke akun Instagram yang awalnya kamu hubungkan ke SimplePost, lalu coba lagi.",
+  "Account to reconnect": "Akun yang akan dihubungkan kembali",
   "Finish on {{platform}} to return to SimplePost.": "Selesaikan di {{platform}} untuk kembali ke SimplePost.",
   "Last checked {{time}}": "Terakhir diperiksa {{time}}",
   "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Belum ada postingan dengan ID platform tersimpan. Aktivitas dimulai dari postingan yang diterbitkan lewat SimplePost.",

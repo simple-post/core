@@ -1,13 +1,35 @@
-export const workspaceColors = ["slate", "indigo", "blue", "teal", "green", "amber", "rose", "violet"] as const;
-export type WorkspaceColor = (typeof workspaceColors)[number];
+export const DEFAULT_PERSONAL_WORKSPACE_NAME = "Personal Workspace";
 
-export const workspaceColorStyle: Record<WorkspaceColor, { label: string; swatch: string }> = {
-  slate: { label: "Slate", swatch: "bg-slate-500 dark:bg-slate-400" },
-  indigo: { label: "Indigo", swatch: "bg-indigo-600 dark:bg-indigo-400" },
-  blue: { label: "Blue", swatch: "bg-blue-600 dark:bg-blue-400" },
-  teal: { label: "Teal", swatch: "bg-teal-600 dark:bg-teal-400" },
-  green: { label: "Green", swatch: "bg-green-600 dark:bg-green-400" },
-  amber: { label: "Amber", swatch: "bg-amber-600 dark:bg-amber-400" },
-  rose: { label: "Rose", swatch: "bg-rose-600 dark:bg-rose-400" },
-  violet: { label: "Violet", swatch: "bg-violet-600 dark:bg-violet-400" },
-};
+export const workspacePalette = {
+  none: { label: "None", hex: undefined },
+  slate: { label: "Slate", hex: "#94a3b8" },
+  indigo: { label: "Indigo", hex: "#818cf8" },
+  blue: { label: "Blue", hex: "#60a5fa" },
+  sky: { label: "Sky", hex: "#38bdf8" },
+  cyan: { label: "Cyan", hex: "#22d3ee" },
+  teal: { label: "Teal", hex: "#2dd4bf" },
+  green: { label: "Green", hex: "#4ade80" },
+  lime: { label: "Lime", hex: "#a3e635" },
+  amber: { label: "Amber", hex: "#fbbf24" },
+  orange: { label: "Orange", hex: "#fb923c" },
+  red: { label: "Red", hex: "#f87171" },
+  rose: { label: "Rose", hex: "#fb7185" },
+  pink: { label: "Pink", hex: "#f472b6" },
+  fuchsia: { label: "Fuchsia", hex: "#e879f9" },
+  violet: { label: "Violet", hex: "#a78bfa" },
+} as const;
+
+export const workspaceColors = Object.keys(workspacePalette) as (keyof typeof workspacePalette)[];
+export type WorkspaceColor = keyof typeof workspacePalette | `#${string}`;
+
+export function isCustomWorkspaceColor(color: string): color is `#${string}` {
+  return /^#[0-9a-f]{6}$/i.test(color);
+}
+
+export function workspaceColorHex(color?: string) {
+  if (!color) return undefined;
+  if (isCustomWorkspaceColor(color)) return color;
+  return Object.hasOwn(workspacePalette, color)
+    ? workspacePalette[color as keyof typeof workspacePalette].hex
+    : undefined;
+}

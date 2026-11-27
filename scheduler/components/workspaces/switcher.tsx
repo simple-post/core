@@ -20,8 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWorkspaceScope } from "@/hooks/use-workspace-scope";
 import { useSession } from "@/lib/auth/auth-client";
-import { cn } from "@/lib/utils";
-import { workspaceColorStyle } from "@/lib/workspaces/colors";
+import { DEFAULT_PERSONAL_WORKSPACE_NAME, workspaceColorHex } from "@/lib/workspaces/colors";
 
 import { json, request, type WorkspaceIndex } from "./types";
 
@@ -76,66 +75,58 @@ export function WorkspaceSwitcher() {
   }
   return (
     <>
-      <div className="flex min-w-0 items-center gap-0.5">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label={`Switch workspace: ${active?.name ?? "Personal"}`}
-              className="min-w-0 gap-1.5 px-1.5 sm:px-2">
-              <span
-                aria-hidden
-                className={cn("size-2.5 shrink-0 rounded-full", workspaceColorStyle[active?.color ?? "slate"]?.swatch)}
-              />
-              <span className="max-w-14 truncate min-[375px]:max-w-24 sm:max-w-44">{active?.name ?? "Personal"}</span>
-              <ChevronDown className="size-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={() => router.push(switchPath)}>
-              <span
-                aria-hidden
-                className={cn("size-2.5 rounded-full", workspaceColorStyle[data.personal?.color ?? "slate"]?.swatch)}
-              />
-              {data.personal?.name ?? "Personal"} {!id && <Check className="ms-auto" />}
-            </DropdownMenuItem>
-            {data.workspaces.map((w) => (
-              <DropdownMenuItem key={w.id} onSelect={() => router.push(workspaceHref(switchPath, w.id))}>
-                <span aria-hidden className={cn("size-2.5 rounded-full", workspaceColorStyle[w.color]?.swatch)} />
-                {w.name}
-                {id === w.id && <Check className="ms-auto" />}
-              </DropdownMenuItem>
-            ))}
-            {data.invites.map((i) => (
-              <DropdownMenuItem
-                disabled={busy}
-                key={i.id}
-                onSelect={() => void submit({ action: "accept", workspaceId: i.workspaceId, inviteId: i.id })}>
-                Join {i.workspace.name}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={`Switch workspace: ${active?.name ?? DEFAULT_PERSONAL_WORKSPACE_NAME}`}
+            className="min-w-0 gap-1.5 px-1.5 sm:px-2">
+            <WorkspaceDot color={active?.color} />
+            <span className="max-w-14 truncate min-[375px]:max-w-24 sm:max-w-44">
+              {active?.name ?? DEFAULT_PERSONAL_WORKSPACE_NAME}
+            </span>
+            <ChevronDown className="size-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-64">
+          <WorkspaceMenuRow
+            name={data.personal.name}
+            color={data.personal.color}
+            logo={data.personal.logo}
+            active={!id}
+            select={() => router.push(switchPath)}
+            settingsHref="/workspaces/settings"
+          />
+          {data.workspaces.map((w) => (
+            <WorkspaceMenuRow
+              key={w.id}
+              name={w.name}
+              color={w.color}
+              logo={w.logo}
+              active={id === w.id}
+              select={() => router.push(workspaceHref(switchPath, w.id))}
+              settingsHref={w.role === "Admin" ? workspaceHref("/workspaces/settings", w.id) : undefined}
+            />
+          ))}
+          {data.invites.map((i) => (
             <DropdownMenuItem
-              onSelect={() => {
-                setError("");
-                setCreating(true);
-              }}>
-              <Plus />
-              Create workspace
+              disabled={busy}
+              key={i.id}
+              onSelect={() => void submit({ action: "accept", workspaceId: i.workspaceId, inviteId: i.id })}>
+              Join {i.workspace.name}
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button asChild size="icon" variant="ghost" className="size-8 shrink-0 text-muted-foreground">
-          <Link
-            href={workspaceHref("/workspaces/settings", current?.id)}
-            aria-label="Workspace settings"
-            title="Workspace settings"
-            aria-current={pathname === "/workspaces/settings" ? "page" : undefined}>
-            <Settings className="size-4" aria-hidden />
-          </Link>
-        </Button>
-      </div>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              setError("");
+              setCreating(true);
+            }}>
+            <Plus /> Create workspace
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {!creating && error && (
         <span role="alert" className="text-xs text-destructive">
           {error}
@@ -166,5 +157,44 @@ export function WorkspaceSwitcher() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function WorkspaceDot({ color }: { color?: string }) {
+  const accent = workspaceColorHex(color);
+  return accent && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />;
+}
+
+function WorkspaceMenuRow({
+  name,
+  color,
+  logo,
+  active,
+  select,
+  settingsHref,
+}: {
+  name: string;
+  color: string;
+  logo?: string | null;
+  active: boolean;
+  select: () => void;
+  settingsHref?: string;
+}) {
+  return (
+    <div role="group" aria-label={name} className="flex items-stretch gap-0.5">
+      <DropdownMenuItem onSelect={select} className="min-w-0 flex-1 cursor-pointer">
+        {logo && <img src={logo} alt="" className="size-4 rounded-sm object-cover" />}
+        <WorkspaceDot color={color} />
+        <span className="truncate">{name}</span>
+        {active && <Check className="ms-auto shrink-0" aria-hidden />}
+      </DropdownMenuItem>
+      {settingsHref && (
+        <DropdownMenuItem asChild className="cursor-pointer px-2.5">
+          <Link href={settingsHref} aria-label={`Settings for ${name}`} title={`Settings for ${name}`}>
+            <Settings className="size-4" aria-hidden />
+          </Link>
+        </DropdownMenuItem>
+      )}
+    </div>
   );
 }

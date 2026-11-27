@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { WorkspaceColorPicker, WorkspaceSettingsLayout } from "@/components/workspaces/settings-layout";
+import { WorkspaceColorPicker, WorkspaceLogoPicker, workspaceLogoInput } from "@/components/workspaces/appearance";
+import { WorkspaceSettingsLayout } from "@/components/workspaces/settings-layout";
 import { useWorkspaceIndex } from "@/components/workspaces/switcher";
 import { TeamScreen } from "@/components/workspaces/team-screen";
 import { json, request } from "@/components/workspaces/types";
@@ -29,7 +30,7 @@ export default function WorkspaceSettingsPage() {
           <div>
             <h2 className="text-lg font-semibold">General</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Choose how your personal workspace appears in the switcher.
+              Choose how your personal workspace appears in the switcher and navigation bar.
             </p>
           </div>
           <form
@@ -42,7 +43,12 @@ export default function WorkspaceSettingsPage() {
               try {
                 await request(
                   "/api/v1/workspaces",
-                  json({ action: "personalSettings", name: data.get("name"), color: data.get("color") }),
+                  json({
+                    action: "personalSettings",
+                    name: data.get("name"),
+                    color: data.get("color"),
+                    logo: await workspaceLogoInput(data),
+                  }),
                 );
                 await refresh();
                 toast.success("Workspace settings saved");
@@ -56,7 +62,8 @@ export default function WorkspaceSettingsPage() {
               Workspace name
               <Input defaultValue={personal.name} name="name" maxLength={80} required />
             </Label>
-            <WorkspaceColorPicker color={personal.color} />
+            <WorkspaceColorPicker color={personal.color} allowNone />
+            <WorkspaceLogoPicker logo={personal.logo} />
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}

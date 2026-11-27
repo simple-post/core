@@ -48,6 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { platform } = await params;
   let workspaceId: string | undefined;
   let pilotConnection = false;
+  let instagramReconnectId: string | undefined;
   let source: "assistant_handoff" | undefined;
   let measurementUserId: string | null = null;
   try {
@@ -68,6 +69,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const url = new URL(getErrorRedirectUrl(code, baseURL));
     if (source) url.searchParams.set("source", source);
     if (workspaceId) url.searchParams.set("workspace", workspaceId);
+    if (code === "reconnect_account_mismatch" && instagramReconnectId)
+      url.searchParams.set("instagramReconnect", instagramReconnectId);
     return url.href;
   };
   const failure = async (reason: string) =>
@@ -230,6 +233,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
     tokenMetadata = mergeTokenMetadata(tokenMetadata, tokenData);
+
+    // The dialog looks up this signed target in the user's scoped accounts list.
+    if (platform === "instagram") instagramReconnectId = stateData.reconnectAccountId;
 
     // Dispatch to platform-specific handler
     const response = await handlePlatformCallback({

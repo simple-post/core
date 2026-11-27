@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "다른 Instagram 계정을 선택했습니다",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "처음 SimplePost에 연결한 Instagram 계정으로 전환한 뒤 다시 시도하세요.",
+  "Account to reconnect": "다시 연결할 계정",
   "Finish on {{platform}} to return to SimplePost.": "{{platform}}에서 절차를 완료하면 SimplePost로 돌아옵니다.",
   "Last checked {{time}}": "마지막 확인 {{time}}",
   "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "저장된 플랫폼 ID가 있는 게시물이 없습니다. 활동은 SimplePost로 게시한 게시물부터 표시됩니다.",

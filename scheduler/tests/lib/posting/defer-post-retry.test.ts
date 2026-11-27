@@ -65,6 +65,10 @@ it.each([
   { ...failure, details: { phase: "status", status: "FAILED", code: "spam_risk" } },
   { ...failure, details: { phase: "status", status: "FAILED", code: "picture_size_check_failed" } },
   { ...failure, platform: "instagram" },
+  { ...failure, error: "PREPARATION_ERROR", details: { code: "image_invalid" } },
+  { ...failure, error: "PREPARATION_ERROR", details: undefined },
+  { ...failure, error: "PUBLISH_OUTCOME_UNKNOWN", details: { code: "media_unavailable" } },
+  { ...failure, platform: "facebook", error: "PREPARATION_ERROR", details: { code: "media_unavailable" } },
 ])("does not automatically retry an unsafe or permanent failure: %j", async (result) => {
   expect(await deferPostRetry("original", [result], {}, {})).toBe(false);
   expect(update).not.toHaveBeenCalled();

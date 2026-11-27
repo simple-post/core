@@ -109,7 +109,7 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
 
       const allSucceeded = data.postingResults?.every((result) => result.success) ?? false;
       if (data.post?.status === "scheduled") {
-        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."), { id: toastId });
+        toast.info(copy("Your post is saved. Another attempt is scheduled automatically."), { id: toastId });
       } else if (allSucceeded) {
         toast.success(copy("Draft posted."), { id: toastId });
       } else {

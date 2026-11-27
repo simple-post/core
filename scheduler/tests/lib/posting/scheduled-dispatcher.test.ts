@@ -933,9 +933,15 @@ it("dispatches an approved original through the account pause and retains approv
   );
 });
 
-it.each([0, 2, 3])(
-  "uses the shared processing retry budget at attempt %i without replaying successful accounts",
-  async (count) => {
+it.each([
+  { count: 0, error: "PUBLISH_REJECTED", details: { phase: "status", status: "FAILED", code: "photo_pull_failed" } },
+  { count: 2, error: "PUBLISH_REJECTED", details: { phase: "status", status: "FAILED", code: "photo_pull_failed" } },
+  { count: 3, error: "PUBLISH_REJECTED", details: { phase: "status", status: "FAILED", code: "photo_pull_failed" } },
+  { count: 0, error: "PREPARATION_ERROR", details: { code: "media_unavailable", name: "MediaInspectionError" } },
+  { count: 3, error: "PREPARATION_ERROR", details: { code: "media_unavailable", name: "MediaInspectionError" } },
+])(
+  "uses the shared TikTok retry budget for $details.code at count $count and skips successful accounts",
+  async ({ count, error, details }) => {
     mockFindMany({
       due: [
         duePost({
@@ -956,8 +962,8 @@ it.each([0, 2, 3])(
         accountId: "a2",
         platform: "tiktok",
         success: false,
-        error: "PUBLISH_REJECTED",
-        details: { phase: "status", status: "FAILED", code: "photo_pull_failed", publishId: "failed-job" },
+        error,
+        details,
       },
     ]);
     const result = await dispatchDueScheduledPosts();

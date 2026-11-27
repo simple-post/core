@@ -4,10 +4,10 @@ import type { PostingResult } from "@/lib/posting";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForJson } from "@/lib/utils/errors";
 
-import { tikTokProcessingFailureCode } from "./tiktok-recovery";
+import { tikTokMediaPreparationFailureCode, tikTokProcessingFailureCode } from "./tiktok-recovery";
 
 const RETRY_DELAY_MS = 60_000;
-const MAX_PROCESSING_RETRIES = 3;
+const MAX_MEDIA_RETRIES = 3;
 
 function instagramProcessingFailure(result: PostingResult): boolean {
   if (result.platform !== "instagram" || result.error !== "PREPARATION_ERROR") return false;
@@ -39,7 +39,9 @@ export async function deferPostRetry(
     !failures.every(
       (result) =>
         (result.platform === "tiktok" &&
-          (result.error === "LOCAL_RATE_LIMIT" || tikTokProcessingFailureCode(result))) ||
+          (result.error === "LOCAL_RATE_LIMIT" ||
+            tikTokProcessingFailureCode(result) ||
+            tikTokMediaPreparationFailureCode(result))) ||
         instagramProcessingFailure(result),
     )
   )
@@ -48,26 +50,29 @@ export async function deferPostRetry(
     previousErrorDetails && typeof previousErrorDetails === "object" && !Array.isArray(previousErrorDetails)
       ? (previousErrorDetails as Record<string, unknown>)
       : {};
-  const processingRetries = [
+  const tikTokPreparationFailed = failures.some((result) => tikTokMediaPreparationFailureCode(result));
+  const mediaRetries = [
     {
-      name: "TikTok",
+      message: tikTokPreparationFailed
+        ? "SimplePost could not load the media for TikTok."
+        : "TikTok could not process the media.",
       key: "tiktokProcessingRetryCount",
-      applies: failures.some((result) => tikTokProcessingFailureCode(result)),
+      applies: tikTokPreparationFailed || failures.some((result) => tikTokProcessingFailureCode(result)),
     },
     {
-      name: "Instagram",
+      message: "Instagram could not process the media.",
       key: "instagramProcessingRetryCount",
       applies: failures.some((result) => instagramProcessingFailure(result)),
     },
   ]
     .filter(({ applies }) => applies)
-    .map(({ name, key }) => {
+    .map(({ message, key }) => {
       const storedCount = previous[key];
       const count =
         typeof storedCount === "number" && Number.isSafeInteger(storedCount) && storedCount > 0 ? storedCount : 0;
-      return { name, key, count: count + 1 };
+      return { message, key, count: count + 1 };
     });
-  if (processingRetries.some(({ count }) => count > MAX_PROCESSING_RETRIES)) return false;
+  if (mediaRetries.some(({ count }) => count > MAX_MEDIA_RETRIES)) return false;
   await prisma.post.update({
     where: { id: postId },
     data: {
@@ -75,18 +80,17 @@ export async function deferPostRetry(
       tiktokRetryApproved,
       scheduledFor: new Date(Date.now() + RETRY_DELAY_MS),
       errorMessage:
-        processingRetries.length > 0
-          ? processingRetries
+        mediaRetries.length > 0
+          ? mediaRetries
               .map(
-                ({ name, count }) =>
-                  `${name} could not process the media. Retry ${count} of ${MAX_PROCESSING_RETRIES} is scheduled in one minute.`,
+                ({ message, count }) => `${message} Retry ${count} of ${MAX_MEDIA_RETRIES} is scheduled in one minute.`,
               )
               .join(" ")
           : "Queued — waiting for TikTok's request limit. Another attempt is scheduled in one minute.",
       errorDetails: sanitizeForJson({
         ...previous,
         failedPlatforms: failures,
-        ...Object.fromEntries(processingRetries.map(({ key, count }) => [key, count])),
+        ...Object.fromEntries(mediaRetries.map(({ key, count }) => [key, count])),
       }) as Prisma.InputJsonValue,
       accountResults: sanitizeForJson(accountResults) as Prisma.InputJsonValue,
       threadResults: sanitizeForJson(threadResults) as Prisma.InputJsonValue,

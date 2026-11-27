@@ -451,7 +451,7 @@ function EditPostForm({ existingPost, mode }: { existingPost: SocialPost; mode: 
       }
 
       if (postingMode === "now" && data.post?.status === "scheduled") {
-        toast.info(copy("Queued — waiting for TikTok's request limit. We'll retry automatically."));
+        toast.info(copy("Your post is saved. Another attempt is scheduled automatically."));
         router.push("/?tab=scheduled");
       } else if (postingMode === "now" && data.postingResults && Array.isArray(data.postingResults)) {
         const completedResults = data.postingResults;

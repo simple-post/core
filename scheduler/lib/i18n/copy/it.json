@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Hai selezionato un altro account Instagram",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Passa all’account Instagram che avevi collegato a SimplePost, poi riprova.",
+  "Account to reconnect": "Account da ricollegare",
   "Finish on {{platform}} to return to SimplePost.": "Completa la procedura su {{platform}} per tornare a SimplePost.",
   "Last checked {{time}}": "Ultimo controllo alle {{time}}",
   "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "Nessun post ha un ID della piattaforma salvato. L’attività inizia con i post pubblicati tramite SimplePost.",

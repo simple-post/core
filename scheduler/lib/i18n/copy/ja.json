@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "別のInstagramアカウントが選択されました",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "最初にSimplePostに連携したInstagramアカウントに切り替えて、もう一度お試しください。",
+  "Account to reconnect": "再連携するアカウント",
   "Finish on {{platform}} to return to SimplePost.": "{{platform}}で手続きを完了すると、SimplePostに戻ります。",
   "Last checked {{time}}": "最終確認 {{time}}",
   "No posts with a saved platform ID. Activity starts with posts published through SimplePost.": "プラットフォームIDが保存されている投稿がありません。アクティビティはSimplePostで公開した投稿が対象です。",

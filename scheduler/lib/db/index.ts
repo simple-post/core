@@ -346,7 +346,7 @@ export class PostsModel {
       )
     ) {
       const previous = await client.post.findFirst({ where: { id, userId: this.userId }, include: { media: true } });
-      await queueStorageDeletion(client, this.userId, previous);
+      await queueStorageDeletion(client, previous?.storageOwnerId ?? this.userId, previous);
     }
     const updateData: {
       message?: string;

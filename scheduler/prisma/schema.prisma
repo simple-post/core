@@ -29,8 +29,9 @@ model UserFeature {
 }
 
 model User {
-  personalWorkspaceName String @default("Personal")
-  personalWorkspaceColor String @default("slate")
+  personalWorkspaceName String @default("Personal Workspace")
+  personalWorkspaceColor String @default("none")
+  personalWorkspaceLogo String?
   ownedWorkspaces TeamWorkspace[]
   teamMemberships TeamMember[]
   features                     UserFeature[]
@@ -378,6 +379,8 @@ model PendingOAuthConnection {
 
 // Posts saved as drafts, scheduled for dispatch, or already processed
 model Post {
+  // Transferred workspace deliveries retain their original media namespace.
+  storageOwnerId String?
   workspaceReviewId String?
   workspaceReview TeamReview? @relation(fields: [workspaceReviewId], references: [id], onDelete: NoAction)
   id           String    @id @default(cuid())
@@ -443,6 +446,7 @@ model Post {
   @@index([userId, scheduledFor])
   @@index([quotePostId])
   @@index([workspaceReviewId])
+  @@index([storageOwnerId])
   @@index([repostStatus, repostDueAt])
   @@map("post")
 }
@@ -987,6 +991,7 @@ model AccountAnalyticsSnapshot {
 }
 
 model TeamWorkspace {
+  logo String?
   color String @default("indigo")
   connectedAccounts ConnectedAccount[]
   id String @id @default(cuid())
@@ -1022,6 +1027,7 @@ model TeamInvite {
   role String
   approver Boolean
   expiresAt DateTime
+  emailSentAt DateTime?
   @@unique([workspaceId,email])
   @@index([email])
 }

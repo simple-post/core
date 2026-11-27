@@ -14,6 +14,7 @@ import { useBillingStatus, useWorkspaceReadOnly } from "@/hooks/use-billing";
 import { useFeatures } from "@/hooks/use-features";
 import { useUiTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
+import { workspaceColorHex } from "@/lib/workspaces/colors";
 
 import { SimplePostBrand, WorkspaceNavigation } from "./visual/navigation";
 
@@ -38,7 +39,9 @@ export function Navbar({ actions }: NavbarProps) {
 
   // The primary nav is identical on every page; only the "Create post" CTA is
   // suppressed on the schedule page itself, where it would be redundant.
-  const { id, current } = useWorkspaceIndex();
+  const { id, current, data } = useWorkspaceIndex();
+  const workspace = current ?? (id ? undefined : data?.personal);
+  const workspaceAccent = workspaceColorHex(workspace?.color);
   const showCreateCta = (id ? !!current && current.role !== "Viewer" : !readOnly) && !pathname.startsWith("/schedule");
   const activeSection = pathname.startsWith("/accounts")
     ? "accounts"
@@ -53,6 +56,14 @@ export function Navbar({ actions }: NavbarProps) {
   return (
     <>
       <header
+        style={
+          workspaceAccent
+            ? {
+                backgroundColor: `color-mix(in srgb, ${workspaceAccent} 20%, var(--background))`,
+                boxShadow: `inset 0 3px 0 ${workspaceAccent}`,
+              }
+            : undefined
+        }
         className={cn(
           "sticky top-0 z-50 bg-background/80 backdrop-blur-[10px] transition-all duration-200",
           scrolled && "border-b border-border",
@@ -61,8 +72,23 @@ export function Navbar({ actions }: NavbarProps) {
           <Link
             href={workspaceHref("/", id)}
             className="flex flex-shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
-            aria-label={t("simplePostHome")}>
-            <SimplePostBrand logoSrc="/simplepost-logo.png" showName={false} />
+            aria-label={current ? `${current.name} home` : t("simplePostHome")}>
+            {workspace?.logo ? (
+              <img src={workspace.logo} alt="" className="size-8 rounded-lg border border-border object-cover" />
+            ) : current ? (
+              <span
+                aria-hidden
+                className="grid size-8 place-items-center rounded-lg border border-border text-sm font-semibold text-foreground"
+                style={
+                  workspaceAccent
+                    ? { backgroundColor: `color-mix(in srgb, ${workspaceAccent} 26%, var(--card))` }
+                    : undefined
+                }>
+                {[...current.name][0].toLocaleUpperCase(locale)}
+              </span>
+            ) : (
+              <SimplePostBrand logoSrc="/simplepost-logo.png" showName={false} />
+            )}
           </Link>
 
           <WorkspaceSwitcher />
@@ -75,7 +101,15 @@ export function Navbar({ actions }: NavbarProps) {
                 href={workspaceHref(section === "posts" ? "/" : `/${section}`, id)}
                 aria-label={label}
                 aria-current={section === activeSection ? "page" : undefined}
-                className={className}>
+                className={className}
+                style={
+                  workspaceAccent && section === activeSection
+                    ? {
+                        backgroundColor: `color-mix(in srgb, ${workspaceAccent} 19%, var(--background))`,
+                        boxShadow: `inset 0 -2px 0 ${workspaceAccent}`,
+                      }
+                    : undefined
+                }>
                 {children}
               </Link>
             )}

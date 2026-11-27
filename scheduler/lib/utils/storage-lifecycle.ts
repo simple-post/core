@@ -81,7 +81,7 @@ export async function collectUnusedStorage(): Promise<void> {
         const current = await tx.storageDeletion.findUnique({ where: { key: candidate.key } });
         if (!current || current.state === "deleted" || current.dueAt > new Date()) return false;
         const posts = await tx.post.findMany({
-          where: { userId: candidate.userId },
+          where: { OR: [{ userId: candidate.userId }, { storageOwnerId: candidate.userId }] },
           select: { media: true, thread: true, accountOptions: true, accountOverrides: true },
         });
         const editors = await tx.postEditorSession.findMany({

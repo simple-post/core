@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 
 import {
@@ -264,7 +263,7 @@ export class BlueskyProvider implements SocialActivityProvider {
     if (!DID.test(account.platformAccountId) || !AT_URI.test(uri))
       return invalidRequest(this.platform, "the Bluesky account or post is invalid.");
     const lookup = this.url(account, "xrpc/app.bsky.feed.getPosts", { uris: uri });
-    const write = this.url(account, "xrpc/com.atproto.repo.putRecord");
+    const write = this.url(account, "xrpc/com.atproto.repo.createRecord");
     if (!lookup || !write) return invalidRequest(this.platform, "the Bluesky PDS URL is invalid.");
     const current = await this.request(account, lookup);
     if (!current.result.ok) return current.result;
@@ -281,7 +280,6 @@ export class BlueskyProvider implements SocialActivityProvider {
       body: JSON.stringify({
         repo: account.platformAccountId,
         collection: "app.bsky.feed.like",
-        rkey: `simplepost-${createHash("sha256").update(uri).digest("hex")}`,
         record: { $type: "app.bsky.feed.like", subject: { uri, cid }, createdAt: new Date().toISOString() },
       }),
     });

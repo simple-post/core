@@ -862,7 +862,7 @@ async function refreshInboxAccounts(
     }
     const before = options.automatic ? dueBefore(account.platform, now, options.xIntervalMs) : undefined;
     const claim = await prisma.socialActivitySync.updateMany({
-      where: { accountId, ...syncAvailable(now, before) },
+      where: { accountId, account: { userId, workspaceId }, ...syncAvailable(now, before) },
       data: { leaseToken: token, leaseUntil: new Date(now.getTime() + LEASE_MS), lastAttemptAt: now },
     });
     if (!claim.count) continue;

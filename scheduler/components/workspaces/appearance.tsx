@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
-import { Check, ImageIcon, Upload } from "lucide-react";
+import { Check, ImageIcon, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   isCustomWorkspaceColor,
@@ -30,16 +31,52 @@ export function workspaceLogoInput(data: FormData): Promise<string | null | unde
   });
 }
 
-export function WorkspaceColorPicker({ color, allowNone = false }: { color: WorkspaceColor; allowNone?: boolean }) {
+export function WorkspaceGeneralFields({
+  name,
+  color,
+  logo,
+  description,
+  allowNone,
+}: {
+  name: string;
+  color: WorkspaceColor;
+  logo?: string | null;
+  description?: string;
+  allowNone?: boolean;
+}) {
+  return (
+    <div className="@container">
+      <div className="grid items-start gap-x-7 gap-y-5 @min-[36rem]:grid-cols-2">
+        <div className="min-w-0 space-y-4">
+          <Label className="flex-col items-stretch">
+            Workspace name
+            <Input name="name" required maxLength={80} defaultValue={name} />
+          </Label>
+          <WorkspaceLogoPicker logo={logo} />
+        </div>
+        <WorkspaceColorPicker color={color} allowNone={allowNone} />
+        {description !== undefined && (
+          <Label className="col-span-full flex-col items-stretch">
+            Description
+            <Textarea name="description" defaultValue={description} maxLength={500} />
+          </Label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceColorPicker({ color, allowNone = false }: { color: WorkspaceColor; allowNone?: boolean }) {
   const [selected, setSelected] = useState<WorkspaceColor>(color);
   const [custom, setCustom] = useState<string>(workspaceColorHex(color) ?? "#818cf8");
   const [customMode, setCustomMode] = useState(isCustomWorkspaceColor(color));
+  const hexId = useId();
 
   return (
-    <fieldset className="space-y-2.5">
+    <fieldset className="min-w-0">
       <legend className="text-sm font-medium">Workspace color</legend>
       <input type="hidden" name="color" value={customMode ? custom : selected} />
-      <div className="flex max-w-[21rem] flex-wrap gap-1.5">
+      <div className="mt-2 flex max-w-72 flex-wrap gap-1">
         {workspaceColors
           .filter((value) => allowNone || value !== "none")
           .map((value) => (
@@ -51,7 +88,7 @@ export function WorkspaceColorPicker({ color, allowNone = false }: { color: Work
               title={workspacePalette[value].label}
               aria-label={workspacePalette[value].label}
               aria-pressed={!customMode && value === selected}
-              className="size-9 rounded-full"
+              className="size-8 cursor-pointer rounded-full"
               onClick={() => {
                 setSelected(value);
                 setCustom(workspaceColorHex(value) ?? "#818cf8");
@@ -73,9 +110,11 @@ export function WorkspaceColorPicker({ color, allowNone = false }: { color: Work
             </Button>
           ))}
       </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <Label className="flex-col items-start">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Label htmlFor={hexId} className="text-xs text-muted-foreground">
           Custom color
+        </Label>
+        <div className="flex w-fit max-w-full items-center gap-1 rounded-lg border border-input p-1">
           <Input
             type="color"
             aria-label="Choose custom color"
@@ -84,14 +123,13 @@ export function WorkspaceColorPicker({ color, allowNone = false }: { color: Work
               setCustom(event.currentTarget.value);
               setCustomMode(true);
             }}
-            className="h-9 w-12 p-1"
+            className="size-7 shrink-0 cursor-pointer rounded-md border-0 p-0 [&::-moz-color-swatch]:rounded-[5px] [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-[5px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0"
           />
-        </Label>
-        <Label className="flex-col items-start">
-          Hex code
           <Input
+            id={hexId}
+            aria-label="Hex code"
             placeholder="#818CF8"
-            className="h-9 w-28 font-mono uppercase"
+            className="h-7 w-24 border-none bg-transparent px-1.5 py-0 font-mono text-xs uppercase"
             value={custom}
             maxLength={7}
             pattern="#[0-9A-Fa-f]{6}"
@@ -101,13 +139,13 @@ export function WorkspaceColorPicker({ color, allowNone = false }: { color: Work
               setCustomMode(true);
             }}
           />
-        </Label>
+        </div>
       </div>
     </fieldset>
   );
 }
 
-export function WorkspaceLogoPicker({ logo }: { logo?: string | null }) {
+function WorkspaceLogoPicker({ logo }: { logo?: string | null }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [removed, setRemoved] = useState(false);
   const [error, setError] = useState("");
@@ -124,8 +162,8 @@ export function WorkspaceLogoPicker({ logo }: { logo?: string | null }) {
   return (
     <div>
       <p className="text-sm font-medium">Workspace logo</p>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <div className="grid size-14 shrink-0 place-items-center rounded-xl border bg-muted text-muted-foreground">
+      <div className="mt-2 flex items-center gap-3">
+        <div className="grid size-12 shrink-0 place-items-center rounded-xl border bg-muted text-muted-foreground">
           {shown ? (
             <img alt="" src={shown} className="size-full rounded-xl object-cover" />
           ) : (
@@ -140,15 +178,18 @@ export function WorkspaceLogoPicker({ logo }: { logo?: string | null }) {
             {shown && (
               <Button
                 type="button"
-                size="sm"
+                size="icon"
                 variant="ghost"
+                aria-label="Remove logo"
+                title="Remove logo"
+                className="size-8 text-muted-foreground hover:text-destructive"
                 onClick={() => {
                   if (input.current) input.current.value = "";
                   setPreview(null);
                   setRemoved(true);
                   setError("");
                 }}>
-                Remove logo
+                <Trash2 className="size-4" aria-hidden />
               </Button>
             )}
           </div>

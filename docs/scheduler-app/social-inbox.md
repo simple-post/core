@@ -66,7 +66,11 @@ Deploy the additive Prisma migration using the normal scheduler release process.
 
 For Inbox, the default platforms are Facebook, Instagram, Threads, YouTube, and X. X requests `like.read` to check the connected user’s recent likes and `like.write` to like a reply. Conversation search can also find replies that the connected user sent directly on X. Bluesky already authorizes replies and likes through its existing connection. Set `SOCIAL_INBOX_OAUTH_PLATFORMS` to override the platform list, or set it to an empty value to disable additional Inbox requests. TikTok's pilot scopes cover [analytics](../post-analytics/platform-permissions.md).
 
-Inbox checks for recent activity while it is open. Use **Refresh inbox** to check again or **Check older posts** to continue the scan. Open a comment on its platform or use **Preview original post** to see what the person replied to. A reconnect must return the same account. During provider review, the tester needs an account that can authorize the new scopes on that developer app.
+The scheduler checks for recent Inbox activity after scheduled dispatch, including when the page is closed. The job uses the existing per-account cursor, checks due accounts in personal and team workspaces with Inbox access, and shares the same per-account lease with manual refresh. See [Schedule dispatch](README.md#schedule-dispatch) to configure the recurring trigger.
+
+Set `SOCIAL_INBOX_BACKGROUND_REFRESH=false` to pause the job. For X, the job defaults to one check per account every six hours, with one reply or quote scan and one recent-likes page of up to 10 entries each. Set `SOCIAL_INBOX_BACKGROUND_X_INTERVAL_MINUTES` to 60–1440 to change the interval, or to 0 to disable background X checks.
+
+Inbox also checks for recent activity while it is open. Use **Refresh inbox** to check again or **Check older posts** to continue the scan. Open a comment on its platform or use **Preview original post** to see what the person replied to. A reconnect must return the same account. During provider review, the tester needs an account that can authorize the new scopes on that developer app.
 
 ## SDK and clients
 

@@ -341,6 +341,7 @@ export function SocialInbox({
       return inboxRequest<InboxPage>(`${base}/inbox?${query}`);
     },
     getNextPageParam: (page) => page.nextCursor,
+    refetchInterval: canManage ? false : 60_000,
     placeholderData: keepPreviousData,
     retry: false,
   });
@@ -374,12 +375,13 @@ export function SocialInbox({
     refetchInterval: 60_000,
     retry: false,
     queryFn: async () => {
-      const result = await inboxRequest<{ accounts: unknown[] }>(
+      await inboxRequest<{ accounts: unknown[] }>(
         workspaceHref(`${base}/inbox/refresh`, workspaceId),
         jsonPost({ automatic: true }),
       );
-      if (result.accounts.length > 0) await refresh();
-      return result;
+      // A server-side sync may have updated the cache since our last read.
+      await refresh();
+      return true;
     },
   });
 

@@ -248,7 +248,7 @@ it("resumes automatic reads without disturbing manual pagination or prompting re
 
   expect(listSocialPostComments).toHaveBeenNthCalledWith(4, expect.anything(), expect.anything(), {
     cursor: "3",
-    limit: 50,
+    limit: 10,
   });
   expect(listSocialPostQuotes).toHaveBeenCalled();
   const stored = await prisma.socialActivitySync.findUniqueOrThrow({ where: { accountId } });

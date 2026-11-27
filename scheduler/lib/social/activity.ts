@@ -32,7 +32,7 @@ const MAX_BACKGROUND_READS = 24;
 const MAX_BACKGROUND_ACCOUNTS = 24;
 const MAX_BACKGROUND_READS_PER_ACCOUNT = 6;
 const DEFAULT_X_BACKGROUND_INTERVAL_MINUTES = 360;
-const X_BACKGROUND_PAGE_SIZE = 10;
+const X_RECENT_PAGE_SIZE = 10;
 const POSTS_PER_SNAPSHOT = 25;
 const RECENT_POSTS_PER_SNAPSHOT = 5;
 const MAX_CURSOR_LENGTH = 2048;
@@ -949,7 +949,8 @@ async function refreshInboxAccounts(
           : undefined;
       // Keep one account from monopolizing the sweep, and cap billed reads on X.
       const accountReadLimit = options.background ? (isX ? 1 : MAX_BACKGROUND_READS_PER_ACCOUNT) : 3;
-      const pageSize = options.background && isX ? X_BACKGROUND_PAGE_SIZE : 50;
+      // Browser and worker resume the same recent cursor with the same page size.
+      const pageSize = options.automatic && isX ? X_RECENT_PAGE_SIZE : 50;
       while (
         fresh &&
         index < stored.targets.length &&
@@ -1018,7 +1019,7 @@ async function refreshInboxAccounts(
           token,
           pages,
           AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now()))),
-          options.background ? X_BACKGROUND_PAGE_SIZE : undefined,
+          options.background ? X_RECENT_PAGE_SIZE : undefined,
         ).catch(() => false);
         if (!synced && !failure) {
           failure = "X could not sync likes. Replies and quotes are still available.";

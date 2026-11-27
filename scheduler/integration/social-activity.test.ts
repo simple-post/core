@@ -253,6 +253,114 @@ it("resumes automatic reads without disturbing manual pagination or prompting re
   expect(inbox.accounts[0].error).toBeUndefined();
 });
 
+it("reads the newest Bluesky roots first, then resumes paginated quotes and thread segments", async () => {
+  const blueskyId = "social-review-bluesky";
+  await prisma.connectedAccount.create({
+    data: {
+      id: blueskyId,
+      userId,
+      platform: "bluesky",
+      platformAccountId: "did:plc:owner",
+      ...encryptConnectedAccountSecrets({ accessToken: "local-fixture-token" }),
+    },
+  });
+  const rootIds = [1, 2, 3, 4, 5].map((number) => `root-${number}`);
+  for (const [index, rootId] of rootIds.entries()) {
+    await prisma.post.create({
+      data: {
+        userId,
+        message: rootId,
+        status: "published",
+        publishedAt: new Date(Date.now() - index * 60_000),
+        accounts: { connect: { id: blueskyId } },
+        accountResults: { [blueskyId]: { accountId: blueskyId, success: true, postId: rootId } },
+        ...(index === 0 && {
+          threadResults: {
+            [blueskyId]: [1, 2, 3, 4].map((number) => ({ success: true, postId: `segment-${number}` })),
+          },
+        }),
+      },
+    });
+  }
+  const legacyTarget = { key: "legacy-segment", postId, nativePostId: "legacy-segment" };
+  await prisma.socialActivitySync.create({
+    data: {
+      accountId: blueskyId,
+      lastAttemptAt: new Date(0),
+      targetSnapshot: {
+        targets: [legacyTarget],
+        recent: {
+          snapshot: { targets: [legacyTarget] },
+          index: 0,
+          cursor: "old-automatic-page",
+          phase: "quotes",
+        },
+      },
+      providerCursor: "manual-page",
+    },
+  });
+
+  const reads: Array<[string, string, string | undefined]> = [];
+  jest.mocked(listSocialPostComments).mockImplementation(async (_, { nativePostId }, { cursor } = {}) => {
+    reads.push(["comments", nativePostId, cursor]);
+    return {
+      ok: true,
+      data: {
+        data:
+          nativePostId === "root-3"
+            ? [{ nativeId: "bluesky-reply", nativePostId, body: "Reply on the third newest post", canReply: true }]
+            : [],
+      },
+    };
+  });
+  jest.mocked(listSocialPostQuotes).mockImplementation(async (_, { nativePostId }, { cursor } = {}) => {
+    reads.push(["quotes", nativePostId, cursor]);
+    return {
+      ok: true,
+      data: { data: [], nextCursor: nativePostId === "root-1" && !cursor ? "quotes-page" : undefined },
+    };
+  });
+
+  const refresh = () => refreshSocialInbox(userId, { automatic: true, platform: "bluesky" });
+  await refresh();
+  expect(reads).toEqual([
+    ["comments", "root-1", undefined],
+    ["comments", "root-2", undefined],
+    ["comments", "root-3", undefined],
+  ]);
+  const inbox = await getSocialInbox(userId, { platform: "bluesky" });
+  expect(inbox.items).toMatchObject([{ body: "Reply on the third newest post" }]);
+
+  for (let tick = 0; tick < 4; tick += 1) {
+    await prisma.socialActivitySync.update({
+      where: { accountId: blueskyId },
+      data: { lastAttemptAt: new Date(0) },
+    });
+    await refresh();
+  }
+  expect(reads.slice(3)).toEqual([
+    ["comments", "root-4", undefined],
+    ["comments", "root-5", undefined],
+    ["quotes", "root-1", undefined],
+    ["quotes", "root-1", "quotes-page"],
+    ["quotes", "root-2", undefined],
+    ["quotes", "root-3", undefined],
+    ["quotes", "root-4", undefined],
+    ["quotes", "root-5", undefined],
+    ["comments", "segment-1", undefined],
+    ["quotes", "segment-1", undefined],
+    ["comments", "segment-2", undefined],
+    ["quotes", "segment-2", undefined],
+  ]);
+  const stored = await prisma.socialActivitySync.findUniqueOrThrow({ where: { accountId: blueskyId } });
+  expect(stored).toMatchObject({
+    targetSnapshot: { targets: [legacyTarget] },
+    providerCursor: "manual-page",
+    targetIndex: 0,
+    phase: "comments",
+  });
+});
+
 it("reports provider restrictions and missing X like permissions alongside a connection with no tracked posts", async () => {
   await prisma.connectedAccount.createMany({
     data: [

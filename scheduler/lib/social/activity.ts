@@ -48,6 +48,8 @@ export interface SocialInboxQuery {
   limit?: number;
 }
 
+type InboxReadPhase = "comments" | "quotes";
+
 interface OwnedTarget {
   key: string;
   postId: string;
@@ -56,6 +58,7 @@ interface OwnedTarget {
   nativeUrl?: string;
   platformData?: Record<string, unknown>;
   publishedAt?: string;
+  readPhase?: InboxReadPhase;
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -129,8 +132,10 @@ function targetsFromPosts(
     threadResults: unknown;
     accounts: Array<ConnectedAccount & { tokenMetadata: Prisma.JsonValue | null }>;
   }>,
+  prioritizeRootReplies: boolean,
 ): OwnedTarget[] {
   const targets: OwnedTarget[] = [];
+  const segments: OwnedTarget[] = [];
   const seen = new Set<string>();
   for (const post of posts) {
     const results = object(post.accountResults) as Record<string, AccountPublishResult>;
@@ -161,13 +166,21 @@ function targetsFromPosts(
           post.publishedAt,
         );
         if (segmentTarget && !seen.has(segmentTarget.key)) {
-          targets.push(segmentTarget);
+          (prioritizeRootReplies ? segments : targets).push(segmentTarget);
           seen.add(segmentTarget.key);
         }
       }
     }
   }
-  return targets;
+  if (!prioritizeRootReplies) return targets;
+
+  // A Bluesky root read already includes replies in its thread. Give all
+  // recent roots a turn before quote lookups and the separate segment reads.
+  return [
+    ...targets.map((target): OwnedTarget => ({ ...target, readPhase: "comments" })),
+    ...targets.map((target): OwnedTarget => ({ ...target, readPhase: "quotes" })),
+    ...segments,
+  ];
 }
 
 function encodePostCursor(post: { createdAt: Date; id: string }): string {
@@ -190,8 +203,9 @@ async function ownedTargetPage(
   userId: string,
   accountId: string,
   workspaceId: string | null,
-  after?: string,
-  recent = false,
+  after: string | undefined,
+  recent: boolean,
+  prioritizeRootReplies: boolean,
 ) {
   const limit = recent ? RECENT_POSTS_PER_SNAPSHOT : POSTS_PER_SNAPSHOT;
   const cursor = decodePostCursor(after);
@@ -214,7 +228,7 @@ async function ownedTargetPage(
   const page = posts.slice(0, limit);
   const last = page.at(-1);
   return {
-    targets: targetsFromPosts(page),
+    targets: targetsFromPosts(page, prioritizeRootReplies),
     nextPostCursor: posts.length > limit && last ? encodePostCursor(last) : undefined,
   };
 }
@@ -260,8 +274,11 @@ function safeProviderCursor(value: string | undefined): string | undefined {
 }
 
 interface TargetSnapshot {
-  targets: Array<Pick<OwnedTarget, "key" | "postId" | "nativePostId" | "nativeUrl" | "platformData" | "publishedAt">>;
+  targets: Array<
+    Pick<OwnedTarget, "key" | "postId" | "nativePostId" | "nativeUrl" | "platformData" | "publishedAt" | "readPhase">
+  >;
   nextPostCursor?: string;
+  rootRepliesFirst?: true;
 }
 
 function targetSnapshot(value: unknown): TargetSnapshot {
@@ -279,11 +296,13 @@ function targetSnapshot(value: unknown): TargetSnapshot {
         nativeUrl: typeof target.nativeUrl === "string" ? safeNativeUrl(target.nativeUrl) : undefined,
         platformData: boundedJson(target.platformData),
         publishedAt: typeof target.publishedAt === "string" ? target.publishedAt : undefined,
-      },
+        readPhase: target.readPhase === "comments" || target.readPhase === "quotes" ? target.readPhase : undefined,
+      } satisfies TargetSnapshot["targets"][number],
     ];
   });
   return {
     targets,
+    ...(stored.rootRepliesFirst === true && { rootRepliesFirst: true }),
     nextPostCursor:
       typeof stored.nextPostCursor === "string" && decodePostCursor(stored.nextPostCursor)
         ? stored.nextPostCursor
@@ -291,17 +310,23 @@ function targetSnapshot(value: unknown): TargetSnapshot {
   };
 }
 
-function serializeTargetSnapshot(targets: OwnedTarget[], nextPostCursor?: string): TargetSnapshot {
+function serializeTargetSnapshot(
+  targets: OwnedTarget[],
+  nextPostCursor: string | undefined,
+  prioritizeRootReplies: boolean,
+): TargetSnapshot {
   return {
-    targets: targets.map(({ key, postId, nativePostId, nativeUrl, platformData, publishedAt }) => ({
+    targets: targets.map(({ key, postId, nativePostId, nativeUrl, platformData, publishedAt, readPhase }) => ({
       key,
       postId,
       nativePostId,
       nativeUrl: safeNativeUrl(nativeUrl),
       platformData: boundedJson(platformData),
       publishedAt,
+      readPhase,
     })),
     nextPostCursor,
+    ...(prioritizeRootReplies && { rootRepliesFirst: true }),
   };
 }
 
@@ -321,7 +346,7 @@ async function saveItems(
   userId: string,
   account: ConnectedAccount,
   target: OwnedTarget,
-  phase: "comments" | "quotes",
+  phase: InboxReadPhase,
   items: SocialComment[],
 ): Promise<void> {
   if (
@@ -735,8 +760,7 @@ export async function refreshSocialInbox(
     let cursor = options.automatic
       ? safeProviderCursor(typeof recent.cursor === "string" ? recent.cursor : undefined)
       : (sync.providerCursor ?? undefined);
-    let phase: "comments" | "quotes" =
-      (options.automatic ? recent.phase : sync.phase) === "quotes" ? "quotes" : "comments";
+    let phase: InboxReadPhase = (options.automatic ? recent.phase : sync.phase) === "quotes" ? "quotes" : "comments";
     let processed = 0;
     let attempted = 0;
     let failure: string | undefined;
@@ -761,12 +785,28 @@ export async function refreshSocialInbox(
     }
 
     try {
-      const startRecent = options.reset || (options.automatic && index >= stored.targets.length);
+      const prioritizeRootReplies = mapPlatformName(account.platform) === "bluesky";
+      // Replace older automatic Bluesky plans once so requests already in the
+      // queue do not keep the old order until a whole pass completes.
+      const startRecent =
+        options.reset ||
+        (options.automatic && (index >= stored.targets.length || (prioritizeRootReplies && !stored.rootRepliesFirst)));
       if (startRecent || !hasSnapshot || index >= stored.targets.length) {
         const after = startRecent ? undefined : stored.nextPostCursor;
         if (startRecent || !hasSnapshot || after) {
-          const page = await ownedTargetPage(userId, accountId, workspaceId, after, options.automatic);
-          stored = serializeTargetSnapshot(page.targets, options.automatic ? undefined : page.nextPostCursor);
+          const page = await ownedTargetPage(
+            userId,
+            accountId,
+            workspaceId,
+            after,
+            options.automatic === true,
+            prioritizeRootReplies,
+          );
+          stored = serializeTargetSnapshot(
+            page.targets,
+            options.automatic ? undefined : page.nextPostCursor,
+            prioritizeRootReplies,
+          );
           index = 0;
           cursor = undefined;
           phase = "comments";
@@ -797,7 +837,8 @@ export async function refreshSocialInbox(
         remaining -= 1;
         attempted += 1;
         const target = { ...stored.targets[index], accountId };
-        if (phase === "comments" && !capabilities.has("comments")) phase = "quotes";
+        if (target.readPhase) phase = target.readPhase;
+        else if (phase === "comments" && !capabilities.has("comments")) phase = "quotes";
         const list = phase === "quotes" ? listSocialPostQuotes : listSocialPostComments;
         const itemPhase = phase;
         const response = await list(socialAccount(fresh), target, { cursor, limit: 50 });
@@ -809,7 +850,7 @@ export async function refreshSocialInbox(
         if (next && next !== cursor) cursor = next;
         else if (response.ok || skippable) {
           cursor = undefined;
-          if (phase === "comments" && capabilities.has("quotes")) phase = "quotes";
+          if (!target.readPhase && phase === "comments" && capabilities.has("quotes")) phase = "quotes";
           else {
             index += 1;
             phase = "comments";

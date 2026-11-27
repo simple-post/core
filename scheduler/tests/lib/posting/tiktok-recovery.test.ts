@@ -39,6 +39,18 @@ it("explains automatic processing retries and permits manual recovery after exha
   expect(recoveryForResult(failure, false)).toMatchObject({ automaticRetry: false, canScheduleRetry: true });
 });
 
+it("reports a media inspection failure before TikTok submission and shows when a retry is queued", () => {
+  const failure = { platform: "tiktok", error: "PREPARATION_ERROR", details: { code: "media_unavailable" } };
+  expect(recoveryForResult(failure, true)).toMatchObject({
+    code: "media_unavailable",
+    title: "SimplePost could not load the media",
+    message: "Your post is saved. Another attempt is scheduled automatically.",
+    state: "waiting",
+    automaticRetry: true,
+  });
+  expect(recoveryForResult(failure)).toMatchObject({ state: "needs_action", canScheduleRetry: true });
+});
+
 it("does not offer a retry for uncertain, mixed, banned or already completed posts", () => {
   const cap = { platform: "tiktok", error: "PUBLISH_REJECTED", details: { code: "spam_risk_too_many_pending_share" } };
   for (const error of ["API_ERROR", "PUBLISH_OUTCOME_UNKNOWN"])

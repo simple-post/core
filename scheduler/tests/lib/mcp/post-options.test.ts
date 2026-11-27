@@ -66,53 +66,76 @@ const accountOptions = {
   "youtube-1": { privacyStatus: "unlisted" as const },
 };
 
-it("queues an immediate Instagram processing failure and returns the original scheduled post", async () => {
-  jest.mocked(getPostingSummary).mockReturnValueOnce({ overallSuccess: false, successCount: 0, failureCount: 1 });
-  const accounts = [{ id: "instagram-1", platform: "instagram" }];
-  jest.mocked(prisma.connectedAccount.findMany).mockResolvedValueOnce(accounts as never);
-  jest.mocked(validatePostForAccounts).mockResolvedValueOnce({
-    accounts,
-    results: [],
-    summary: { isValid: true, errors: [], warnings: [] },
-  } as never);
-  jest.mocked(postToAccounts).mockResolvedValueOnce([
-    {
-      accountId: "instagram-1",
-      platform: "instagram",
-      success: false,
-      error: "PREPARATION_ERROR",
-      details: { phase: "processing", statusCode: "ERROR", containerId: "failed-container" },
+it.each([
+  {
+    platform: "instagram",
+    details: { phase: "processing", statusCode: "ERROR", containerId: "failed-container" },
+    counter: "instagramProcessingRetryCount",
+    recovery: undefined,
+  },
+  {
+    platform: "tiktok",
+    details: { code: "media_unavailable", name: "MediaInspectionError" },
+    counter: "tiktokProcessingRetryCount",
+    recovery: {
+      code: "media_unavailable",
+      message: "Your post is saved. Another attempt is scheduled automatically.",
+      state: "waiting",
+      automaticRetry: true,
     },
-  ]);
-  jest.mocked(prisma.post.update).mockImplementationOnce(({ data }) => {
-    loadPost.mockResolvedValue({
-      id: "post-1",
-      message: "Reel",
-      accountIds: ["instagram-1"],
-      ...data,
+  },
+])(
+  "queues an immediate $platform media failure and returns the original scheduled post",
+  async ({ platform, details, counter, recovery }) => {
+    jest.mocked(getPostingSummary).mockReturnValueOnce({ overallSuccess: false, successCount: 0, failureCount: 1 });
+    const accountId = `${platform}-1`;
+    const accounts = [{ id: accountId, platform }];
+    jest.mocked(prisma.connectedAccount.findMany).mockResolvedValueOnce(accounts as never);
+    jest.mocked(validatePostForAccounts).mockResolvedValueOnce({
+      accounts,
+      results: [],
+      summary: { isValid: true, errors: [], warnings: [] },
+    } as never);
+    jest.mocked(postToAccounts).mockResolvedValueOnce([
+      {
+        accountId,
+        platform,
+        success: false,
+        error: "PREPARATION_ERROR",
+        details,
+      },
+    ]);
+    jest.mocked(prisma.post.update).mockImplementationOnce(({ data }) => {
+      loadPost.mockResolvedValue({
+        id: "post-1",
+        message: "Media post",
+        accountIds: [accountId],
+        ...data,
+      });
+      return Promise.resolve({}) as never;
     });
-    return Promise.resolve({}) as never;
-  });
-  const result = await createPost(
-    "user-1",
-    createPostSchema.parse({
-      message: "Reel",
-      accountIds: ["instagram-1"],
-      postingMode: "now",
-    }),
-  );
-  expect(result.post).toMatchObject({ id: "post-1", status: "scheduled" });
-  expect(result.summary.scheduledCount).toBe(1);
-  expect(prisma.post.update).toHaveBeenCalledWith(
-    expect.objectContaining({
-      where: { id: "post-1" },
-      data: expect.objectContaining({ errorDetails: expect.objectContaining({ instagramProcessingRetryCount: 1 }) }),
-    }),
-  );
-  expect(savePost).toHaveBeenCalledTimes(1);
-  expect(updatePost).not.toHaveBeenCalled();
-  expect(dispatchPostWebhooks).not.toHaveBeenCalled();
-});
+    const result = await createPost(
+      "user-1",
+      createPostSchema.parse({
+        message: "Media post",
+        accountIds: [accountId],
+        postingMode: "now",
+      }),
+    );
+    expect(result.post).toMatchObject({ id: "post-1", status: "scheduled" });
+    expect(result.postingResults).toMatchObject([{ accountId, success: false, recovery }]);
+    expect(result.summary.scheduledCount).toBe(1);
+    expect(prisma.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "post-1" },
+        data: expect.objectContaining({ errorDetails: expect.objectContaining({ [counter]: 1 }) }),
+      }),
+    );
+    expect(savePost).toHaveBeenCalledTimes(1);
+    expect(updatePost).not.toHaveBeenCalled();
+    expect(dispatchPostWebhooks).not.toHaveBeenCalled();
+  },
+);
 
 it.each(["now", "schedule", "draft"] as const)(
   "persists photo music defaults and caption options for %s",

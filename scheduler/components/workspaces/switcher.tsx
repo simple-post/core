@@ -165,6 +165,15 @@ function WorkspaceDot({ color }: { color?: string }) {
   return accent && <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: accent }} />;
 }
 
+function pillForeground(hex: string) {
+  const [red, green, blue] = [1, 3, 5].map((offset) => {
+    const channel = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.040_45 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  return luminance > 0.179 ? "#000" : "#fff";
+}
+
 function WorkspaceMenuRow({
   name,
   color,
@@ -180,12 +189,16 @@ function WorkspaceMenuRow({
   select: () => void;
   settingsHref?: string;
 }) {
+  const accent = workspaceColorHex(color);
   return (
     <div role="group" aria-label={name} className="flex items-stretch gap-0.5">
       <DropdownMenuItem onSelect={select} className="min-w-0 flex-1 cursor-pointer">
-        {logo && <img src={logo} alt="" className="size-4 rounded-sm object-cover" />}
-        <WorkspaceDot color={color} />
-        <span className="truncate">{name}</span>
+        {logo && <img src={logo} alt="" className="size-4 shrink-0 rounded-sm object-cover" />}
+        <span
+          className="truncate rounded-full bg-muted px-2.5 py-0.5 font-medium text-foreground"
+          style={accent ? { backgroundColor: accent, color: pillForeground(accent) } : undefined}>
+          {name}
+        </span>
         {active && <Check className="ms-auto shrink-0" aria-hidden />}
       </DropdownMenuItem>
       {settingsHref && (

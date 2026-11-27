@@ -6,9 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { WorkspaceColorPicker, WorkspaceLogoPicker, workspaceLogoInput } from "@/components/workspaces/appearance";
+import { WorkspaceGeneralFields, workspaceLogoInput } from "@/components/workspaces/appearance";
 import { WorkspaceSettingsLayout } from "@/components/workspaces/settings-layout";
 import { useWorkspaceIndex } from "@/components/workspaces/switcher";
 import { TeamScreen } from "@/components/workspaces/team-screen";
@@ -26,7 +24,7 @@ export default function WorkspaceSettingsPage() {
       color={personal ? personal.color : undefined}
       sections={[{ id: "general", label: "General" }]}>
       {personal ? (
-        <Card id="general" className="scroll-mt-20 gap-4 px-5 sm:px-6">
+        <Card id="general" className="scroll-mt-20 gap-5 px-5 sm:px-6">
           <div>
             <h2 className="text-lg font-semibold">General</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -34,7 +32,6 @@ export default function WorkspaceSettingsPage() {
             </p>
           </div>
           <form
-            className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
               const data = new FormData(event.currentTarget);
@@ -58,20 +55,17 @@ export default function WorkspaceSettingsPage() {
                 setBusy(false);
               }
             }}>
-            <Label className="max-w-sm flex-col items-stretch">
-              Workspace name
-              <Input defaultValue={personal.name} name="name" maxLength={80} required />
-            </Label>
-            <WorkspaceColorPicker color={personal.color} allowNone />
-            <WorkspaceLogoPicker logo={personal.logo} />
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <Button type="submit" size="sm" disabled={busy}>
-              Save changes
-            </Button>
+            <WorkspaceGeneralFields name={personal.name} color={personal.color} logo={personal.logo} allowNone />
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
+              {error && (
+                <p role="alert" className="mr-auto text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" size="sm" disabled={busy}>
+                Save changes
+              </Button>
+            </div>
           </form>
         </Card>
       ) : (

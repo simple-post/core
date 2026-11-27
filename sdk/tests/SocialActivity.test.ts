@@ -132,6 +132,32 @@ describe("social activity adapters", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({ tweet_id: "789" });
   });
 
+  it("lets Bluesky generate a valid like record key and skips an existing like", async () => {
+    const connection = account("bluesky", "did:plc:owner");
+    const uri = "at://did:plc:author/app.bsky.feed.post/3jzfcijpj2z2a";
+    const cid = "bafyreigwnxqttkhzha2ig4io6wwht3qiugtor4ruglceyfdbnyq53a55fe";
+    const likeUri = "at://did:plc:owner/app.bsky.feed.like/3msx2efqdxs27";
+    const target = { nativeId: uri, nativePostId: uri, body: "", canReply: true, canLike: true };
+    fetchMock
+      .mockResolvedValueOnce(json({ posts: [{ uri, cid }] }))
+      .mockImplementationOnce(async (url, options) => {
+        const input = JSON.parse(String(options?.body));
+        if (!String(url).endsWith("/com.atproto.repo.createRecord") || "rkey" in input)
+          return json({ error: "InvalidRequest", message: "Invalid like record key" }, 400);
+        return json({ uri: likeUri });
+      })
+      .mockResolvedValueOnce(json({ posts: [{ uri, cid, viewer: { like: likeUri } }] }));
+
+    await expect(likeSocialItem({ account: connection, target })).resolves.toEqual({ ok: true, data: { liked: true } });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      repo: connection.platformAccountId,
+      collection: "app.bsky.feed.like",
+      record: { $type: "app.bsky.feed.like", subject: { uri, cid }, createdAt: expect.any(String) },
+    });
+    await expect(likeSocialItem({ account: connection, target })).resolves.toEqual({ ok: true, data: { liked: true } });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("uses Facebook's per-comment reply permission", async () => {
     fetchMock.mockResolvedValueOnce(
       json({

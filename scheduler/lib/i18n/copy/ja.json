@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "別のInstagramアカウントが選択されました",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "最初にSimplePostに連携したInstagramアカウントに切り替えて、もう一度お試しください。",
+  "Account to reconnect": "再連携するアカウント",
   "Automate posting with n8n": "n8n で投稿を自動化",
   "Finish on {{platform}} to return to SimplePost.": "{{platform}}で手続きを完了すると、SimplePostに戻ります。",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "SimplePost のコミュニティノードをインストールし、このページの API キーで認証します。",

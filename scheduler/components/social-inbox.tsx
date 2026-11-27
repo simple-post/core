@@ -4,7 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import Link from "next/link";
 
-import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type InfiniteData, keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowUpRight, Eye, Heart, MessageSquare, RefreshCw } from "lucide-react";
 
 import { PlatformFilter } from "@/components/platform-filter";
@@ -45,6 +45,7 @@ function InboxRow({
   canManage,
   showAccount,
   refresh,
+  onLiked,
   focusNext,
 }: {
   item: SocialInboxItem;
@@ -52,6 +53,7 @@ function InboxRow({
   canManage: boolean;
   showAccount: boolean;
   refresh: () => Promise<unknown>;
+  onLiked: (itemId: string) => void;
   focusNext: () => void;
 }) {
   const { copy, locale } = useUiCopy();
@@ -69,7 +71,8 @@ function InboxRow({
   const author = item.author?.name || item.author?.username || copy("Unknown author");
   const kind = item.kind === "quote" ? copy("Quote post") : item.kind === "reply" ? copy("Reply") : copy("Comment");
   const replyState = sent ? "sent" : item.reply?.status;
-  const isLiked = item.liked;
+  const isLiked = item.liked || liking;
+  const likeError = isLiked ? undefined : (likeFeedback ?? item.likeError);
   const blocked = replyState === "pending" || replyState === "uncertain";
   const hasNativeItemLink = item.nativeUrl && item.nativeUrl !== item.sourceUrl;
   const actionUrl = `${base}/items/${encodeURIComponent(item.id)}`;
@@ -104,13 +107,14 @@ function InboxRow({
   }
 
   async function likeItem() {
+    if (isLiked) return;
     setLiking(true);
     setLikeFeedback(undefined);
     try {
       const receipt = await inboxRequest<Receipt>(workspaceHref(`${actionUrl}/like`, workspaceId), { method: "PUT" });
-      if (receipt.status !== "sent")
-        setLikeFeedback(receipt.errorMessage ?? copy("Check the platform to confirm your like."));
-      await refresh();
+      if (receipt.status === "sent") onLiked(item.id);
+      else setLikeFeedback(receipt.errorMessage ?? copy("Check the platform to confirm your like."));
+      void refresh();
     } catch (error) {
       setLikeFeedback(error instanceof Error ? error.message : copy("Could not like this item."));
     } finally {
@@ -157,7 +161,7 @@ function InboxRow({
                   size="sm"
                   onClick={likeItem}
                   aria-pressed={isLiked}
-                  disabled={isLiked || liking}
+                  disabled={isLiked}
                   className={cn("gap-1.5 px-2", isLiked && "text-rose-400 disabled:opacity-100")}>
                   <Heart className={cn("size-4", isLiked && "fill-current")} aria-hidden />
                   {isLiked ? copy("Liked") : copy("Like")}
@@ -189,9 +193,9 @@ function InboxRow({
             </div>
           )}
 
-          {(likeFeedback ?? item.likeError) && (
+          {likeError && (
             <p role="status" className="mt-2 text-xs text-amber-300">
-              {likeFeedback ?? item.likeError}
+              {likeError}
             </p>
           )}
           {blocked && (
@@ -368,6 +372,22 @@ export function SocialInbox({
     );
   const refresh = () => queryClient.invalidateQueries({ queryKey });
 
+  function confirmLike(itemId: string) {
+    queryClient.setQueriesData<InfiniteData<InboxPage>>(
+      { queryKey },
+      (data) =>
+        data && {
+          ...data,
+          pages: data.pages.map((page) => ({
+            ...page,
+            items: page.items.map((item) =>
+              item.id === itemId ? { ...item, liked: true, likeStatus: "sent", likeError: undefined } : item,
+            ),
+          })),
+        },
+    );
+  }
+
   const autoSync = useQuery({
     queryKey: ["social-inbox-sync", session?.user.id, workspaceId],
     enabled: Boolean(session?.user.id) && canSync && !syncing,
@@ -512,6 +532,7 @@ export function SocialInbox({
             canManage={canManage}
             showAccount={(accountCounts.get(item.platform) ?? 0) > 1}
             refresh={refresh}
+            onLiked={confirmLike}
             focusNext={() => focusNext(index)}
           />
         ))}

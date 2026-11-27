@@ -1,18 +1,24 @@
 /* eslint-disable unicorn/no-await-expression-member -- Integration assertions inspect committed database values. */
-import { uploadFromBuffer, deleteFromStorage } from "@simple-post/sdk";
+import { uploadFromBuffer, deleteFromStorage, generateFileKey } from "@simple-post/sdk";
+import sharp from "sharp";
 
 import { PostsModel } from "@/lib/db";
 import { upsertConnectedAccount } from "@/lib/oauth/upsert";
 import { listPostAnalytics } from "@/lib/post-analytics/query";
 import { ensureAnalyticsRowsForUser } from "@/lib/post-analytics/service";
 import { prisma } from "@/lib/prisma";
+import { sendNotificationEmail } from "@/lib/resend/notification-email";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { acceptInvite, createWorkspace, readWorkspace } from "@/lib/workspaces/access";
 import { workspaceConnections } from "@/lib/workspaces/connections";
 import { commandSchema, type Actor } from "@/lib/workspaces/contracts";
 import { readFile, saveFile } from "@/lib/workspaces/files";
+import { deliverWorkspaceInvitation } from "@/lib/workspaces/invitations";
+import { normalizeWorkspaceLogo } from "@/lib/workspaces/logo";
 import { runCommand } from "@/lib/workspaces/posts";
 import { cancelDelivery, release } from "@/lib/workspaces/release";
+
+jest.mock("@/lib/resend/notification-email", () => ({ sendNotificationEmail: jest.fn() }));
 
 jest.mock("@simple-post/sdk", () => ({
   ...jest.requireActual("@simple-post/sdk"),
@@ -404,4 +410,210 @@ it("retains analytics for old team deliveries under the publishing connection", 
   expect(personal.posts).toMatchObject([{ postId: delivery.id, teamPostId: postId, teamWorkspaceId: wid }]);
   const team = await listPostAnalytics(admin.id, { period: "last_7d", workspaceId: wid });
   expect(team.posts).toEqual([]);
+});
+
+it("saves a reordered workflow atomically and refuses stale or protected deletions", async () => {
+  wid = (await createWorkspace(admin, newTeam)).id;
+  const snapshot = async () =>
+    (await readWorkspace(admin, wid)).states.map(({ id, name, position }) => ({ id, name, position }));
+  const expected = await snapshot();
+  const [draft, progress, review, approved] = expected;
+  await send(admin, {
+    action: "workflow",
+    expected,
+    states: [
+      { id: progress.id, name: draft.name },
+      { id: draft.id, name: progress.name },
+      { name: "Design ready" },
+      { id: review.id, name: review.name },
+    ],
+  });
+  const reordered = await snapshot();
+  expect(reordered.map(({ name }) => name)).toEqual(["Draft", "In progress", "Design ready", "In review", "Approved"]);
+  expect(reordered[0].id).toBe(progress.id);
+  expect(reordered.at(-1)?.id).toBe(approved.id);
+  await expect(send(admin, { action: "workflow", expected, states: [draft, progress, review] })).rejects.toThrow(
+    "workflow changed",
+  );
+  await expect(
+    send(admin, { action: "workflow", expected: reordered, states: reordered.slice(1, -1) }),
+  ).rejects.toThrow("Only unused custom states");
+  expect(await snapshot()).toEqual(reordered);
+  await send(admin, { action: "workflow", expected: reordered, states: [reordered[0], reordered[1], reordered[3]] });
+  expect((await snapshot()).map(({ name }) => name)).toEqual(["Draft", "In progress", "In review", "Approved"]);
+});
+
+it("retains the same invite for delivery retry and records successful email delivery", async () => {
+  wid = (await createWorkspace(admin, { ...newTeam, name: "Studio & Design" })).id;
+  const cmd = { action: "invite", email: editor.email, role: "Editor", approver: true };
+  await send(admin, cmd);
+  const invite = await prisma.teamInvite.findFirstOrThrow({ where: { workspaceId: wid } });
+  jest
+    .mocked(sendNotificationEmail)
+    .mockRejectedValueOnce(new Error("provider unreachable"))
+    .mockResolvedValueOnce("confirmed");
+  await expect(deliverWorkspaceInvitation(invite.id)).resolves.toBe(false);
+  await send(admin, cmd);
+  expect(await prisma.teamInvite.count({ where: { workspaceId: wid } })).toBe(1);
+  expect(await prisma.teamInvite.findUniqueOrThrow({ where: { id: invite.id } })).toMatchObject({ emailSentAt: null });
+  const retry = await send(admin, { action: "resendInvite", inviteId: invite.id });
+  expect(retry).toMatchObject({ id: invite.id });
+  await expect(deliverWorkspaceInvitation(invite.id)).resolves.toBe(true);
+  const delivered = await prisma.teamInvite.findUniqueOrThrow({ where: { id: invite.id } });
+  expect(delivered.emailSentAt).toBeInstanceOf(Date);
+  expect(jest.mocked(sendNotificationEmail)).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      to: editor.email,
+      html: expect.stringContaining("Studio &amp; Design"),
+      text: expect.stringContaining(`/workspace-invitation?team=${wid}&invite=${invite.id}`),
+    }),
+    `workspace-invite/${invite.id}`,
+  );
+  await expect(deliverWorkspaceInvitation(delivered.id)).resolves.toBe(true);
+  expect(sendNotificationEmail).toHaveBeenCalledTimes(2);
+});
+
+it("converts workspace logos to bounded WebP and persists custom colors", async () => {
+  const png = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#CB5AD3" } })
+    .png()
+    .toBuffer();
+  await expect(normalizeWorkspaceLogo("data:image/png;base64,YmFk")).rejects.toThrow("valid PNG");
+  wid = (await createWorkspace(admin, newTeam)).id;
+  await send(admin, {
+    action: "settings",
+    ...newTeam,
+    color: "#CB5AD3",
+    logo: `data:image/png;base64,${png.toString("base64")}`,
+  });
+  const saved = await readWorkspace(admin, wid);
+  expect(saved.color).toBe("#cb5ad3");
+  expect(saved.logo).toMatch(/^data:image\/webp;base64,/);
+  await send(admin, { action: "settings", ...newTeam, color: "indigo", logo: null });
+  expect((await readWorkspace(admin, wid)).logo).toBeNull();
+});
+
+it("hands shared accounts, deliveries, and history to the remaining admin when the owner is removed", async () => {
+  const post = await setup();
+  await expect(send(admin, { action: "remove", userId: admin.id })).rejects.toThrow("last admin");
+  await send(admin, { action: "member", userId: editor.id, role: "Admin", approver: true });
+  await prisma.userFeature.create({ data: { userId: editor.id, feature: "TEAM_WORKSPACES" } });
+
+  const teamAccount = await prisma.connectedAccount.create({
+    data: {
+      userId: admin.id,
+      workspaceId: wid,
+      platform: "linkedin",
+      platformAccountId: "team",
+      accessToken: "fixture",
+    },
+  });
+  const personalAccount = await prisma.connectedAccount.create({
+    data: { userId: admin.id, platform: "linkedin", platformAccountId: "personal", accessToken: "fixture" },
+  });
+  const review = await prisma.teamReview.create({
+    data: { postId: post.id, snapshot: {}, requestedBy: admin.id, outcome: "approved" },
+  });
+  const previousBase = process.env.S3_STORAGE_BASE_URL;
+  process.env.S3_STORAGE_BASE_URL = "https://media.example.invalid";
+  const key = generateFileKey(admin.id, "workspace.png");
+  const url = `https://media.example.invalid/${key}`;
+  try {
+    const delivery = await prisma.post.create({
+      data: {
+        userId: admin.id,
+        workspaceReviewId: review.id,
+        message: "From the workspace",
+        status: "pending",
+        accounts: { connect: { id: teamAccount.id } },
+        media: { create: { url, type: "image", filename: "workspace.png", size: 100 } },
+      },
+    });
+    await prisma.storageDeletion.create({ data: { key, userId: admin.id, dueAt: new Date(0) } });
+    const item = await prisma.socialActivityItem.create({
+      data: {
+        userId: admin.id,
+        accountId: teamAccount.id,
+        postId: delivery.id,
+        platform: "linkedin",
+        kind: "comment",
+        body: "A comment",
+        nativeId: "a-comment",
+        nativePostId: "a-post",
+        eventAt: new Date(),
+      },
+    });
+    await prisma.socialActivityReply.create({
+      data: {
+        userId: admin.id,
+        accountId: teamAccount.id,
+        activityItemId: item.id,
+        idempotencyKey: "previous-reply",
+        body: "Reply",
+        status: "sent",
+      },
+    });
+    await expect(send(editor, { action: "remove", userId: admin.id })).rejects.toThrow("current publishing run");
+    expect((await prisma.teamWorkspace.findUniqueOrThrow({ where: { id: wid } })).creatorId).toBe(admin.id);
+    await prisma.post.update({ where: { id: delivery.id }, data: { status: "scheduled" } });
+    await send(editor, { action: "remove", userId: admin.id });
+    await expect(readWorkspace(admin, wid)).rejects.toThrow("Workspace not found");
+    await expect(workspaceConnections(editor.id, wid, true)).resolves.toMatchObject({ userId: editor.id });
+    expect(await prisma.connectedAccount.findUnique({ where: { id: teamAccount.id } })).toMatchObject({
+      userId: editor.id,
+    });
+    expect(await prisma.connectedAccount.findUnique({ where: { id: personalAccount.id } })).toMatchObject({
+      userId: admin.id,
+    });
+    expect(await prisma.post.findUnique({ where: { id: delivery.id } })).toMatchObject({
+      userId: editor.id,
+      storageOwnerId: admin.id,
+    });
+    expect(
+      await prisma.socialActivityItem.findUnique({ where: { id: item.id }, include: { replies: true } }),
+    ).toMatchObject({ userId: editor.id, replies: [{ userId: editor.id, status: "sent" }] });
+
+    jest.mocked(deleteFromStorage).mockClear();
+    await collectUnusedStorage();
+    expect(jest.mocked(deleteFromStorage).mock.calls.map(([key]) => key)).not.toContain(key);
+    await cancelDelivery(editor, wid, post.id, delivery.id);
+    await prisma.storageDeletion.update({ where: { key }, data: { dueAt: new Date(0) } });
+    await collectUnusedStorage();
+    expect(jest.mocked(deleteFromStorage).mock.calls.map(([key]) => key)).toContain(key);
+  } finally {
+    if (previousBase === undefined) delete process.env.S3_STORAGE_BASE_URL;
+    else process.env.S3_STORAGE_BASE_URL = previousBase;
+  }
+});
+
+it("keeps an admin when two admins try to remove each other concurrently", async () => {
+  await setup();
+  await send(admin, { action: "member", userId: editor.id, role: "Admin", approver: true });
+  const results = await Promise.allSettled([
+    send(admin, { action: "remove", userId: editor.id }),
+    send(editor, { action: "remove", userId: admin.id }),
+  ]);
+  expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+  const admins = await prisma.teamMember.findMany({ where: { workspaceId: wid, role: "Admin" } });
+  expect(admins).toHaveLength(1);
+  expect((await prisma.teamWorkspace.findUniqueOrThrow({ where: { id: wid } })).creatorId).toBe(admins[0].userId);
+});
+
+it("lets the owner remove themself once another member is an admin", async () => {
+  await setup();
+  await prisma.teamInvite.create({
+    data: {
+      workspaceId: wid,
+      email: "pending@example.test",
+      role: "Admin",
+      approver: true,
+      expiresAt: new Date(Date.now() + 60_000),
+    },
+  });
+  await expect(send(admin, { action: "remove", userId: admin.id })).rejects.toThrow("last admin");
+  await send(admin, { action: "member", userId: editor.id, role: "Admin", approver: true });
+
+  await send(admin, { action: "remove", userId: admin.id });
+
+  expect(await readWorkspace(editor, wid)).toMatchObject({ creatorId: editor.id, member: { role: "Admin" } });
+  await expect(readWorkspace(admin, wid)).rejects.toThrow("Workspace not found");
 });

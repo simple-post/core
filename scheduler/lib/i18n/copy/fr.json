@@ -1,4 +1,7 @@
 {
+  "Different Instagram account selected": "Un autre compte Instagram a été sélectionné",
+  "Switch to the Instagram account you originally connected to SimplePost, then try again.": "Passe au compte Instagram que tu avais connecté à SimplePost, puis réessaie.",
+  "Account to reconnect": "Compte à reconnecter",
   "Automate posting with n8n": "Automatisez la publication avec n8n",
   "Finish on {{platform}} to return to SimplePost.": "Terminez sur {{platform}} pour revenir à SimplePost.",
   "Install the SimplePost community node, then use an API key from this page as its credential.": "Installez le nœud communautaire SimplePost, puis utilisez une clé API de cette page pour vous authentifier.",

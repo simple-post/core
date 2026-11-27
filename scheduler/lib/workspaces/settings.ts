@@ -1,20 +1,45 @@
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/utils/errors";
 
+import { normalizeWorkspaceLogo } from "./logo";
+import { transferWorkspaceOwnership } from "./ownership";
+import { saveWorkflow } from "./workflow";
+
 import type { Tx } from "./access";
 import type { WorkspaceCommand } from "./contracts";
 
 type Settings = Extract<
   WorkspaceCommand,
-  { action: "settings" | "member" | "invite" | "revoke" | "remove" | "state" | "deleteState" | "removeFile" }
+  {
+    action:
+      | "settings"
+      | "member"
+      | "invite"
+      | "resendInvite"
+      | "workflow"
+      | "revoke"
+      | "remove"
+      | "state"
+      | "deleteState"
+      | "removeFile";
+  }
 >;
-export async function changeSettings(tx: Tx, workspaceId: string, cmd: Settings) {
+export async function changeSettings(tx: Tx, workspaceId: string, cmd: Settings, successor?: string) {
   const workspace = await tx.teamWorkspace.findUniqueOrThrow({ where: { id: workspaceId } });
   switch (cmd.action) {
     case "settings": {
       return tx.teamWorkspace.update({
         where: { id: workspaceId },
-        data: { name: cmd.name, icon: cmd.icon, description: cmd.description, color: cmd.color },
+        data: {
+          name: cmd.name,
+          icon: cmd.icon,
+          description: cmd.description,
+          color: cmd.color,
+          logo: await normalizeWorkspaceLogo(cmd.logo),
+        },
       });
+    }
+    case "workflow": {
+      return saveWorkflow(tx, workspaceId, cmd);
     }
     case "removeFile": {
       // The caller holds the same workspace lock as edits and review creation.
@@ -36,7 +61,17 @@ export async function changeSettings(tx: Tx, workspaceId: string, cmd: Settings)
         })
       )
         throw new ConflictError("Already a member");
-      await tx.teamInvite.deleteMany({ where: { workspaceId, email: cmd.email } });
+      const previous = await tx.teamInvite.findUnique({
+        where: { workspaceId_email: { workspaceId, email: cmd.email } },
+      });
+      if (
+        previous &&
+        previous.expiresAt > new Date() &&
+        previous.role === cmd.role &&
+        previous.approver === cmd.approver
+      )
+        return previous;
+      if (previous) await tx.teamInvite.delete({ where: { id: previous.id } });
       return tx.teamInvite.create({
         data: {
           workspaceId,
@@ -47,18 +82,43 @@ export async function changeSettings(tx: Tx, workspaceId: string, cmd: Settings)
         },
       });
     }
+    case "resendInvite": {
+      const invite = await tx.teamInvite.findFirst({
+        where: { id: cmd.inviteId, workspaceId, expiresAt: { gt: new Date() } },
+      });
+      if (!invite) throw new NotFoundError("Invitation expired or unavailable");
+      return invite;
+    }
     case "revoke": {
       return tx.teamInvite.deleteMany({ where: { workspaceId, id: cmd.inviteId } });
     }
     case "member":
     case "remove": {
-      if (cmd.userId === workspace.creatorId && (cmd.action === "remove" || cmd.role !== "Admin"))
-        throw new BadRequestError("The workspace creator must remain an Admin");
       const where = { workspaceId_userId: { workspaceId, userId: cmd.userId } };
-      if (!(await tx.teamMember.findUnique({ where, select: { userId: true } })))
-        throw new NotFoundError("Member not found");
-      if (cmd.action === "member")
+      const target = await tx.teamMember.findUnique({ where, select: { role: true } });
+      if (!target) throw new NotFoundError("Member not found");
+      if (cmd.action === "member") {
+        if (cmd.userId === workspace.creatorId && cmd.role !== "Admin")
+          throw new BadRequestError("Remove the workspace owner to hand ownership to another admin.");
         return tx.teamMember.update({ where, data: { role: cmd.role, approver: cmd.approver } });
+      }
+      if (target.role === "Admin") {
+        const remaining = await tx.teamMember.findFirst({
+          where: { workspaceId, userId: { not: cmd.userId }, role: "Admin" },
+          select: { userId: true },
+        });
+        if (!remaining) throw new ConflictError("Add another admin before removing the last admin.");
+      }
+      if (cmd.userId === workspace.creatorId) {
+        const next =
+          successor &&
+          (await tx.teamMember.findFirst({
+            where: { workspaceId, userId: successor, role: "Admin" },
+            select: { userId: true },
+          }));
+        if (!next) throw new ConflictError("Workspace admins changed. Reload and try again.");
+        await transferWorkspaceOwnership(tx, workspaceId, cmd.userId, next.userId);
+      }
       await tx.teamPost.updateMany({
         where: { workspaceId, ownerId: cmd.userId },
         data: { ownerId: null, revision: { increment: 1 } },

@@ -37,9 +37,11 @@ it.each([
 
 it("revocation cuts off the same signed-in session on its next request", async () => {
   jest.mocked(hasFeature).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-  jest
-    .mocked(listWorkspaces)
-    .mockResolvedValue({ personal: { name: "Personal", color: "slate" }, workspaces: [], invites: [] });
+  jest.mocked(listWorkspaces).mockResolvedValue({
+    personal: { name: "Personal Workspace", color: "none", logo: null },
+    workspaces: [],
+    invites: [],
+  });
   const enabled = await list(req);
   const revoked = await list(req);
   expect(enabled.status).toBe(200);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { workspaceColors } from "./colors";
+import { isCustomWorkspaceColor, workspaceColors } from "./colors";
 
 export const roles = ["Admin", "Editor", "Viewer"] as const;
 export const platforms = ["instagram", "tiktok", "linkedin"] as const;
@@ -8,10 +8,25 @@ const id = z.string().min(1).max(128);
 const name = z.string().trim().min(1).max(80);
 const role = z.enum(roles);
 const timestamp = z.iso.datetime().transform((value) => new Date(value).toISOString());
-export const personalWorkspaceFields = z.object({ name, color: z.enum(workspaceColors) });
+const workspaceColor = z
+  .union([
+    z.enum(workspaceColors),
+    z.custom<`#${string}`>(
+      (value) => typeof value === "string" && isCustomWorkspaceColor(value),
+      "Enter a six-digit hex color",
+    ),
+  ])
+  .transform((color) => color.toLowerCase() as typeof color);
+const logo = z
+  .string()
+  .max(1_400_000)
+  .regex(/^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i)
+  .nullable()
+  .optional();
+export const personalWorkspaceFields = z.object({ name, color: workspaceColor, logo });
 export const workspaceFields = z.object({
   name,
-  color: z.enum(workspaceColors).optional(),
+  color: workspaceColor.optional(),
   icon: z.string().trim().min(1).max(12),
   description: z.string().trim().max(500),
 });
@@ -44,7 +59,15 @@ const fields = snapshotSchema.extend({ ownerId: id.nullable(), dueAt: timestamp.
 const postRef = { postId: id, revision: z.int().positive() };
 const membership = { role, approver: z.boolean() };
 export const commandSchema = z.discriminatedUnion("action", [
-  workspaceFields.extend({ action: z.literal("settings") }),
+  workspaceFields.extend({ action: z.literal("settings"), logo }),
+  z.object({
+    action: z.literal("workflow"),
+    expected: z.array(z.object({ id, name, position: z.int() })).max(1002),
+    states: z
+      .array(z.object({ id: id.optional(), name }))
+      .min(3)
+      .max(1001),
+  }),
   z.object({
     action: z.literal("invite"),
     email: z
@@ -54,6 +77,7 @@ export const commandSchema = z.discriminatedUnion("action", [
     ...membership,
   }),
   z.object({ action: z.literal("revoke"), inviteId: id }),
+  z.object({ action: z.literal("resendInvite"), inviteId: id }),
   z.object({ action: z.literal("removeFile"), fileId: id }),
   z.object({ action: z.literal("member"), userId: id, ...membership }),
   z.object({ action: z.literal("remove"), userId: id }),

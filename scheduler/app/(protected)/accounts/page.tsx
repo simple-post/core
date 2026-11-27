@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { AccountAvatar } from "@/components/account-avatar";
 import { AssistantConnectionHandoff } from "@/components/accounts/assistant-connection-handoff";
+import { InstagramReconnectDialog } from "@/components/accounts/instagram-reconnect-dialog";
 import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIcon, PlatformIconBadge } from "@/components/platform-icons";
@@ -40,6 +41,14 @@ import type { ConnectedAccount } from "@/types";
 
 const CONNECTION_RETURN_KEY = "simplepost:account-connection:return";
 const WORKSPACE_RETURN_PATH = "/accounts?source=workspace";
+
+function clearConnectionReturn() {
+  try {
+    window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
+  } catch {
+    // Storage can be unavailable.
+  }
+}
 
 function getCredentialBadge(account: ConnectedAccount): string | null {
   const status = account.credentialStatus;
@@ -376,12 +385,27 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
   const connectingName =
     getPlatformById(connectingPlatform?.platform ?? "")?.name ?? connectingPlatform?.platform ?? "";
 
+  const instagramReconnectId =
+    connectionError === "oauthReconnectAccountMismatch" ? searchParams.get("instagramReconnect") : null;
+  const instagramReconnectAccount = accounts.find(
+    (account) => account.id === instagramReconnectId && account.platform === "instagram",
+  );
+  function dismissInstagramReconnect() {
+    setConnectionError(null);
+    setRecoveryReturnTo(null);
+    clearConnectionReturn();
+    const params = new URLSearchParams(searchParams);
+    params.delete("error");
+    params.delete("instagramReconnect");
+    router.replace(params.size > 0 ? `/accounts?${params}` : "/accounts", { scroll: false });
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-[clamp(18px,4vw,48px)] py-6">
-        {connectionError && (
+        {connectionError && !instagramReconnectId && (
           <Alert variant="destructive" className="mb-4" role="alert">
             <AlertDescription className="space-y-3">
               <p>
@@ -394,15 +418,7 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
               {searchParams.get("source") === "assistant_handoff" && <p>{t("returnFreshLink")}</p>}
               {recoveryReturnTo && recoveryReturnTo !== "/accounts" && (
                 <Button asChild size="sm" variant="outline">
-                  <Link
-                    href={resumeRecoveryHref(recoveryReturnTo)}
-                    onClick={() => {
-                      try {
-                        window.sessionStorage.removeItem(CONNECTION_RETURN_KEY);
-                      } catch {
-                        /* No storage means no retained return destination. */
-                      }
-                    }}>
+                  <Link href={resumeRecoveryHref(recoveryReturnTo)} onClick={clearConnectionReturn}>
                     {recoveryReturnTo === "/"
                       ? t("backDashboard")
                       : recoveryReturnTo === WORKSPACE_RETURN_PATH ||
@@ -559,6 +575,21 @@ function ScopedAccountsPage({ workspaceId, canManage }: { workspaceId: string | 
           </div>
         )}
       </main>
+
+      <InstagramReconnectDialog
+        open={Boolean(instagramReconnectId && !connectingPlatform)}
+        account={instagramReconnectAccount}
+        backHref={
+          recoveryReturnTo && recoveryReturnTo !== accountsHref ? resumeRecoveryHref(recoveryReturnTo) : undefined
+        }
+        onBack={clearConnectionReturn}
+        onDismiss={dismissInstagramReconnect}
+        onRetry={
+          instagramReconnectAccount && pilotConnection && !featuresPending && !readOnly
+            ? () => handleConnect("instagram", recoveryReturnTo ?? accountsHref, instagramReconnectAccount.id)
+            : undefined
+        }
+      />
 
       <Dialog open={connectingPlatform?.pilot === true}>
         <DialogContent

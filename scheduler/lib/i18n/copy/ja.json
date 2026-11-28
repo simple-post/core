@@ -1,5 +1,6 @@
 {
   "Different Instagram account selected": "別のInstagramアカウントが選択されました",
+  "If your post needs the Paid Partnership label, publish it directly in the Threads app.": "投稿にタイアップラベルが必要な場合は、Threadsアプリから直接投稿してください。",
   "Switch to the Instagram account you originally connected to SimplePost, then try again.": "最初にSimplePostに連携したInstagramアカウントに切り替えて、もう一度お試しください。",
   "Account to reconnect": "再連携するアカウント",
   "Automate posting with n8n": "n8n で投稿を自動化",
@@ -560,7 +561,6 @@
   "No accounts connected yet": "接続済みのアカウントがまだありません",
   "No active plan": "有効なプランがありません",
   "No activity matches these filters.": "条件に一致するアクティビティはありません。",
-  "No additional options required for Threads posts.": "Threads の投稿に追加設定は不要です。",
   "No additional options required. Media and captions will be posted as configured above.": "追加設定は不要です。メディアとキャプションは上で指定したとおりに投稿されます。",
   "No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).": "追加設定は不要です。テキスト、画像は最大4枚、または MP4 動画1本（300 MB、10分）を投稿できます。",
   "No additional options required. Text and a single media item are supported.": "追加設定は不要です。テキストとメディア1件を投稿できます。",

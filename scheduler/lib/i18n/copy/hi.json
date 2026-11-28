@@ -1,5 +1,6 @@
 {
   "Different Instagram account selected": "कोई दूसरा Instagram खाता चुना गया",
+  "If your post needs the Paid Partnership label, publish it directly in the Threads app.": "अगर आपकी पोस्ट के लिए सशुल्क साझेदारी का लेबल ज़रूरी है, तो उसे सीधे Threads ऐप में प्रकाशित करें।",
   "Switch to the Instagram account you originally connected to SimplePost, then try again.": "उस Instagram खाते पर स्विच करें जिसे आपने पहले SimplePost से जोड़ा था, फिर दोबारा कोशिश करें।",
   "Account to reconnect": "दोबारा जोड़ने वाला खाता",
   "Automate posting with n8n": "n8n से पोस्ट प्रकाशित करना स्वचालित करें",
@@ -566,7 +567,6 @@
   "No accounts connected yet": "अभी तक कोई खाता नहीं जुड़ा है",
   "No active plan": "कोई चालू प्लान नहीं",
   "No activity matches these filters.": "इन फ़िल्टर से मेल खाने वाली कोई गतिविधि नहीं है।",
-  "No additional options required for Threads posts.": "Threads पोस्ट के लिए कोई अतिरिक्त विकल्प ज़रूरी नहीं है।",
   "No additional options required. Media and captions will be posted as configured above.": "कोई अतिरिक्त विकल्प ज़रूरी नहीं है। मीडिया और कैप्शन ऊपर की सेटिंग के मुताबिक पोस्ट होंगे।",
   "No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).": "कोई अतिरिक्त विकल्प ज़रूरी नहीं है। टेक्स्ट, ज़्यादा से ज़्यादा 4 इमेज या एक MP4 वीडियो (300 MB, 10 मिनट) पोस्ट करें।",
   "No additional options required. Text and a single media item are supported.": "कोई अतिरिक्त विकल्प ज़रूरी नहीं है। टेक्स्ट और एक मीडिया आइटम पोस्ट कर सकते हैं।",

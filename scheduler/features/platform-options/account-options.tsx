@@ -1205,10 +1205,9 @@ export function AccountOptionsComponent({
               </p>
             )}
 
-            {/* Threads - No additional options needed */}
             {account.platform === "threads" && (
               <p className="text-xs text-muted-foreground">
-                {copy("No additional options required for Threads posts.")}
+                {copy("If your post needs the Paid Partnership label, publish it directly in the Threads app.")}
               </p>
             )}
 

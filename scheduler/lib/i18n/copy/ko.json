@@ -1,5 +1,6 @@
 {
   "Different Instagram account selected": "다른 Instagram 계정을 선택했습니다",
+  "If your post needs the Paid Partnership label, publish it directly in the Threads app.": "게시물에 유료 파트너십 라벨이 필요하면 Threads 앱에서 직접 게시하세요.",
   "Switch to the Instagram account you originally connected to SimplePost, then try again.": "처음 SimplePost에 연결한 Instagram 계정으로 전환한 뒤 다시 시도하세요.",
   "Account to reconnect": "다시 연결할 계정",
   "Automate posting with n8n": "n8n으로 게시 자동화",
@@ -560,7 +561,6 @@
   "No accounts connected yet": "아직 연결된 계정이 없습니다",
   "No active plan": "활성 요금제 없음",
   "No activity matches these filters.": "필터에 맞는 활동이 없습니다.",
-  "No additional options required for Threads posts.": "Threads 게시물에는 추가 옵션이 필요하지 않습니다.",
   "No additional options required. Media and captions will be posted as configured above.": "추가 옵션이 필요하지 않습니다. 미디어와 캡션은 위 설정대로 게시됩니다.",
   "No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).": "추가 옵션이 필요하지 않습니다. 텍스트, 이미지 최대 4장 또는 MP4 동영상 1개(300 MB, 10분)를 게시할 수 있습니다.",
   "No additional options required. Text and a single media item are supported.": "추가 옵션이 필요하지 않습니다. 텍스트와 미디어 1개를 지원합니다.",

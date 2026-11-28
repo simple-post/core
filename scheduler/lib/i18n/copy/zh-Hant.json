@@ -1,5 +1,6 @@
 {
   "Different Instagram account selected": "選取了另一個 Instagram 帳號",
+  "If your post needs the Paid Partnership label, publish it directly in the Threads app.": "如果你的貼文需要付費合作標籤，請直接在 Threads 應用程式中發佈。",
   "Switch to the Instagram account you originally connected to SimplePost, then try again.": "請切換至最初連結至 SimplePost 的 Instagram 帳號，再試一次。",
   "Account to reconnect": "要重新連結的帳號",
   "Automate posting with n8n": "使用 n8n 自動發布貼文",
@@ -560,7 +561,6 @@
   "No accounts connected yet": "尚未連結帳號",
   "No active plan": "沒有有效方案",
   "No activity matches these filters.": "沒有符合篩選條件的動態。",
-  "No additional options required for Threads posts.": "Threads 貼文不需要額外設定。",
   "No additional options required. Media and captions will be posted as configured above.": "不需要額外設定。媒體和說明文字會依上方設定發佈。",
   "No additional options required. Post text, up to 4 images, or one MP4 video (300 MB, 10 minutes).": "不需要額外設定。可發佈文字、最多 4 張圖片或 1 部 MP4 影片（300 MB、10 分鐘）。",
   "No additional options required. Text and a single media item are supported.": "不需要額外設定。支援文字和 1 個媒體項目。",

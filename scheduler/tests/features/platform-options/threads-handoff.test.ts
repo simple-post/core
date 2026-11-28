@@ -31,7 +31,7 @@ it("opens the official composer with the effective caption and keeps photos sepa
 
   expect(results).toHaveLength(1);
   const [result] = results;
-  expect(result).toMatchObject({ account, caption, media: [overrideImage] });
+  expect(result).toMatchObject({ account, caption, media: [overrideImage], draftPath: "/posts/draft-1" });
   const intent = new URL(result.intentUrl);
   expect(intent.origin + intent.pathname).toBe("https://www.threads.com/intent/post");
   expect([...intent.searchParams]).toEqual([["text", caption]]);

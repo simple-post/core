@@ -3,6 +3,7 @@ import type { ConnectedAccount, SocialPost } from "@/types";
 export function getThreadsDraftHandoffs(post: SocialPost, accounts: ConnectedAccount[]) {
   if (post.status !== "draft" || post.workspaceReviewId || post.quotePostId) return [];
 
+  const draftPath = `/posts/${encodeURIComponent(post.id)}`;
   return accounts.flatMap((account) => {
     if (
       account.platform !== "threads" ||
@@ -19,6 +20,6 @@ export function getThreadsDraftHandoffs(post: SocialPost, accounts: ConnectedAcc
 
     const intent = new URL("https://www.threads.com/intent/post");
     if (caption) intent.searchParams.set("text", caption);
-    return [{ account, caption, media, intentUrl: intent.href }];
+    return [{ account, caption, media, draftPath, intentUrl: intent.href }];
   });
 }

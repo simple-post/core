@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { ArrowUpRight, Download } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -25,12 +26,14 @@ export function ThreadsDraftHandoff({
   account,
   caption,
   media,
+  draftPath,
   intentUrl,
   showAccount,
 }: ReturnType<typeof getThreadsDraftHandoffs>[number] & { showAccount: boolean }) {
   const { copy } = useUiCopy();
   const { t } = useUiTranslation();
   const accountName = getAccountDisplayName(account);
+  const [draftUrl, setDraftUrl] = useState("");
   const [downloading, setDownloading] = useState<number | null>(null);
   const [failedDownload, setFailedDownload] = useState<number | null>(null);
 
@@ -58,7 +61,10 @@ export function ThreadsDraftHandoff({
   }
 
   return (
-    <Dialog>
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) setDraftUrl(new URL(draftPath, window.location.origin).href);
+      }}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm">
           <ArrowUpRight aria-hidden="true" className="size-4" />
@@ -71,11 +77,18 @@ export function ThreadsDraftHandoff({
           <DialogTitle>{copy("Finish in Threads")}</DialogTitle>
           <DialogDescription>
             {copy(
-              "Open Threads as {{account}}. Attach any media below, then select Options → Mark as paid partnership before posting. Check for the label on the live post.",
+              "Open the Threads mobile app as {{account}}. Attach any media below, then select Options → Mark as paid partnership before posting. Check for the label on the live post.",
               { account: accountName },
             )}
           </DialogDescription>
         </DialogHeader>
+
+        {draftUrl && (
+          <div className="hidden items-center gap-4 rounded-lg border border-border p-3 sm:flex">
+            <QRCodeSVG aria-hidden="true" className="shrink-0 rounded-sm" size={104} marginSize={4} value={draftUrl} />
+            <p className="text-sm text-muted-foreground">{copy("Scan to open this draft on your phone.")}</p>
+          </div>
+        )}
 
         {caption && (
           <Textarea

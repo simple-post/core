@@ -6,9 +6,7 @@
     "app/api/v1/posts/openapi.ts:47",
     "app/mcp/route.ts:160"
   ],
-  "Validation cannot verify the native Threads Paid Partnership label.": [
-    "app/api/v1/validation/openapi.ts:17"
-  ],
+  "Validation cannot verify the native Threads Paid Partnership label.": ["app/api/v1/validation/openapi.ts:17"],
   "{{count, number}} queued posts need this connection. Reconnect before your next scheduled post.": [
     "lib/notifications/disconnect-email.ts:40"
   ],

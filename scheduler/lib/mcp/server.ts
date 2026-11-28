@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { apiErrorLogPayload, ApiError } from "@/lib/utils/errors";
 import { queueStorageDeletion } from "@/lib/utils/storage-lifecycle";
 
-import { hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
+import { getAppBaseUrl, hasMcpScope, MCP_SCOPES, type McpScope } from "./config";
 import { formatConnectAccountsGuidance, NO_CONNECTED_ACCOUNTS_CODE } from "./connect-guidance";
 import { registerExtensionTools } from "./extensions/register";
 import { formatBytes, formatDateTime as formatUtcDateTime, platformLabel, plural } from "./format";
@@ -59,7 +59,7 @@ import { getTikTokCreatorInfo, getTikTokCreatorInfoSchema, getTikTokCreatorInfoO
 import { validatePost, validatePostOutputSchema, validatePostSchema } from "./tools/validation";
 import { POST_PREVIEW_WIDGET_URI, registerMcpUiResources, SCHEDULE_WIDGET_URI } from "./ui/resources";
 
-import type { PlacementResult } from "@simple-post/sdk";
+import type { AccountOptionsMap, PlacementResult } from "@simple-post/sdk";
 import type { z } from "zod";
 
 const log = createLogger("mcp:tools");
@@ -575,6 +575,17 @@ function scheduleSummary(result: Awaited<ReturnType<typeof getSchedule>>, openin
       });
 }
 
+function threadsDraftLink(post: {
+  id: string;
+  status: string;
+  accountIds: string[];
+  accountOptions?: AccountOptionsMap;
+}) {
+  if (post.status !== "draft" || !post.accountIds.some((id) => post.accountOptions?.[id]?.finishInThreads === true))
+    return "";
+  return `[${serverT("Finish in Threads")}](${getAppBaseUrl()}/posts/${encodeURIComponent(post.id)})`;
+}
+
 function formatCreatedPostDetails(result: {
   postingMode: string;
   mediaCount: number;
@@ -582,6 +593,7 @@ function formatCreatedPostDetails(result: {
     id: string;
     status: string;
     accountIds: string[];
+    accountOptions?: AccountOptionsMap;
     scheduledFor: string | null;
     publishedAt: string | null;
     quotePostId: string | null;
@@ -618,6 +630,7 @@ function formatCreatedPostDetails(result: {
     mcpText("mcpPostDetails"),
     `${mcpText("mcpPostId", { id: post.id })} · ${statusLabel(post.status)}`,
     outcome,
+    threadsDraftLink(post),
     result.postingResults.length === 0 ? mcpText("mcpAccountIds", { ids: post.accountIds.join(", ") }) : "",
     post.scheduledFor ? mcpText("mcpScheduledAt", { date: formatDateTime(post.scheduledFor) }) : "",
     post.publishedAt ? mcpText("mcpPublishedAt", { date: formatDateTime(post.publishedAt) }) : "",
@@ -635,6 +648,7 @@ function formatManagedPostDetails(post: {
   status: string;
   message: string;
   accountIds: string[];
+  accountOptions?: AccountOptionsMap;
   accounts: AccountSummary[];
   thread?: Array<{ message?: string }>;
   scheduledFor: string | null;
@@ -647,6 +661,7 @@ function formatManagedPostDetails(post: {
 }): string {
   return [
     `${mcpText("mcpPostId", { id: post.id })} · ${statusLabel(post.status)}`,
+    threadsDraftLink(post),
     formatManagedPostContent(post),
     post.accounts.length > 0
       ? `${mcpText("accounts")}: ${post.accounts.map((account) => formatAccount(account)).join("; ")}`

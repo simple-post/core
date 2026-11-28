@@ -1206,9 +1206,21 @@ export function AccountOptionsComponent({
             )}
 
             {account.platform === "threads" && (
-              <p className="text-xs text-muted-foreground">
-                {copy("If your post needs the Paid Partnership label, publish it directly in the Threads app.")}
-              </p>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id={`${account.id}-finishInThreads`}
+                  checked={accountOptions.finishInThreads === true}
+                  onCheckedChange={(checked) => updateOption(account.id, "finishInThreads", checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor={`${account.id}-finishInThreads`} className="text-sm cursor-pointer">
+                    {copy("Requires the Threads Paid Partnership label")}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {copy("Save as a draft to apply the label and publish in Threads.")}
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* LinkedIn Options */}

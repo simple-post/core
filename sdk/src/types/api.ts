@@ -20,6 +20,10 @@ export type MediaFile = z.infer<typeof MediaFileSchema>;
 export const AccountOptionsValueSchema = z
   .object({
     replyToId: z.string().optional(),
+    finishInThreads: z
+      .boolean()
+      .optional()
+      .describe("Threads: hold this target as a draft for manual publication with the native Paid Partnership label."),
     tags: z.array(z.string()).optional(),
     categoryId: z.string().optional(),
     playlistId: z

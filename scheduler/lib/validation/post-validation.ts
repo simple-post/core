@@ -78,6 +78,23 @@ function getTikTokPrivacyLevel(options: Record<string, unknown>): string | undef
 }
 
 function validateAccountOptions(account: ConnectedAccount, accountOptions?: AccountOptionsMap): ValidationIssue[] {
+  if (mapPlatformName(account.platform) === "threads" && accountOptions?.[account.id]?.finishInThreads === true) {
+    const threadsHandoffRequiredMessage =
+      "This Threads post requires the native Paid Partnership label. Save a draft and finish it in Threads.";
+    return [
+      describeDisplayMessage(
+        {
+          platform: "threads",
+          severity: "error",
+          code: "threads_handoff_required",
+          message: threadsHandoffRequiredMessage,
+          field: "accountOptions.finishInThreads",
+          meta: { accountId: account.id },
+        },
+        threadsHandoffRequiredMessage,
+      ),
+    ];
+  }
   if (mapPlatformName(account.platform) === "youtube" && accountOptions?.[account.id]?.playlistId) {
     return [
       describeDisplayMessage(

@@ -31,6 +31,7 @@ import { toAccountResultsMap, videoPlacementsChanged } from "@/lib/posting/accou
 import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { scheduleTikTokRetry } from "@/lib/posting/schedule-tiktok-retry";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { preserveThreadsHandoffOptions } from "@/lib/posting/threads-handoff-options";
 import { getTikTokPostRecovery, recoveryForResult } from "@/lib/posting/tiktok-recovery";
 import { executePostUpdate } from "@/lib/posting/update-post";
 import { prisma } from "@/lib/prisma";
@@ -1009,7 +1010,11 @@ export async function updateScheduledPost(userId: string, input: z.infer<typeof 
   let accountOptions = await resolveMcpAccountOptions(
     userId,
     accountIds,
-    input.accountOptions ?? currentPost.accountOptions,
+    preserveThreadsHandoffOptions(
+      accountIds,
+      currentPost.accountOptions,
+      input.accountOptions ?? currentPost.accountOptions,
+    ),
     media,
   );
   let thread =

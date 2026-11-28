@@ -257,12 +257,7 @@ export function TeamScreen({
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main
-        className={
-          view === "detail"
-            ? "mx-auto max-w-4xl px-[clamp(18px,4vw,48px)] py-6"
-            : "mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] py-6"
-        }>
+      <main className="mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] py-6">
         <BackLink
           href={view === "edit" && postId ? postHref(postId) : href("/")}
           label={view === "edit" ? "Back to post" : "Back to posts"}

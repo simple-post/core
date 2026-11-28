@@ -47,7 +47,13 @@ export type Workspace = {
   members: Member[];
   posts: Item[];
   files: FileInfo[];
-  accounts: { id: string; platform: string; displayName: string | null; username: string | null }[];
+  accounts: {
+    id: string;
+    platform: string;
+    platformAccountId: string;
+    displayName: string | null;
+    username: string | null;
+  }[];
   invites: { id: string; email: string; role: string; approver: boolean; emailSentAt?: string | null }[];
 };
 export type Run = (cmd: WorkspaceCommand) => Promise<boolean>;
@@ -56,6 +62,14 @@ export const platformName: Record<Variant["platform"], string> = {
   tiktok: "TikTok",
   linkedin: "LinkedIn",
 };
+export function workspaceAccountForVariant(accounts: Workspace["accounts"], variant: Variant) {
+  return accounts.find(
+    (account) =>
+      account.id === variant.accountId &&
+      account.platform === variant.platform &&
+      (!variant.destination || account.platformAccountId === variant.destination.platformAccountId),
+  );
+}
 export function localTime(iso: string) {
   const date = new Date(iso);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -95,4 +109,24 @@ export function deliveryStatus(post: Item) {
   const statuses = post.reviews.find((r) => r.id === post.currentReviewId)?.deliveries.map((d) => d.status) ?? [];
   if (statuses.length === 0 || statuses.some((s) => s === "failed" || s === "partial")) return "failed";
   return statuses.every((s) => s === "published") ? "published" : "scheduled";
+}
+
+const deliveryLabels = {
+  draft: "Draft",
+  scheduled: "Scheduled",
+  published: "Published",
+  failed: "Delivery needs attention",
+};
+
+export function workspacePostStatus(workspace: Workspace, post: Item, snapshot: Snapshot) {
+  const review = post.reviews.find((item) => item.id === post.currentReviewId);
+  const missingPlatforms = snapshot.variants
+    .filter((variant) => !variant.destination || !workspaceAccountForVariant(workspace.accounts, variant))
+    .map((variant) => platformName[variant.platform]);
+  const stage = workspace.states.find((state) => state.id === post.stateId)?.name ?? "Draft";
+  const delivery = deliveryStatus(post);
+  let label = review?.outcome === "changes" ? "Changes requested" : stage;
+  if (post.deliveredAt)
+    label = delivery === "failed" && !review?.deliveries.length ? "Canceled" : deliveryLabels[delivery];
+  return { label, missingPlatforms, timePassed: Date.parse(snapshot.plannedAt) <= Date.now() };
 }

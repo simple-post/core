@@ -11,7 +11,8 @@ import { validatePostForAccounts } from "@/lib/validation/sdk-validation";
 import type { MediaFile } from "@/types";
 
 import { authorize, lockWorkspace, membership, type Tx } from "./access";
-import { snapshotSchema, type Actor, type Variant } from "./contracts";
+import { requireWorkspaceDestinations } from "./connections";
+import { snapshotSchema, type Actor } from "./contracts";
 import { recordEvent } from "./posts";
 
 async function approved(tx: Tx, actor: Actor, workspaceId: string, postId: string, reviewId: string) {
@@ -25,38 +26,17 @@ async function approved(tx: Tx, actor: Actor, workspaceId: string, postId: strin
   if (!review || post.currentReviewId !== review.id || post.state.kind !== "approved")
     throw new ConflictError("Approve the current version before releasing it");
   const content = snapshotSchema.parse(review.snapshot);
-  if (content.variants.some((v) => v.accountId) && post.workspace.creatorId !== actor.id)
-    throw new ForbiddenError("Only the account owner can schedule connected destinations");
+  if (post.workspace.creatorId !== actor.id) throw new ForbiddenError("Only the workspace owner can schedule posts.");
   return { post, content };
-}
-
-async function verifyDestination(tx: Tx, userId: string, workspaceId: string, v: Variant) {
-  const account = await tx.connectedAccount.findFirst({
-    where: {
-      userId,
-      workspaceId,
-      id: v.accountId!,
-      platform: v.platform,
-      platformAccountId: v.destination!.platformAccountId,
-    },
-  });
-  if (!account)
-    throw new ConflictError(
-      "The reviewed destination is unavailable in this workspace. Edit the post, select a workspace account, and submit it again.",
-    );
 }
 
 export async function release(actor: Actor, workspaceId: string, postId: string, reviewId: string) {
   const { post, content } = await prisma.$transaction((tx) => approved(tx, actor, workspaceId, postId, reviewId));
   if (post.deliveredAt) return;
-  const connected = content.variants.filter((v) => v.accountId);
-  const prepared: { params: Parameters<typeof validatePostForAccounts>[0]; variant: Variant }[] = [];
+  const destinations = await requireWorkspaceDestinations(prisma, workspaceId, actor.id, content);
+  const prepared: Parameters<typeof validatePostForAccounts>[0][] = [];
   const uploaded = new Map<string, MediaFile>();
-  for (const variant of connected) {
-    if (new Date(content.plannedAt) <= new Date())
-      throw new BadRequestError("Choose a future time and resubmit for approval");
-    await verifyDestination(prisma, actor.id, workspaceId, variant);
-    const accountId = variant.accountId!;
+  for (const { variant, accountId } of destinations) {
     const media: MediaFile[] = [];
     for (const fileId of variant.fileIds) {
       let copy = uploaded.get(fileId);
@@ -95,18 +75,16 @@ export async function release(actor: Actor, workspaceId: string, postId: string,
       publishAt: new Date(content.plannedAt),
     });
     if (issues.length > 0) throw new BadRequestError(joinedValidationMessages(issues, " "));
-    prepared.push({ params, variant });
+    prepared.push(params);
   }
   return prisma.$transaction(async (tx) => {
     // Billing always locks the creator first. Uploads and platform checks run outside both locks.
-    if (connected.length > 0) await lockUserForQuota(tx, actor.id);
+    await lockUserForQuota(tx, actor.id);
     await lockWorkspace(tx, workspaceId);
     const current = await approved(tx, actor, workspaceId, postId, reviewId);
     if (current.post.deliveredAt) return;
-    if (prepared.length > 0 && new Date(content.plannedAt) <= new Date())
-      throw new ConflictError("The approved publication time has passed");
-    for (const { params, variant } of prepared) {
-      await verifyDestination(tx, actor.id, workspaceId, variant);
+    await requireWorkspaceDestinations(tx, workspaceId, actor.id, current.content);
+    for (const params of prepared) {
       await assertCanCreatePost(actor.id, tx);
       await new PostsModel(actor.id).createPost(
         { ...params, workspaceReviewId: reviewId, scheduledFor: new Date(content.plannedAt), status: "scheduled" },
@@ -115,7 +93,7 @@ export async function release(actor: Actor, workspaceId: string, postId: string,
       );
     }
     await tx.teamPost.update({ where: { id: postId }, data: { deliveredAt: new Date(), revision: { increment: 1 } } });
-    await recordEvent(tx, postId, actor, prepared.length > 0 ? "scheduled" : "published natively", "", reviewId);
+    await recordEvent(tx, postId, actor, "scheduled", "", reviewId);
   });
 }
 

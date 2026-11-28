@@ -2,7 +2,7 @@ import { hasFeature } from "@/lib/features";
 import { prisma } from "@/lib/prisma";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/utils/errors";
 
-import { workspaceFields, type Actor } from "./contracts";
+import { platforms, workspaceFields, type Actor } from "./contracts";
 
 import type { Prisma } from "@prisma/client";
 
@@ -119,13 +119,11 @@ export async function readWorkspace(actor: Actor, id: string) {
             member.role === "Admin" ? { where: { expiresAt: { gt: new Date() } }, orderBy: { email: "asc" } } : false,
         },
       });
-      const accounts =
-        actor.id === workspace.creatorId
-          ? await tx.connectedAccount.findMany({
-              where: { userId: actor.id, workspaceId: id, platform: { in: ["instagram", "tiktok", "linkedin"] } },
-              select: { id: true, platform: true, username: true, displayName: true },
-            })
-          : [];
+      const accounts = await tx.connectedAccount.findMany({
+        where: { userId: workspace.creatorId, workspaceId: id, platform: { in: [...platforms] } },
+        select: { id: true, platform: true, username: true, displayName: true, platformAccountId: true },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      });
       return { ...workspace, invites: workspace.invites ?? [], member, accounts };
     },
     { isolationLevel: "RepeatableRead" },

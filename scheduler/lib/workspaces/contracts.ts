@@ -52,7 +52,7 @@ export const snapshotSchema = z.object({
   variants: z
     .array(variantSchema)
     .min(1)
-    .max(3)
+    .max(platforms.length)
     .refine((v) => new Set(v.map((item) => item.platform)).size === v.length, "Choose each platform once"),
 });
 const fields = snapshotSchema.extend({ ownerId: id.nullable(), dueAt: timestamp.nullable() });

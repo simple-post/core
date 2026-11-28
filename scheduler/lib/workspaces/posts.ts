@@ -1,9 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 
 import { prisma } from "@/lib/prisma";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/lib/utils/errors";
+import { BadRequestError, ConflictError, NotFoundError } from "@/lib/utils/errors";
 
 import { authorize, lockWorkspace, membership, type Tx } from "./access";
+import { requireWorkspaceDestinations } from "./connections";
 import { snapshotSchema, type Actor, type Snapshot, type WorkspaceCommand } from "./contracts";
 import { prepareOwnerRemoval } from "./ownership";
 import { changeSettings } from "./settings";
@@ -30,7 +31,10 @@ export async function runCommand(
     }
     const post =
       "postId" in cmd
-        ? await tx.teamPost.findFirst({ where: { id: cmd.postId, workspaceId }, include: { state: true } })
+        ? await tx.teamPost.findFirst({
+            where: { id: cmd.postId, workspaceId },
+            include: { state: true, workspace: { select: { creatorId: true } } },
+          })
         : null;
     if (cmd.action !== "createPost" && !post) throw new NotFoundError("Post not found");
     const states = await tx.teamState.findMany({ where: { workspaceId } });
@@ -46,6 +50,10 @@ export async function runCommand(
       const review = await tx.teamReview.findFirstOrThrow({ where: { id: cmd.reviewId, postId: cmd.postId } });
       if (review.outcome === cmd.outcome && review.decidedBy === actor.id) return;
       if (review.outcome || post.state.kind !== "review") stale();
+      if (cmd.outcome === "approved") {
+        const snapshot = snapshotSchema.parse(review.snapshot);
+        await requireWorkspaceDestinations(tx, workspaceId, post.workspace.creatorId, snapshot);
+      }
       await tx.teamReview.update({
         where: { id: review.id },
         data: { outcome: cmd.outcome, decidedBy: actor.id, decidedAt: new Date() },
@@ -77,6 +85,7 @@ export async function runCommand(
       if (post.state.kind === "review") return { id: post.currentReviewId };
       if (current.variants.some((v) => !v.caption.trim() && v.fileIds.length === 0))
         throw new BadRequestError("Add a caption or media to each platform");
+      await requireWorkspaceDestinations(tx, workspaceId, post.workspace.creatorId, current);
       const review = await tx.teamReview.create({
         data: { postId: post.id, snapshot: current, requestedBy: actor.id },
       });
@@ -89,7 +98,8 @@ export async function runCommand(
     }
     if (cmd.action === "move" && post) {
       const next = states.find((s) => s.id === cmd.stateId);
-      if (post.deliveredAt || !next || ["approved", "review"].includes(next.kind))
+      if (!next) throw new ConflictError("This workflow state was removed. Reload the post and try again.");
+      if (post.deliveredAt || ["approved", "review"].includes(next.kind))
         throw new BadRequestError("Use a review decision to enter this state");
       if (post.stateId === next.id) return;
       await invalidate();
@@ -112,24 +122,23 @@ export async function runCommand(
         continue;
       }
       const prior = current?.variants.find((old) => old.platform === v.platform && old.accountId === v.accountId);
-      if (!prior && actor.id !== workspace.creatorId)
-        throw new ForbiddenError("Only the creator can select a connected destination");
-      const account = await tx.connectedAccount.findFirst({
-        where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
-      });
-      if (prior && (!account || prior.destination?.platformAccountId === account.platformAccountId)) {
+      if (
+        prior?.destination &&
+        (!v.destination || v.destination.platformAccountId === prior.destination.platformAccountId)
+      ) {
         v.destination = prior.destination;
         continue;
       }
-      if (!account)
+      const account = await tx.connectedAccount.findFirst({
+        where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
+      });
+      if (!account || (v.destination && v.destination.platformAccountId !== account.platformAccountId))
         throw new BadRequestError("Connected destination unavailable. Choose an account connected to this workspace.");
       v.destination = {
         label: account.displayName || account.username || account.platformAccountId,
         platformAccountId: account.platformAccountId,
       };
     }
-    if (snapshot.variants.some((v) => v.accountId) && snapshot.variants.some((v) => !v.accountId))
-      throw new BadRequestError("Use separate posts for native and SimplePost publishing");
     const data = {
       ...snapshot,
       plannedAt: new Date(snapshot.plannedAt),

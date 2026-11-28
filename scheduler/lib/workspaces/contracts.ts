@@ -52,7 +52,7 @@ export const snapshotSchema = z.object({
   variants: z
     .array(variantSchema)
     .min(1)
-    .max(3)
+    .max(platforms.length)
     .refine((v) => new Set(v.map((item) => item.platform)).size === v.length, "Choose each platform once"),
 });
 const fields = snapshotSchema.extend({ ownerId: id.nullable(), dueAt: timestamp.nullable() });
@@ -87,13 +87,18 @@ export const commandSchema = z.discriminatedUnion("action", [
   fields.extend({ action: z.literal("edit"), ...postRef }),
   z.object({ action: z.literal("move"), ...postRef, stateId: id }),
   z.object({ action: z.literal("submit"), ...postRef }),
-  z.object({
-    action: z.literal("decide"),
-    postId: id,
-    reviewId: id,
-    outcome: z.enum(["approved", "changes"]),
-    body: z.string().trim().max(4000),
-  }),
+  z
+    .object({
+      action: z.literal("decide"),
+      postId: id,
+      reviewId: id,
+      outcome: z.enum(["approved", "changes"]),
+      body: z.string().trim().max(4000),
+    })
+    .refine((value) => value.outcome === "approved" || value.body.length > 0, {
+      path: ["body"],
+      message: "Describe the changes you’re requesting.",
+    }),
   z.object({ action: z.literal("comment"), postId: id, body: z.string().trim().min(1).max(4000) }),
   z.object({ action: z.literal("release"), postId: id, reviewId: id }),
   z.object({ action: z.literal("cancelDelivery"), postId: id, deliveryId: id }),

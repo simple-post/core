@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Link from "next/link";
 
@@ -15,16 +15,28 @@ import { maxFileSize, platforms, type Variant } from "@/lib/workspaces/contracts
 
 import { WorkspacePreview, variantMedia, workspaceMedia } from "./preview";
 import { workspaceHref } from "./switcher";
-import { localTime, platformName, request, type FileInfo, type Item, type Run, type Workspace } from "./types";
+import {
+  localTime,
+  platformName,
+  request,
+  workspaceAccountForVariant,
+  type FileInfo,
+  type Item,
+  type Run,
+  type Workspace,
+} from "./types";
 
-const freshVariant = (platform: Variant["platform"]): Variant => ({
-  platform,
-  caption: "",
-  accountId: null,
-  destination: null,
-  fileIds: [],
-  options: {},
-});
+function freshVariant(platform: Variant["platform"], accounts: Workspace["accounts"]): Variant {
+  const matches = accounts.filter((account) => account.platform === platform);
+  return {
+    platform,
+    caption: "",
+    accountId: matches.length === 1 ? matches[0].id : null,
+    destination: null,
+    fileIds: [],
+    options: {},
+  };
+}
 export function PostEditor({
   workspace: w,
   post,
@@ -39,15 +51,56 @@ export function PostEditor({
   plannedDay?: Date;
 }) {
   const [baseRevision] = useState(post?.revision);
-  const [variants, setVariants] = useState<Variant[]>(post?.variants ?? [freshVariant("instagram")]);
+  const connectedPlatforms = platforms.filter((platform) =>
+    w.accounts.some((account) => account.platform === platform),
+  );
+  const [variants, setVariants] = useState<Variant[]>(
+    () => post?.variants ?? [freshVariant(connectedPlatforms[0] ?? "instagram", w.accounts)],
+  );
+  const deselectedVariants = useRef<Partial<Record<Variant["platform"], Variant>>>({});
   const [files, setFiles] = useState(w.files);
   const [uploading, setUploading] = useState(false);
   const [activePlatform, setActivePlatform] = useState(variants[0]?.platform);
   const active = variants.find((v) => v.platform === activePlatform) ?? variants[0];
   const ownsConnections = w.member.userId === w.creatorId;
-  const missingConnection = Boolean(
-    ownsConnections && active?.accountId && !w.accounts.some((account) => account.id === active.accountId),
+  const accounts = w.accounts.filter((account) => account.platform === active?.platform);
+  const selectedAccount = active ? workspaceAccountForVariant(accounts, active) : undefined;
+  const availableFiles = files.filter((file) => !active?.fileIds.includes(file.id));
+  const draftChoices = platforms.filter(
+    (platform) =>
+      connectedPlatforms.length === 0 ||
+      variants.some((v) => v.platform === platform && !workspaceAccountForVariant(w.accounts, v)),
   );
+  const destinations = [
+    ...w.accounts.flatMap((account) => {
+      const platform = platforms.find((value) => value === account.platform);
+      if (!platform) return [];
+      const label = account.displayName || account.username || platformName[platform];
+      const pickerLabel = account.displayName && account.username ? `${label} · ${account.username}` : label;
+      return [
+        {
+          id: account.id,
+          platform,
+          label: pickerLabel,
+          accessibleLabel: `${platformName[platform]} · ${pickerLabel}`,
+          accountId: account.id,
+          destination: { label, platformAccountId: account.platformAccountId },
+        },
+      ];
+    }),
+    ...draftChoices.map((platform) => ({
+      id: `draft:${platform}`,
+      platform,
+      label: connectedPlatforms.length > 0 ? `${platformName[platform]} · Account needed` : platformName[platform],
+      accessibleLabel: `${platformName[platform]} draft`,
+      accountId: null,
+      destination: null,
+    })),
+  ];
+  const selectedDestinations = variants.map(
+    (variant) => workspaceAccountForVariant(w.accounts, variant)?.id ?? `draft:${variant.platform}`,
+  );
+  const currentReview = post?.reviews.find((review) => review.id === post.currentReviewId);
   const [initialPlan] = useState(() => {
     if (post) return localTime(post.plannedAt);
     const next = new Date(Date.now() + 3_600_000);
@@ -103,30 +156,44 @@ export function PostEditor({
           if (saved && post) close();
         }}>
         <fieldset disabled={!!post?.deliveredAt || uploading} className="min-w-0 space-y-4">
-          <AccountRowPicker
-            description="Choose where to publish this post."
-            selectedIds={variants.map((v) => v.platform)}
-            items={platforms.map((platform) => ({
-              id: platform,
-              platform,
-              label: platformName[platform],
-              accessibleLabel: platformName[platform],
-              avatar: <PlatformIconBadge platform={platform} />,
-            }))}
-            onToggle={(id) => {
-              const platform = platforms.find((p) => p === id);
-              if (!platform) return;
-              if (variants.some((v) => v.platform === platform))
-                setVariants((list) => list.filter((v) => v.platform !== platform));
-              else {
-                setVariants((list) => [
-                  ...list,
-                  { ...freshVariant(platform), caption: active?.caption ?? "", fileIds: active?.fileIds ?? [] },
-                ]);
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold">
+              {connectedPlatforms.length > 0 ? "Workspace accounts" : "Draft channels"}
+            </h2>
+            {w.accounts.length > connectedPlatforms.length && (
+              <p className="text-xs text-muted-foreground">Choose one account per platform.</p>
+            )}
+            <AccountRowPicker
+              compact
+              title={connectedPlatforms.length > 0 ? "Workspace accounts" : "Draft channels"}
+              selectedIds={selectedDestinations}
+              items={destinations.map((destination) => ({
+                ...destination,
+                avatar: <PlatformIconBadge platform={destination.platform} />,
+              }))}
+              onToggle={(id) => {
+                const destination = destinations.find((entry) => entry.id === id);
+                if (!destination) return;
+                const { platform, accountId, destination: identity } = destination;
+                const previous = variants.find((variant) => variant.platform === platform);
+                if (selectedDestinations.includes(id)) {
+                  if (previous) deselectedVariants.current[platform] = previous;
+                  setVariants((list) => list.filter((v) => v.platform !== platform));
+                  return;
+                }
+                if (previous) patch(platform, { accountId, destination: identity });
+                else {
+                  const draft = deselectedVariants.current[platform] ?? {
+                    ...freshVariant(platform, w.accounts),
+                    caption: active?.caption ?? "",
+                    fileIds: active?.fileIds ?? [],
+                  };
+                  setVariants((list) => [...list, { ...draft, accountId, destination: identity }]);
+                }
                 setActivePlatform(platform);
-              }
-            }}
-          />
+              }}
+            />
+          </div>
           {active && (
             <div className="space-y-4">
               {variants.length > 1 && (
@@ -159,40 +226,21 @@ export function PostEditor({
                   onUploadingChange: setUploading,
                 }}
               />
-              {ownsConnections ? (
-                <Label className="min-w-0 flex-col items-stretch">
-                  Destination
-                  <NativeSelect
-                    value={active.accountId ?? ""}
-                    onChange={(e) => patch(active.platform, { accountId: e.target.value || null, destination: null })}>
-                    <option value="">Native publishing</option>
-                    {missingConnection && (
-                      <option value={active.accountId!} disabled>
-                        Connection unavailable
-                      </option>
-                    )}
-                    {w.accounts
-                      .filter((a) => a.platform === active.platform)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.displayName || a.username || a.id}
-                        </option>
-                      ))}
-                  </NativeSelect>
-                </Label>
-              ) : (
-                <small className="block text-xs text-muted-foreground">
-                  {active.destination?.label ?? "Native publishing"}
-                </small>
-              )}
-              {missingConnection && (
-                <p className="text-sm text-muted-foreground">
-                  Choose another destination or{" "}
-                  <Link className="text-primary underline" href={workspaceHref("/accounts", w.id)}>
-                    connect an account
-                  </Link>{" "}
-                  to this workspace.
-                </p>
+              {!selectedAccount && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3.5 py-3">
+                  <p className="text-sm text-muted-foreground">
+                    {accounts.length > 0
+                      ? `Select a workspace account for ${platformName[active.platform]} above.`
+                      : ownsConnections
+                        ? `Connect a ${platformName[active.platform]} account to publish from this workspace.`
+                        : `Ask the workspace owner to connect a ${platformName[active.platform]} account before publishing.`}
+                  </p>
+                  {accounts.length === 0 && ownsConnections && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={workspaceHref("/accounts", w.id)}>Open Accounts</Link>
+                    </Button>
+                  )}
+                </div>
               )}
               {active.platform === "tiktok" && (
                 <Label className="min-w-0 flex-col items-stretch">
@@ -248,31 +296,32 @@ export function PostEditor({
                   </NativeSelect>
                 </Label>
               )}
-              {active.fileIds.length < 10 && files.length > 0 && (
+              {active.fileIds.length < 10 && availableFiles.length > 0 && (
                 <Label className="min-w-0 flex-col items-stretch">
-                  Use workspace file
+                  Attach an existing file
                   <NativeSelect
                     value=""
                     onChange={(e) => patch(active.platform, { fileIds: [...active.fileIds, e.target.value] })}>
-                    <option value="">Select file</option>
-                    {files
-                      .filter((f) => !active.fileIds.includes(f.id))
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.filename}
-                        </option>
-                      ))}
+                    <option value="" disabled>
+                      Select file
+                    </option>
+                    {availableFiles.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.filename}
+                      </option>
+                    ))}
                   </NativeSelect>
                 </Label>
               )}
             </div>
           )}
         </fieldset>
-        <fieldset disabled={!!post?.deliveredAt}>
+        <fieldset disabled={!!post?.deliveredAt} className="space-y-2">
+          <legend className="text-sm font-medium">Planned publication</legend>
           {post && initialPlan.slice(0, 10) < localTime(new Date().toISOString()).slice(0, 10) ? (
             <Label>
-              Planned publication
               <Input
+                aria-label="Planned publication date and time"
                 type="datetime-local"
                 required
                 value={planned}
@@ -285,6 +334,7 @@ export function PostEditor({
             </Label>
           ) : (
             <ScheduleDateTimePicker
+              hideLabel
               scheduledDate={date}
               scheduledTime={time}
               onScheduledDateChange={setDate}
@@ -316,9 +366,14 @@ export function PostEditor({
             </Label>
           </div>
         </section>
+        {currentReview && (!currentReview.outcome || currentReview.outcome === "approved") && !post?.deliveredAt && (
+          <p className="text-sm text-muted-foreground">
+            Changing the content, destination, or planned time requires a new review.
+          </p>
+        )}
         <div className="flex flex-wrap items-end gap-3">
           <Button size="sm" disabled={variants.length === 0 || uploading || !validDate}>
-            {uploading ? "Uploading…" : "Save post"}
+            {uploading ? "Uploading…" : post ? "Save changes" : "Save draft"}
           </Button>
           <Button variant="outline" size="sm" type="button" onClick={close}>
             Cancel

@@ -1,5 +1,9 @@
 import { useState } from "react";
 
+import Link from "next/link";
+
+import { ArrowRightLeft, ChevronDown, Circle, Clock, Link2, MessageSquare, Paperclip, Pencil } from "lucide-react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,13 +17,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Snapshot } from "@/lib/workspaces/contracts";
+import { platforms, type Snapshot } from "@/lib/workspaces/contracts";
 
 import { WorkspacePreview } from "./preview";
-import { displayDate, platformName, type Item, type Workspace, type Run } from "./types";
+import { workspaceHref } from "./switcher";
+import { displayDate, platformName, workspacePostStatus, type Item, type Workspace, type Run } from "./types";
 
 const activity: Record<string, string> = {
   changes: "requested changes",
@@ -33,28 +43,44 @@ const activity: Record<string, string> = {
   "delivery removed": "removed a SimplePost delivery",
   comment: "commented",
   scheduled: "scheduled the approved version",
-  "published natively": "marked the post as published natively",
+  "published natively": "recorded a previously published post",
 };
+
+const reviewOutcomes: Record<string, string> = {
+  approved: "Approved",
+  changes: "Changes requested",
+  superseded: "Withdrawn",
+};
+
+const deliveryStatuses: Record<string, string> = {
+  scheduled: "Scheduled",
+  pending: "Publishing",
+  published: "Published",
+  failed: "Failed",
+  partial: "Partially published",
+};
+
 export function Content({ workspace: w, snapshot }: { workspace: Workspace; snapshot: Snapshot }) {
   return (
     <div className="grid gap-3">
       <WorkspacePreview workspace={w} variants={snapshot.variants} date={new Date(snapshot.plannedAt)} />
       {snapshot.variants.map((v) => (
-        <div key={v.platform} className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span>
-            {platformName[v.platform]} · {v.destination?.label ?? "Native publishing"}{" "}
-            {Object.values(v.options).join(" · ")}
+        <div key={v.platform} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{platformName[v.platform]}</span>
+          <span className="min-w-0 wrap-anywhere">
+            {[v.destination?.label ?? "No account selected", ...Object.values(v.options)].join(" · ")}
           </span>
           {v.fileIds.map((id) => {
             const file = w.files.find((f) => f.id === id);
             return (
               file && (
                 <a
-                  className="underline"
+                  className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-border px-2 py-1 hover:bg-secondary hover:text-foreground"
                   key={id}
                   href={`/api/v1/workspaces/${w.id}/files/${id}`}
                   download={file.filename}>
-                  {file.filename}
+                  <Paperclip className="size-3 shrink-0" aria-hidden />
+                  <span className="truncate">{file.filename}</span>
                 </a>
               )
             );
@@ -80,24 +106,64 @@ export function PostDetail({
 }) {
   const [feedback, setFeedback] = useState("");
   const [requesting, setRequesting] = useState(false);
-  const [comment, setComment] = useState("");
+  const [moveTarget, setMoveTarget] = useState<Workspace["states"][number]>();
   const review = p.reviews.find((r) => r.id === p.currentReviewId);
   const state = w.states.find((s) => s.id === p.stateId)!;
   const editor = w.member.role !== "Viewer";
   const pending = state.kind === "review" && review && !review.outcome;
+  const reviewToDecide = w.member.approver && pending ? review : undefined;
+  const canEdit = editor && !queue;
+  const moveTargets = w.states.filter((s) => !["review", "approved"].includes(s.kind) && s.id !== p.stateId);
   const snapshot = queue && review ? review.snapshot : p;
-  const connected = snapshot.variants.some((v) => v.accountId);
   const ownsConnections = w.creatorId === w.member.userId;
-  const missingDestination =
-    ownsConnections &&
-    snapshot.variants.some(
-      (variant) => variant.accountId && !w.accounts.some((account) => account.id === variant.accountId),
-    );
+  const { label, missingPlatforms, timePassed } = workspacePostStatus(w, p, snapshot);
+  const hasDestinations = missingPlatforms.length === 0;
+  const needsConnection = missingPlatforms.some(
+    (platform) => !w.accounts.some((account) => account.platform === platform),
+  );
+  const missingNames = missingPlatforms.map((platform) => platformName[platform]).join(", ");
+  const publishable = hasDestinations && !timePassed;
+  const canSubmit = editor && !p.deliveredAt && !pending && state.kind !== "approved" && publishable;
+  const canSchedule = editor && ownsConnections;
+  const deliveries = review?.deliveries ?? [];
+  const move = (stateId: string) => run({ action: "move", postId: p.id, revision: p.revision, stateId });
   return (
-    <article className="min-w-0 space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
+    <article className="@container min-w-0 space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
       <header className="space-y-2">
-        <Badge variant={state.kind === "approved" ? "default" : "secondary"}>{state.name}</Badge>
-        <h2 className="text-lg font-semibold tracking-tight">{snapshot.title}</h2>
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 space-y-2">
+            <Badge variant="secondary">{label}</Badge>
+            <h2 className="text-lg font-semibold tracking-tight wrap-anywhere">{snapshot.title}</h2>
+          </div>
+          {canEdit && (
+            <div className="flex flex-wrap gap-1">
+              <Button variant="ghost" size="sm" onClick={edit}>
+                <Pencil aria-hidden /> Edit post
+              </Button>
+              {!p.deliveredAt && moveTargets.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ArrowRightLeft aria-hidden /> Move to <ChevronDown aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {moveTargets.map((target) => (
+                      <DropdownMenuItem
+                        key={target.id}
+                        onSelect={() => {
+                          if (pending || state.kind === "approved") setMoveTarget(target);
+                          else void move(target.id);
+                        }}>
+                        {target.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
           <span>
             Planned <b>{displayDate(snapshot.plannedAt)}</b>
@@ -118,163 +184,304 @@ export function PostDetail({
           )}
         </div>
       </header>
-      <Content workspace={w} snapshot={snapshot} />
-      {!p.deliveredAt && missingDestination && state.kind === "approved" && (
-        <p className="text-sm text-muted-foreground">
-          Select a destination connected to this workspace in the post editor, then request approval for the updated
-          post.
-        </p>
+      <AlertDialog open={Boolean(moveTarget)} onOpenChange={(open) => !open && setMoveTarget(undefined)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{moveTarget ? `Move to ${moveTarget.name}?` : "Move post?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pending ? "This will withdraw the current review request." : "This version will need approval again."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => moveTarget && void move(moveTarget.id)}>Move post</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {!p.deliveredAt && !publishable && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3.5 sm:p-4">
+          <div className="flex min-w-0 items-start gap-2.5">
+            {hasDestinations ? (
+              <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <Link2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold">
+                {hasDestinations ? "Planned time has passed" : "Workspace account needed"}
+              </h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {hasDestinations
+                  ? editor
+                    ? "Choose a future publication time to continue."
+                    : "An editor needs to set a new publication time."
+                  : needsConnection && !ownsConnections
+                    ? `The workspace owner needs to connect an account for ${missingNames}.`
+                    : `A connected workspace account must be selected for ${missingNames}.`}
+              </p>
+            </div>
+          </div>
+          {!hasDestinations && needsConnection && ownsConnections ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={workspaceHref("/accounts", w.id)}>Open Accounts</Link>
+            </Button>
+          ) : (
+            editor && (
+              <Button size="sm" variant="outline" onClick={edit}>
+                {hasDestinations ? "Edit planned time" : "Edit destinations"}
+              </Button>
+            )
+          )}
+        </section>
       )}
-      <div className="flex flex-wrap items-end gap-2">
-        {editor && !queue && (
-          <Button variant="outline" size="sm" onClick={edit}>
-            Edit post
-          </Button>
-        )}
-        {editor && !p.deliveredAt && !pending && state.kind !== "approved" && (
+      {reviewToDecide && (
+        <section className="rounded-xl border border-border bg-secondary/40 p-3.5 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">Review decision</h3>
+            {!requesting && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRequesting(true)}>
+                  Request changes
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!publishable}
+                  onClick={() =>
+                    void run({
+                      action: "decide",
+                      postId: p.id,
+                      reviewId: reviewToDecide.id,
+                      outcome: "approved",
+                      body: "",
+                    })
+                  }>
+                  Approve
+                </Button>
+              </div>
+            )}
+          </div>
+          {requesting && (
+            <form
+              className="mt-3 space-y-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (
+                  await run({
+                    action: "decide",
+                    postId: p.id,
+                    reviewId: reviewToDecide.id,
+                    outcome: "changes",
+                    body: feedback,
+                  })
+                ) {
+                  setFeedback("");
+                  setRequesting(false);
+                }
+              }}>
+              <Label className="min-w-0 flex-col items-stretch">
+                Requested changes
+                <Textarea
+                  autoFocus
+                  required
+                  value={feedback}
+                  maxLength={4000}
+                  onChange={(e) => setFeedback(e.target.value)}
+                />
+              </Label>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setRequesting(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" type="submit" disabled={!feedback.trim()}>
+                  Send change request
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+      )}
+      {pending && !reviewToDecide && publishable && (
+        <p className="text-sm text-muted-foreground">Waiting for an approver to review this version.</p>
+      )}
+      {canSubmit && (
+        <div className="flex justify-end">
           <Button size="sm" onClick={() => void run({ action: "submit", postId: p.id, revision: p.revision })}>
             Submit for review
           </Button>
-        )}
-        {editor && !queue && !p.deliveredAt && (
-          <Label className="min-w-0 flex-col items-stretch">
-            Move to{" "}
-            <NativeSelect
-              value=""
-              onChange={(e) =>
-                void run({ action: "move", postId: p.id, revision: p.revision, stateId: e.target.value })
-              }>
-              <option value="">Select state</option>
-              {w.states
-                .filter((s) => !["review", "approved"].includes(s.kind) && s.id !== p.stateId)
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-            </NativeSelect>
-          </Label>
-        )}
-        {w.member.approver && pending && (
-          <>
-            <Button
-              size="sm"
-              onClick={() =>
-                void run({ action: "decide", postId: p.id, reviewId: review.id, outcome: "approved", body: "" })
-              }>
-              Approve
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setRequesting(!requesting)}>
-              Request changes
-            </Button>
-          </>
-        )}
-        {editor &&
-          !p.deliveredAt &&
-          state.kind === "approved" &&
-          review &&
-          !missingDestination &&
-          (!connected || ownsConnections) && (
+        </div>
+      )}
+      {!p.deliveredAt && state.kind === "approved" && review && publishable && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3.5 sm:p-4">
+          <div>
+            <h3 className="text-sm font-semibold">Ready to schedule</h3>
+            {!canSchedule && (
+              <p className="mt-0.5 text-xs text-muted-foreground">The workspace owner can schedule this post.</p>
+            )}
+          </div>
+          {canSchedule && (
             <Button size="sm" onClick={() => void run({ action: "release", postId: p.id, reviewId: review.id })}>
-              {connected ? "Schedule with SimplePost" : "Mark as published natively"}
+              Schedule post
             </Button>
           )}
-        {p.deliveredAt &&
-          w.member.userId === w.creatorId &&
-          review?.deliveries
-            .filter((delivery) => delivery.status === "scheduled")
-            .map((delivery) => (
-              <AlertDialog key={delivery.id}>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="outline">
-                    Cancel delivery
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
-                    <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
-                      Cancel delivery
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ))}
-        {p.deliveredAt && (
-          <strong>
-            {connected
-              ? `SimplePost · ${review?.deliveries.map((d) => d.status).join(", ") || "Canceled"}`
-              : "Published natively"}
-          </strong>
-        )}
-      </div>
-      {requesting && pending && (
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (
-              await run({ action: "decide", postId: p.id, reviewId: review.id, outcome: "changes", body: feedback })
-            ) {
-              setFeedback("");
-              setRequesting(false);
-            }
-          }}>
-          <Label className="min-w-0 flex-col items-stretch">
-            Requested changes
-            <Textarea autoFocus value={feedback} maxLength={4000} onChange={(e) => setFeedback(e.target.value)} />
-          </Label>
-          <Button variant="outline" size="sm" type="submit">
-            Send change request
-          </Button>
-        </form>
+        </section>
       )}
-      <section className="space-y-3 border-t border-border pt-5">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">Discussion and activity</h3>
-        {p.events.map((event) => (
-          <div key={event.id} className="break-words border-s-2 border-border ps-3 text-sm">
-            <strong>{event.actorName}</strong> {activity[event.kind] ?? event.kind}
-            <small className="block text-xs text-muted-foreground">{displayDate(event.createdAt)}</small>
-            {event.body && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{event.body}</p>}
-          </div>
-        ))}
-        {(editor || w.member.approver) && (
-          <form
-            className="space-y-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (await run({ action: "comment", postId: p.id, body: comment })) setComment("");
-            }}>
-            <Label className="min-w-0 flex-col items-stretch">
-              Add a comment
-              <Textarea required maxLength={4000} value={comment} onChange={(e) => setComment(e.target.value)} />
-            </Label>
-            <Button variant="outline" size="sm" disabled={!comment.trim()}>
-              Post comment
-            </Button>
-          </form>
-        )}
-      </section>
+      {p.deliveredAt && deliveries.length > 0 && (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {deliveries.map((delivery) => {
+            const account = delivery.accounts[0];
+            const platform = platforms.find((value) => value === account?.platform);
+            const destination = [platform && platformName[platform], account?.displayName || account?.username]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium wrap-anywhere">{destination || "Delivery"}</span>
+                  <Badge variant="secondary">{deliveryStatuses[delivery.status] ?? delivery.status}</Badge>
+                </div>
+                {ownsConnections && delivery.status === "scheduled" && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label={destination ? `Cancel ${destination} delivery` : undefined}>
+                        Cancel delivery
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
+                        <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
+                          Cancel delivery
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="grid items-start gap-5 @min-[52rem]:grid-cols-[minmax(0,1fr)_20rem]">
+        <Content workspace={w} snapshot={snapshot} />
+        <PostDiscussion post={p} run={run} canComment={editor || w.member.approver} />
+      </div>
       {p.reviews.length > 0 && (
-        <section>
-          <h3 className="flex items-center gap-2 text-sm font-semibold">Review history</h3>
-          {p.reviews.map((r, i) => (
-            <details key={r.id} className="mt-2 space-y-2 border-t border-border pt-3 text-sm">
-              <summary className="cursor-pointer text-muted-foreground">
-                Version {p.reviews.length - i} · {r.outcome ?? "Awaiting decision"} · {displayDate(r.requestedAt)}
-              </summary>
-              <strong>{r.snapshot.title}</strong>
-              <p>{displayDate(r.snapshot.plannedAt)}</p>
-              <Content workspace={w} snapshot={r.snapshot} />
-            </details>
-          ))}
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Review history</h3>
+          <div className="space-y-2">
+            {p.reviews.map((r, i) => (
+              <details key={r.id} className="group min-w-0 rounded-xl border border-border text-sm">
+                <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl px-3.5 py-2.5 hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <span className="font-medium">Version {p.reviews.length - i}</span>
+                    <Badge variant="secondary">{(r.outcome && reviewOutcomes[r.outcome]) || "Awaiting decision"}</Badge>
+                    <time dateTime={r.requestedAt} className="text-xs text-muted-foreground @min-[36rem]:ms-auto">
+                      {displayDate(r.requestedAt)}
+                    </time>
+                  </div>
+                  <ChevronDown
+                    className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                    aria-hidden
+                  />
+                </summary>
+                <div className="space-y-2 border-t border-border px-3.5 py-3">
+                  <p className="font-medium wrap-anywhere">{r.snapshot.title}</p>
+                  <p className="text-xs text-muted-foreground">Planned {displayDate(r.snapshot.plannedAt)}</p>
+                  <Content workspace={w} snapshot={r.snapshot} />
+                </div>
+              </details>
+            ))}
+          </div>
         </section>
       )}
     </article>
+  );
+}
+
+function PostDiscussion({ post, run, canComment }: { post: Item; run: Run; canComment: boolean }) {
+  const [comment, setComment] = useState("");
+  const discussion = post.events.filter(
+    (event) => event.kind === "comment" || (event.kind === "changes" && event.body),
+  );
+  const log = post.events.filter((event) => !discussion.includes(event));
+  return (
+    <aside className="min-w-0 space-y-4 border-t border-border pt-4 @min-[52rem]:border-s @min-[52rem]:border-t-0 @min-[52rem]:ps-4 @min-[52rem]:pt-0">
+      {(discussion.length > 0 || canComment) && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Discussion</h3>
+          {discussion.length > 0 && <PostEvents events={discussion} />}
+          {canComment && (
+            <form
+              className="min-w-0 rounded-xl border border-border bg-input/35 p-1 focus-within:border-ring/60"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (await run({ action: "comment", postId: post.id, body: comment })) setComment("");
+              }}>
+              <Textarea
+                required
+                aria-label="Add a comment"
+                placeholder="Add a comment…"
+                maxLength={4000}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                className="min-h-12 resize-none border-0 bg-transparent focus-visible:ring-1"
+              />
+              <div className="flex justify-end px-1 pt-1 pb-1">
+                <Button type="submit" variant="secondary" size="sm" disabled={!comment.trim()} className="h-8 text-xs">
+                  Post comment
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+      )}
+      {log.length > 0 && (
+        <details className="group rounded-xl border border-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium hover:bg-secondary/60 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+            Activity
+            <ChevronDown className="size-4 text-muted-foreground group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="border-t border-border px-3.5 py-3">
+            <PostEvents events={log} />
+          </div>
+        </details>
+      )}
+    </aside>
+  );
+}
+
+function PostEvents({ events }: { events: Item["events"] }) {
+  return (
+    <ol className="relative space-y-3 before:absolute before:start-3 before:top-3 before:bottom-3 before:w-px before:bg-border">
+      {events.map((event) => (
+        <li key={event.id} className="relative flex items-start gap-2.5">
+          <span className="grid size-6 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground">
+            {event.kind === "comment" ? (
+              <MessageSquare className="size-3" aria-hidden />
+            ) : (
+              <Circle className="size-1.5 fill-current" aria-hidden />
+            )}
+          </span>
+          <div className="min-w-0 pt-0.5 text-sm wrap-anywhere">
+            <p>
+              <strong className="font-medium">{event.actorName}</strong>{" "}
+              <span className="text-muted-foreground">{activity[event.kind] ?? event.kind}</span>
+            </p>
+            <time dateTime={event.createdAt} className="block text-xs text-muted-foreground">
+              {displayDate(event.createdAt)}
+            </time>
+            {event.body && <p className="mt-1 whitespace-pre-wrap">{event.body}</p>}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }

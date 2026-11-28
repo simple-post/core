@@ -24,7 +24,16 @@ import { variantMedia } from "./preview";
 import { TeamSettings } from "./settings";
 import { WorkspaceSettingsLayout } from "./settings-layout";
 import { workspaceHref, useWorkspaceIndex } from "./switcher";
-import { deliveryStatus, displayDate, json, request, type Run, type Workspace } from "./types";
+import {
+  deliveryStatus,
+  displayDate,
+  json,
+  request,
+  workspacePostStatus,
+  type Item,
+  type Run,
+  type Workspace,
+} from "./types";
 
 export function TeamScreen({
   id,
@@ -110,15 +119,13 @@ export function TeamScreen({
     );
   if (view === "dashboard" && w) {
     const statusTab = { draft: "drafts", scheduled: "scheduled", published: "past", failed: "failed" } as const;
-    const counts = { drafts: 0, scheduled: 0, past: 0, failed: 0 };
+    const counts = { drafts: 0, approvals: 0, scheduled: 0, past: 0, failed: 0 };
     const reviewState = w.states.find((s) => s.kind === "review");
-    const approvalCount = w.posts.filter((p) => p.stateId === reviewState?.id).length;
-    for (const post of w.posts) counts[statusTab[deliveryStatus(post)]]++;
+    const postTab = (post: Item) => (post.stateId === reviewState?.id ? "approvals" : statusTab[deliveryStatus(post)]);
+    for (const post of w.posts) counts[postTab(post)]++;
     const requested = params.get("tab") ?? "drafts";
-    const tab = Object.hasOwn(counts, requested) || requested === "approvals" ? requested : "drafts";
-    const posts = w.posts.filter((p) =>
-      tab === "approvals" ? p.stateId === reviewState?.id : statusTab[deliveryStatus(p)] === tab,
-    );
+    const tab = Object.hasOwn(counts, requested) ? requested : "drafts";
+    const posts = w.posts.filter((post) => postTab(post) === tab);
     const totalPages = Math.ceil(posts.length / pageSize);
     const currentPage = Math.max(1, Math.min(totalPages, page));
     return (
@@ -146,7 +153,7 @@ export function TeamScreen({
                 id: "approvals",
                 label: "Approvals",
                 icon: <ClipboardCheck className="hidden h-3.5 w-3.5 sm:block" />,
-                badge: <TabCountBadge count={approvalCount} className="ml-0 sm:ml-1" />,
+                badge: <TabCountBadge count={counts.approvals} className="ml-0 sm:ml-1" />,
               },
             ]}
           />
@@ -162,7 +169,7 @@ export function TeamScreen({
                     status: deliveryStatus(p),
                     media: variantMedia(id, w.files, p.variants[0]),
                   }}
-                  draftLabel={w.states.find((state) => state.id === p.stateId)?.name}
+                  draftLabel={workspacePostStatus(w, p, p).label}
                   platforms={p.variants.map((v) => v.platform)}
                   dateLabel={displayDate(p.plannedAt)}
                   accountLabels={p.variants.map((v) => v.destination?.label).filter((name): name is string => !!name)}
@@ -225,6 +232,7 @@ export function TeamScreen({
         ) : view === "detail" && item ? (
           <fieldset disabled={busy}>
             <PostDetail
+              key={item.id}
               workspace={w}
               post={item}
               run={run}
@@ -235,7 +243,7 @@ export function TeamScreen({
         ) : canEdit && (view === "compose" || view === "edit") ? (
           <fieldset disabled={busy}>
             <PostEditor
-              key={reload}
+              key={`${item?.id ?? "draft"}:${reload}`}
               workspace={w}
               post={item}
               plannedDay={plannedDay}
@@ -257,12 +265,7 @@ export function TeamScreen({
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main
-        className={
-          view === "detail"
-            ? "mx-auto max-w-4xl px-[clamp(18px,4vw,48px)] py-6"
-            : "mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] py-6"
-        }>
+      <main className="mx-auto max-w-6xl px-[clamp(18px,4vw,48px)] py-6">
         <BackLink
           href={view === "edit" && postId ? postHref(postId) : href("/")}
           label={view === "edit" ? "Back to post" : "Back to posts"}

@@ -86,3 +86,36 @@ it("returns a preview_only_account error for accounts with preview-only metadata
     ]),
   );
 });
+
+it("blocks automated publishing for a Threads target marked for manual completion", () => {
+  isSocialPlatformEnabledMock.mockReturnValue(true);
+  const threads = { ...account, id: "threads-1", platform: "threads" };
+  const validation = validatePostForResolvedAccounts({
+    message: "Affiliate caption",
+    media: [],
+    accounts: [threads, account],
+    accountOptions: { [threads.id]: { finishInThreads: true }, [account.id]: { finishInThreads: true } },
+  });
+
+  expect(validation.summary.isValid).toBe(false);
+  expect(validation.summary.errors).toEqual([
+    expect.objectContaining({
+      code: "threads_handoff_required",
+      field: "accountOptions.finishInThreads",
+      meta: { accountId: threads.id },
+    }),
+  ]);
+});
+
+it("allows normal Threads publishing after explicitly clearing the manual completion setting", () => {
+  isSocialPlatformEnabledMock.mockReturnValue(true);
+  const threads = { ...account, platform: "threads" };
+  const validation = validatePostForResolvedAccounts({
+    message: "A regular Threads post",
+    media: [],
+    accounts: [threads],
+    accountOptions: { [threads.id]: { finishInThreads: false } },
+  });
+
+  expect(validation.summary.isValid).toBe(true);
+});

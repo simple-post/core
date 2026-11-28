@@ -13,6 +13,7 @@ import { HelpLink } from "@/components/help-link";
 import { Navbar } from "@/components/navbar";
 import { PlatformIconBadge } from "@/components/platform-icons";
 import { SchedulePostDialog } from "@/components/schedule-post-dialog";
+import { ThreadsDraftHandoff } from "@/components/threads-draft-handoff";
 import { TikTokRecoveryNotice } from "@/components/tiktok-recovery-notice";
 import {
   AlertDialog,
@@ -27,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { UiCopy } from "@/components/ui-copy";
 import { TeamScreen } from "@/components/workspaces/team-screen";
+import { getThreadsDraftHandoffs } from "@/features/platform-options/threads-handoff";
 import { PlatformPostPreview, PublishedPostLinks } from "@/features/platform-preview";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useWorkspaceReadOnly } from "@/hooks/use-billing";
@@ -155,6 +157,10 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
 
   const postAccounts = accounts.filter((acc: ConnectedAccount) => post.accountIds.includes(acc.id));
   const isDraft = post.status === "draft";
+  const threadsHandoffs = getThreadsDraftHandoffs(post, postAccounts);
+  const requiresThreadsHandoff = postAccounts.some(
+    (account) => account.platform === "threads" && post.accountOptions?.[account.id]?.finishInThreads === true,
+  );
   const isScheduled = post.status === "scheduled";
   const isFailed = post.status === "failed";
   const isPublished = post.status === "published";
@@ -223,14 +229,17 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
               </Link>
             )}
             {!readOnly && (
-              <div className="flex items-center gap-2" aria-label={copy("Post actions")}>
-                {isDraft && (
+              <div className="flex flex-wrap items-center gap-2" aria-label={copy("Post actions")}>
+                {threadsHandoffs.map((handoff) => (
+                  <ThreadsDraftHandoff key={handoff.account.id} {...handoff} showAccount={threadsHandoffs.length > 1} />
+                ))}
+                {isDraft && !requiresThreadsHandoff && (
                   <Button size="sm" onClick={handlePostNow} disabled={submitPostMutation.isPending}>
                     <Send className="h-4 w-4" />
                     {submitPostMutation.isPending ? copy("Posting...") : copy("Post Now")}
                   </Button>
                 )}
-                {!post.workspaceReviewId && (isScheduled || isDraft) && (
+                {!post.workspaceReviewId && (isScheduled || (isDraft && !requiresThreadsHandoff)) && (
                   <Button
                     size="sm"
                     variant={isDraft ? "outline" : "default"}
@@ -450,7 +459,7 @@ function PersonalPostPage({ params }: { params: Promise<{ id: string }> }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {!post.workspaceReviewId && (isScheduled || isDraft) && (
+      {!post.workspaceReviewId && (isScheduled || (isDraft && !requiresThreadsHandoff)) && (
         <SchedulePostDialog post={post} open={showScheduleDialog} onOpenChange={setShowScheduleDialog} />
       )}
     </>

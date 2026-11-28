@@ -1,6 +1,7 @@
 import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { McpServer } from "@modelcontextprotocol/server";
 
+import { getAppBaseUrl } from "@/lib/mcp/config";
 import { registerTools } from "@/lib/mcp/server";
 import { createPost } from "@/lib/mcp/tools/posts";
 import { tikTokRecovery } from "@/lib/posting/tiktok-recovery";
@@ -153,4 +154,20 @@ it("surfaces warnings that never block, on a scheduled post", async () => {
 
   expect(content[0].text).toContain("Validation: 0 errors, 1 warning.");
   expect(content[0].text).toContain("only the first post will be published there");
+});
+
+it("links a paid partnership draft to the SimplePost handoff", async () => {
+  const base = result({ status: "draft", postingMode: "draft" });
+  jest.mocked(createPost).mockResolvedValue({
+    ...base,
+    post: {
+      ...base.post,
+      accountIds: ["threads-1"],
+      accountOptions: { "threads-1": { finishInThreads: true } },
+    },
+  });
+
+  const { content } = await createPostHandler()({ ...input, accountIds: ["threads-1"] });
+
+  expect(content[0].text).toContain(`[Finish in Threads](${getAppBaseUrl()}/posts/post-1)`);
 });

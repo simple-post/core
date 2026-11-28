@@ -155,6 +155,14 @@ async function createMcpServer(authContext: McpToolAuthContext, locale: Locale):
     {
       instructions:
         copy(SERVER_INSTRUCTIONS) +
+        "\n\n" +
+        copy(
+          "SimplePost cannot apply or verify the native Threads Paid Partnership label. If a post needs the label, apply it and publish in the Threads app.",
+        ) +
+        " " +
+        copy(
+          "For a draft that needs this label, use postingMode=draft and set accountOptions[accountId].finishInThreads to true. Send the user to the draft in SimplePost to choose Finish in Threads.",
+        ) +
         (postAnalyticsEnabled ? "\n\n" + copy(POST_ANALYTICS_INSTRUCTIONS) : "") +
         (pluginExtensionsEnabled ? "\n\n" + copy(EXTENSION_INSTRUCTIONS) : "") +
         (authContext.imageFittingEnabled ? "\n\n" + copy(IMAGE_FITTING_INSTRUCTIONS) : "") +

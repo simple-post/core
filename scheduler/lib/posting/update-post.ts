@@ -19,6 +19,7 @@ import { mergeAccountResults, videoPlacementsChanged } from "@/lib/posting/accou
 import { deferPostRetry } from "@/lib/posting/defer-post-retry";
 import { sanitizePostingResult } from "@/lib/posting/progress-stream";
 import { longestThreadLength } from "@/lib/posting/thread-length";
+import { preserveThreadsHandoffOptions } from "@/lib/posting/threads-handoff-options";
 import { getTikTokPostRecovery } from "@/lib/posting/tiktok-recovery";
 import { prisma } from "@/lib/prisma";
 import { validateQuoteSource } from "@/lib/quote/source";
@@ -135,6 +136,11 @@ export async function executePostUpdate(
         ),
       );
   }
+  validated.accountOptions = preserveThreadsHandoffOptions(
+    validated.accountIds,
+    currentPost.accountOptions,
+    validated.accountOptions,
+  );
   validated = await ingestPostMedia(userId, validated, {
     onUploaded: async (url) => {
       await prisma.$transaction((tx) => queueStorageDeletion(tx, userId, url));

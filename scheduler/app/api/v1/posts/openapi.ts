@@ -43,6 +43,8 @@ export default defineRoute({
       operationId: "createPost",
       tags: ["Posts"],
       summary: "Create, publish, or schedule a post",
+      description:
+        "SimplePost cannot apply or verify the native Threads Paid Partnership label. If a post needs the label, apply it and publish in the Threads app.",
       security: userAuthSecurity,
       requestBody: {
         required: true,

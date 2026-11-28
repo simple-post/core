@@ -14,6 +14,7 @@ export default defineRoute({
       operationId: "validatePost",
       tags: ["Validation"],
       summary: "Validate a draft post against selected accounts",
+      description: "Validation cannot verify the native Threads Paid Partnership label.",
       security: userAuthSecurity,
       requestBody: {
         required: true,

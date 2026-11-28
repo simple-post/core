@@ -109,7 +109,18 @@ export async function readWorkspace(actor: Actor, id: string) {
             include: {
               reviews: {
                 orderBy: { requestedAt: "desc" },
-                include: { deliveries: { select: { id: true, status: true } } },
+                include: {
+                  deliveries: {
+                    select: {
+                      id: true,
+                      status: true,
+                      accounts: {
+                        where: { workspaceId: id },
+                        select: { platform: true, displayName: true, username: true },
+                      },
+                    },
+                  },
+                },
               },
               events: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
             },

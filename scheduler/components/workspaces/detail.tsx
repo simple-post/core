@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowRightLeft, ChevronDown, Circle, Link2, MessageSquare, Paperclip, Pencil } from "lucide-react";
+import { ArrowRightLeft, ChevronDown, Circle, Clock, Link2, MessageSquare, Paperclip, Pencil } from "lucide-react";
 
 import {
   AlertDialog,
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Snapshot } from "@/lib/workspaces/contracts";
+import { platforms, type Snapshot } from "@/lib/workspaces/contracts";
 
 import { WorkspacePreview } from "./preview";
 import { workspaceHref } from "./switcher";
@@ -50,6 +50,14 @@ const reviewOutcomes: Record<string, string> = {
   approved: "Approved",
   changes: "Changes requested",
   superseded: "Withdrawn",
+};
+
+const deliveryStatuses: Record<string, string> = {
+  scheduled: "Scheduled",
+  pending: "Publishing",
+  published: "Published",
+  failed: "Failed",
+  partial: "Partially published",
 };
 
 export function Content({ workspace: w, snapshot }: { workspace: Workspace; snapshot: Snapshot }) {
@@ -110,10 +118,14 @@ export function PostDetail({
   const ownsConnections = w.creatorId === w.member.userId;
   const { label, missingPlatforms, timePassed } = workspacePostStatus(w, p, snapshot);
   const hasDestinations = missingPlatforms.length === 0;
+  const needsConnection = missingPlatforms.some(
+    (platform) => !w.accounts.some((account) => account.platform === platform),
+  );
+  const missingNames = missingPlatforms.map((platform) => platformName[platform]).join(", ");
   const publishable = hasDestinations && !timePassed;
   const canSubmit = editor && !p.deliveredAt && !pending && state.kind !== "approved" && publishable;
   const canSchedule = editor && ownsConnections;
-  const scheduledDeliveries = review?.deliveries.filter((delivery) => delivery.status === "scheduled") ?? [];
+  const deliveries = review?.deliveries ?? [];
   const move = (stateId: string) => run({ action: "move", postId: p.id, revision: p.revision, stateId });
   return (
     <article className="@container min-w-0 space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
@@ -175,7 +187,7 @@ export function PostDetail({
       <AlertDialog open={Boolean(moveTarget)} onOpenChange={(open) => !open && setMoveTarget(undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Move to {moveTarget?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>{moveTarget ? `Move to ${moveTarget.name}?` : "Move post?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {pending ? "This will withdraw the current review request." : "This version will need approval again."}
             </AlertDialogDescription>
@@ -189,21 +201,27 @@ export function PostDetail({
       {!p.deliveredAt && !publishable && (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3.5 sm:p-4">
           <div className="flex min-w-0 items-start gap-2.5">
-            <Link2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            {hasDestinations ? (
+              <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            ) : (
+              <Link2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
             <div className="min-w-0">
               <h3 className="text-sm font-semibold">
                 {hasDestinations ? "Planned time has passed" : "Workspace account needed"}
               </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {hasDestinations
-                  ? "Choose a future publication time to continue."
-                  : w.accounts.length === 0 && !ownsConnections
-                    ? `Ask the workspace owner to connect an account for ${missingPlatforms.join(", ")}.`
-                    : `Choose a connected workspace account for ${missingPlatforms.join(", ")} to continue.`}
+                  ? editor
+                    ? "Choose a future publication time to continue."
+                    : "An editor needs to set a new publication time."
+                  : needsConnection && !ownsConnections
+                    ? `The workspace owner needs to connect an account for ${missingNames}.`
+                    : `A connected workspace account must be selected for ${missingNames}.`}
               </p>
             </div>
           </div>
-          {!hasDestinations && w.accounts.length === 0 && ownsConnections ? (
+          {!hasDestinations && needsConnection && ownsConnections ? (
             <Button size="sm" variant="outline" asChild>
               <Link href={workspaceHref("/accounts", w.id)}>Open Accounts</Link>
             </Button>
@@ -262,19 +280,28 @@ export function PostDetail({
               }}>
               <Label className="min-w-0 flex-col items-stretch">
                 Requested changes
-                <Textarea autoFocus value={feedback} maxLength={4000} onChange={(e) => setFeedback(e.target.value)} />
+                <Textarea
+                  autoFocus
+                  required
+                  value={feedback}
+                  maxLength={4000}
+                  onChange={(e) => setFeedback(e.target.value)}
+                />
               </Label>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setRequesting(false)}>
                   Cancel
                 </Button>
-                <Button size="sm" type="submit">
+                <Button size="sm" type="submit" disabled={!feedback.trim()}>
                   Send change request
                 </Button>
               </div>
             </form>
           )}
         </section>
+      )}
+      {pending && !reviewToDecide && publishable && (
+        <p className="text-sm text-muted-foreground">Waiting for an approver to review this version.</p>
       )}
       {canSubmit && (
         <div className="flex justify-end">
@@ -298,31 +325,49 @@ export function PostDetail({
           )}
         </section>
       )}
-      {p.deliveredAt && ownsConnections && scheduledDeliveries.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {scheduledDeliveries.map((delivery) => (
-            <AlertDialog key={delivery.id}>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                  Cancel delivery
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
-                  <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
-                    Cancel delivery
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ))}
-        </div>
+      {p.deliveredAt && deliveries.length > 0 && (
+        <ul className="divide-y divide-border rounded-xl border border-border">
+          {deliveries.map((delivery) => {
+            const account = delivery.accounts[0];
+            const platform = platforms.find((value) => value === account?.platform);
+            const destination = [platform && platformName[platform], account?.displayName || account?.username]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={delivery.id} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium wrap-anywhere">{destination || "Delivery"}</span>
+                  <Badge variant="secondary">{deliveryStatuses[delivery.status] ?? delivery.status}</Badge>
+                </div>
+                {ownsConnections && delivery.status === "scheduled" && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        aria-label={destination ? `Cancel ${destination} delivery` : undefined}>
+                        Cancel delivery
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel scheduled delivery?</AlertDialogTitle>
+                        <AlertDialogDescription>The approved post stays in your workspace.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep scheduled</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => void run({ action: "cancelDelivery", postId: p.id, deliveryId: delivery.id })}>
+                          Cancel delivery
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
       <div className="grid items-start gap-5 @min-[52rem]:grid-cols-[minmax(0,1fr)_20rem]">
         <Content workspace={w} snapshot={snapshot} />

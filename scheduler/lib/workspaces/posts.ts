@@ -122,14 +122,17 @@ export async function runCommand(
         continue;
       }
       const prior = current?.variants.find((old) => old.platform === v.platform && old.accountId === v.accountId);
-      const account = await tx.connectedAccount.findFirst({
-        where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
-      });
-      if (prior && (!account || prior.destination?.platformAccountId === account.platformAccountId)) {
+      if (
+        prior?.destination &&
+        (!v.destination || v.destination.platformAccountId === prior.destination.platformAccountId)
+      ) {
         v.destination = prior.destination;
         continue;
       }
-      if (!account)
+      const account = await tx.connectedAccount.findFirst({
+        where: { id: v.accountId, workspaceId, userId: workspace.creatorId, platform: v.platform },
+      });
+      if (!account || (v.destination && v.destination.platformAccountId !== account.platformAccountId))
         throw new BadRequestError("Connected destination unavailable. Choose an account connected to this workspace.");
       v.destination = {
         label: account.displayName || account.username || account.platformAccountId,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import Link from "next/link";
 
@@ -57,6 +57,7 @@ export function PostEditor({
   const [variants, setVariants] = useState<Variant[]>(
     () => post?.variants ?? [freshVariant(connectedPlatforms[0] ?? "instagram", w.accounts)],
   );
+  const deselectedVariants = useRef<Partial<Record<Variant["platform"], Variant>>>({});
   const [files, setFiles] = useState(w.files);
   const [uploading, setUploading] = useState(false);
   const [activePlatform, setActivePlatform] = useState(variants[0]?.platform);
@@ -75,13 +76,15 @@ export function PostEditor({
       const platform = platforms.find((value) => value === account.platform);
       if (!platform) return [];
       const label = account.displayName || account.username || platformName[platform];
+      const pickerLabel = account.displayName && account.username ? `${label} · ${account.username}` : label;
       return [
         {
           id: account.id,
           platform,
-          label,
-          accessibleLabel: `${platformName[platform]} · ${label}`,
+          label: pickerLabel,
+          accessibleLabel: `${platformName[platform]} · ${pickerLabel}`,
           accountId: account.id,
+          destination: { label, platformAccountId: account.platformAccountId },
         },
       ];
     }),
@@ -91,6 +94,7 @@ export function PostEditor({
       label: connectedPlatforms.length > 0 ? `${platformName[platform]} · Account needed` : platformName[platform],
       accessibleLabel: `${platformName[platform]} draft`,
       accountId: null,
+      destination: null,
     })),
   ];
   const selectedDestinations = variants.map(
@@ -156,6 +160,9 @@ export function PostEditor({
             <h2 className="text-sm font-semibold">
               {connectedPlatforms.length > 0 ? "Workspace accounts" : "Draft channels"}
             </h2>
+            {w.accounts.length > connectedPlatforms.length && (
+              <p className="text-xs text-muted-foreground">Choose one account per platform.</p>
+            )}
             <AccountRowPicker
               compact
               title={connectedPlatforms.length > 0 ? "Workspace accounts" : "Draft channels"}
@@ -167,22 +174,21 @@ export function PostEditor({
               onToggle={(id) => {
                 const destination = destinations.find((entry) => entry.id === id);
                 if (!destination) return;
-                const { platform, accountId } = destination;
+                const { platform, accountId, destination: identity } = destination;
+                const previous = variants.find((variant) => variant.platform === platform);
                 if (selectedDestinations.includes(id)) {
+                  if (previous) deselectedVariants.current[platform] = previous;
                   setVariants((list) => list.filter((v) => v.platform !== platform));
                   return;
                 }
-                if (variants.some((v) => v.platform === platform)) patch(platform, { accountId, destination: null });
+                if (previous) patch(platform, { accountId, destination: identity });
                 else {
-                  setVariants((list) => [
-                    ...list,
-                    {
-                      ...freshVariant(platform, w.accounts),
-                      accountId,
-                      caption: active?.caption ?? "",
-                      fileIds: active?.fileIds ?? [],
-                    },
-                  ]);
+                  const draft = deselectedVariants.current[platform] ?? {
+                    ...freshVariant(platform, w.accounts),
+                    caption: active?.caption ?? "",
+                    fileIds: active?.fileIds ?? [],
+                  };
+                  setVariants((list) => [...list, { ...draft, accountId, destination: identity }]);
                 }
                 setActivePlatform(platform);
               }}

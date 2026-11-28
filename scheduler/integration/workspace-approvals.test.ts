@@ -11,7 +11,7 @@ import { sendNotificationEmail } from "@/lib/resend/notification-email";
 import { collectUnusedStorage } from "@/lib/utils/storage-lifecycle";
 import { acceptInvite, createWorkspace, readWorkspace } from "@/lib/workspaces/access";
 import { workspaceConnections } from "@/lib/workspaces/connections";
-import { commandSchema, type Actor } from "@/lib/workspaces/contracts";
+import { commandSchema, snapshotSchema, type Actor } from "@/lib/workspaces/contracts";
 import { readFile, saveFile } from "@/lib/workspaces/files";
 import { deliverWorkspaceInvitation } from "@/lib/workspaces/invitations";
 import { normalizeWorkspaceLogo } from "@/lib/workspaces/logo";
@@ -461,6 +461,7 @@ it("checks the approved account identity again before approval and scheduling", 
   await send(editor, { action: "submit", postId, revision });
   const { currentReviewId: reviewId } = await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } });
   const approve = { action: "decide", postId, reviewId, outcome: "approved", body: "" };
+  expect(() => send(viewer, { ...approve, outcome: "changes", body: "  " })).toThrow("Describe the changes");
   await prisma.connectedAccount.update({ where: { id: account.id }, data: { platformAccountId: "different" } });
   await expect(send(viewer, approve)).rejects.toThrow("A selected account is unavailable");
   await prisma.connectedAccount.update({
@@ -471,6 +472,74 @@ it("checks the approved account identity again before approval and scheduling", 
   await prisma.connectedAccount.delete({ where: { id: account.id } });
   await expect(release(admin, wid, postId, reviewId!)).rejects.toThrow("A selected account is unavailable");
   expect(await prisma.teamPost.findUnique({ where: { id: postId } })).toMatchObject({ deliveredAt: null });
+});
+
+it("does not switch the account identity while saving an unrelated edit", async () => {
+  const { id: postId, revision } = await setup(true);
+  const account = await prisma.connectedAccount.findFirstOrThrow({ where: { workspaceId: wid } });
+  const platform = fields.variants[0];
+  await prisma.connectedAccount.update({ where: { id: account.id }, data: { platformAccountId: "replacement" } });
+  await send(editor, {
+    ...fields,
+    action: "edit",
+    postId,
+    revision,
+    variants: [{ ...platform, accountId: account.id, caption: "Updated" }],
+  });
+  const saved = await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } });
+  expect(saved.variants).toMatchObject([{ destination: { platformAccountId: account.platformAccountId } }]);
+  await expect(send(editor, { action: "submit", postId, revision: saved.revision })).rejects.toThrow(
+    "account is unavailable",
+  );
+  await send(editor, {
+    ...fields,
+    action: "edit",
+    postId,
+    revision: saved.revision,
+    variants: [
+      { ...platform, accountId: account.id, destination: { label: "Replacement", platformAccountId: "replacement" } },
+    ],
+  });
+  await expect(send(editor, { action: "submit", postId, revision: saved.revision + 1 })).resolves.toBeDefined();
+});
+
+it("rejects other workspace, personal, and wrong-platform destinations from editors", async () => {
+  await setup();
+  const otherWorkspace = await createWorkspace(admin, { ...newTeam, name: "Other workspace" });
+  for (const destination of [
+    { workspaceId: null, platform: "linkedin" },
+    { workspaceId: otherWorkspace.id, platform: "linkedin" },
+    { workspaceId: wid, platform: "instagram" },
+  ]) {
+    const account = await prisma.connectedAccount.create({
+      data: { ...destination, userId: admin.id, platformAccountId: "separate-account", accessToken: "fixture" },
+    });
+    await expect(
+      send(editor, {
+        ...fields,
+        action: "createPost",
+        variants: [{ ...fields.variants[0], accountId: account.id }],
+      }),
+    ).rejects.toThrow("Connected destination unavailable");
+  }
+});
+
+it("stops an old review from scheduling after its planned time has passed", async () => {
+  const { id: postId, revision } = await setup(true);
+  await send(editor, { action: "submit", postId, revision });
+  const { currentReviewId: reviewId } = await prisma.teamPost.findUniqueOrThrow({ where: { id: postId } });
+  const review = await prisma.teamReview.findUniqueOrThrow({ where: { id: reviewId! } });
+  await prisma.teamReview.update({
+    where: { id: review.id },
+    data: { snapshot: { ...snapshotSchema.parse(review.snapshot), plannedAt: "2020-01-01T00:00:00.000Z" } },
+  });
+  await expect(send(viewer, { action: "decide", postId, reviewId, outcome: "approved", body: "" })).rejects.toThrow(
+    "Choose a future publication time",
+  );
+  const approved = await prisma.teamState.findFirstOrThrow({ where: { workspaceId: wid, kind: "approved" } });
+  await prisma.teamReview.update({ where: { id: review.id }, data: { outcome: "approved" } });
+  await prisma.teamPost.update({ where: { id: postId }, data: { stateId: approved.id } });
+  await expect(release(admin, wid, postId, review.id)).rejects.toThrow("Choose a future publication time");
 });
 
 it("saves a reordered workflow atomically and refuses stale or protected deletions", async () => {

@@ -29,7 +29,11 @@ export type Item = Snapshot & {
     requestedBy: string;
     outcome: string | null;
     decidedBy: string | null;
-    deliveries: { id: string; status: string }[];
+    deliveries: {
+      id: string;
+      status: string;
+      accounts: { platform: string; displayName: string | null; username: string | null }[];
+    }[];
   }[];
   events: { id: string; kind: string; body: string; actorName: string; createdAt: string; reviewId: string | null }[];
 };
@@ -122,11 +126,13 @@ export function workspacePostStatus(workspace: Workspace, post: Item, snapshot: 
   const review = post.reviews.find((item) => item.id === post.currentReviewId);
   const missingPlatforms = snapshot.variants
     .filter((variant) => !variant.destination || !workspaceAccountForVariant(workspace.accounts, variant))
-    .map((variant) => platformName[variant.platform]);
+    .map((variant) => variant.platform);
   const stage = workspace.states.find((state) => state.id === post.stateId)?.name ?? "Draft";
   const delivery = deliveryStatus(post);
   let label = review?.outcome === "changes" ? "Changes requested" : stage;
-  if (post.deliveredAt)
-    label = delivery === "failed" && !review?.deliveries.length ? "Canceled" : deliveryLabels[delivery];
+  if (post.deliveredAt) {
+    if (post.variants.every((variant) => !variant.accountId)) label = "Published outside SimplePost";
+    else label = delivery === "failed" && !review?.deliveries.length ? "Canceled" : deliveryLabels[delivery];
+  }
   return { label, missingPlatforms, timePassed: Date.parse(snapshot.plannedAt) <= Date.now() };
 }
